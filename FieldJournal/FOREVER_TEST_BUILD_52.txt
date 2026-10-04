@@ -1,0 +1,39 @@
+Field Journal - Forever Test Build 52
+
+SUPPORTED-ZONE CLASS / PROFESSION QUEST AUDIT
+
+This build applies the new audit rule: supported zones may include normal quests,
+class quests, profession quests, and cross-zone chain steps tied to those zones.
+
+ADDED
+- Full 8-part Alliance Shaman "Call of Water" chain:
+  94495 -> 94497 -> 94499 -> 94500 -> 94501 -> 94502 -> 94503 -> 94505
+- Full Dun Morogh dwarf/gnome Rogue chain:
+  2218 -> 2238 -> 2239
+- Data Hoarders (95041)
+- Dawn in the Mountains (99158)
+- Finding Warmth (99159)
+- Classic level-1 class introduction quests for supported starter zones:
+  Elwynn Forest, Dun Morogh, Teldrassil, Durotar, Mulgore, and Tirisfal Glades.
+- Verified Forever "Camping 101" profession quests in supported starter zones,
+  including city-linked steps where the chain originates from a supported outdoor zone.
+
+BUILD 52 ADDITIONS BY GROUP
+- Alliance Shaman - Call of Water: 8
+- Dun Morogh Rogue Chain: 3
+- Reported Forever Gaps: 3
+- Starter Class Introductions: 40
+- Camping 101 Profession Quests: 31
+
+Total new QuestDB entries added: 85
+Entries already present and deliberately preserved instead of overwritten: 0
+None
+
+AUDIT SCOPE NOTE
+This is the first systematic class/profession expansion under the new rule. It fixes
+the reported families and the broad starter-zone omissions that caused them. It does
+not claim that every level-10/20/30 class chain in every one of the 20 supported zones
+has now been exhausted; those deeper class chains should be audited separately rather
+than guessed from legacy data.
+
+No existing Build 47-51 quest entries were replaced.

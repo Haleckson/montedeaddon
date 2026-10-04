@@ -1,0 +1,21 @@
+## Interface: 11508, 11509, 16001, 20505, 20506, 30405, 38000, 38002, 40402, 50503, 50504, 110207, 120005, 120007, 120100
+## Title: |cffFF8000Lib: AceGUIWidgets|r
+## Notes: Shared AceGUI-3.0 widget types + styling for the TOG suite — ClearFrame / GroupFrame / TLabel / RowList / DatePicker + shared helpers. Addon-agnostic; embeddable via LibStub.
+## Author: Pimptasty
+## Version: LibAceGUIWidgets-v0.3.0
+## Category: Library
+## X-License: MIT
+## X-Curse-Project-ID: 1599206
+## DefaultState: enabled
+## Dependencies: Ace3
+## OptionalDeps: VersionCheck-1.0
+## SavedVariables: LibAceGUIWidgetsDB
+
+libs\LibStub\LibStub.lua
+
+LibAceGUIWidgets-1.0.lua
+LibAceGUIWidgets-Resize.lua
+LibAceGUIWidgets-RowList.lua
+LibAceGUIWidgets-DatePicker.lua
+LibAceGUIWidgets-ClickBinding.lua
+LibAceGUIWidgets.lua

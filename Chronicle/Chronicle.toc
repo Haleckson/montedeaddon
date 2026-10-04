@@ -1,0 +1,42 @@
+## Interface: 16001
+## Title: |cffffd100Chronicle Forever|r
+## Notes: Your journey. Forever. Version 1.5.65.
+## Notes-deDE: Deine Reise. Fuer immer. Version 1.5.65.
+## Author: Schwarzer Lotus
+## Version: 1.5.65
+## SavedVariables: ChronicleDB, ChronicleNotesDB
+## SavedVariablesPerCharacter: ChronicleCharDB
+## LoadSavedVariablesFirst: 1
+## IconTexture: Interface\AddOns\Chronicle\LotusEmblem
+## AddonCompartmentFunc: Chronicle_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: Chronicle_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: Chronicle_OnAddonCompartmentLeave
+
+Recovery.lua
+DeathRecovery.lua
+Core.lua
+Locale.lua
+LocaleText.lua
+InstanceNames.lua
+Util.lua
+Database.lua
+Compat.lua
+DeathCombat.lua
+Search.lua
+Collectors.lua
+InstanceArt.lua
+UI.lua
+MinimapButton.lua
+TrainerCatalog.lua
+KnowledgeCatalog.lua
+Discoveries.lua
+DiscoveriesUI.lua
+DungeonKnowledgeCatalog.lua
+StaticRaidCatalog.lua
+StaticDungeonCatalog.lua
+AtlasLootForeverData.lua
+InstanceKnowledgeCatalog.lua
+AzerothCompendiumRefs.lua
+DungeonMaps.lua
+DungeonKnowledgeUI.lua
+AttunementUI.lua

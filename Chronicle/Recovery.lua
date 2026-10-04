@@ -1,0 +1,2 @@
+-- Optional local recovery snapshot for Forever beta's SavedVariables loading bug.
+-- Run Sync-Chronicle-Recovery.ps1 after exiting the game to populate this file.

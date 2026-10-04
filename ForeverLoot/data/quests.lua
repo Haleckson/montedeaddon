@@ -1,0 +1,162 @@
+local _, ForeverLoot = ...;
+
+-- faction is Alliance, Horde, or both.
+-- Within each dungeon: both, then Alliance, then Horde.
+
+ForeverLoot.DungeonQuests = {
+	HallofThanes = {
+		{ name = "An Ancient Grudge", faction = "both", items = { 279900, 279899 }, desc = "Quest starts and ends inside the dungeon" },
+		{ name = "Important Heirlooms", faction = "Alliance", items = { 279898, 280096 }, desc = "From Thom Filch at the dungeon entrance in Ironforge" },
+		{ name = "Old Ironforge Incursion", faction = "Alliance", items = { 279894, 279896, 279895 }, desc = "Starts by looting \"Underground Map\" in Dun Morogh (77, 61)" },
+		{ name = "The Restless Dead", faction = "Alliance", items = { 279897, 280095 }, desc = "From Afadra Dunwall near the dungeon entrance in Ironforge" },
+	},
+	Ragefire = {
+		{ name = "Hidden Enemies", faction = "Horde", items = { 15443, 15445, 15444, 15424 }, desc = "Quest chain - starts by looting \"Lieutenant's Insignia\" in Durotar (54, 9)" },
+		{ name = "Searching for the Lost Satchel", faction = "Horde", desc = "From Rahauro in Thunder Bluff" },
+		{ name = "Returning the Lost Satchel", faction = "Horde", items = { 15452, 270003, 15453 }, desc = "Quest after \"Searching for the Lost Satchel\"" },
+		{ name = "Slaying the Beast", faction = "Horde", desc = "From Neeru Fireblade near dungeon entrance in Orgrimmar" },
+		{ name = "Testing an Enemy's Strength", faction = "Horde", desc = "From Rahauro in Thunder Bluff" },
+		{ name = "The Power to Destroy...", faction = "Horde", items = { 15449, 15450, 15451 }, desc = "From Varimathras in Undercity" },
+	},
+	RuinsofLordaeron = {
+		{ name = "Crest of Lordaeron", faction = "both", items = { 280567 }, desc = "From picking crest that can spawn in multiple places inside the dungeon" },
+		{ name = "Abominable Creatures", faction = "Alliance", items = { 279864, 279865, 279867 }, desc = "From Captain Truman inside the dungeon" },
+		{ name = "Bloodied Insignia", faction = "Alliance", items = { 279868, 279869 }, desc = "From looting Bloodied Insignia inside the dungeon" },
+		{ name = "Light's Justice", faction = "Horde", items = { 279874, 279875 }, desc = "From Morbin Lightbane in Undercity" },
+		{ name = "Remember That I Love You", faction = "Horde", items = { 279870 }, desc = "From picking \"Blood-Stained Letter\" inside the dungeon" },
+		{ name = "The New Plague", faction = "Horde", items = { 279876, 279877 }, desc = "From Theodore Griffs in Undercity" },
+		{ name = "The Wrath of Rath'mael", faction = "Horde", items = { 251533, 251534 }, desc = "From Deathguard Kristof in Tirisfal Glades (65.2, 60.2)" },
+		{ name = "Unending Torment", faction = "Horde", items = { 279867, 279864, 279865 }, desc = "Quest chain - starts by killing The Baron inside the dungeon" },
+	},
+	TheDeadmines = {
+		{ name = "Collecting Memories", faction = "Alliance", items = { 2037, 2036, 270007 }, desc = "From Wilder Thistlenettle in Stormwind City" },
+		{ name = "Oh Brother...", faction = "Alliance", items = { 1893, 270013, 270012 }, desc = "From Wilder Thistlenettle in Stormwind City" },
+		{ name = "The Defias Brotherhood", faction = "Alliance", items = { 6087, 2042, 2041 }, desc = "Quest chain - from Gryan Soutmantle in Sentinel Hill, Westfall" },
+		{ name = "The Unsent Letter", faction = "Alliance", items = {2933}, desc = "Starts long quest chain - drops from Edwin VanCleef inside the dungeon" },
+		{ name = "Underground Assault", faction = "Alliance", items = {7606, 7607, 270016, 270015 }, desc = "Quest after \"Speak with Shoni\" from Gnoarn in Ironforge" },
+	},
+	WailingCaverns = {
+		{ name = "Deviate Eradication", faction = "both", items = {6476, 8071, 6481}, desc = "From Ebru above the entrance to the Wailing Caverns cave"},
+		{ name = "Deviate Hides", faction = "both", items = {6480, 918}, desc = "From Nalpak above the entrance to the Wailing Caverns cave"},
+		{ name = "Smart Drinks", faction = "both", items = {}, desc = "From Mebok Mizzyrix in Ratchet, The Barrens"},
+		{ name = "The Glowing Shard", faction = "both", items = {}, desc = "Starts by looting \"The Glowing Shard\" from Mutanus inside the dungeon"},
+		{ name = "Trouble at the Docks", faction = "both", items = {}, desc = "From Crane Operator Bigglefuzz in Ratchet, The Barrens"},
+		{ name = "Leaders of the Fang", faction = "Horde", items = {6505, 6504, 270018}, desc = "Quest chain - starts with \"Hamuul Runetotem\" in Crossroads, The Barrens"},
+		{ name = "Serpentbloom", faction = "Horde", items = {10919, 270009, 270008}, desc = "From Apothecary Zamah in Thunder Bluff"},
+	},
+	ShadowfangKeep = {
+		{ name = "Arugal Must Die", faction = "Horde", items = {6414}, desc = "From Dalar Dawnweaver in The Sepulcher, Silverpine Forest"},
+		{ name = "Deathstalkers in Shadowfang", faction = "Horde", items = {3324, 270023, 270024}, desc = "From High Executor Hadrec in The Sepulcher, Silverpine Forest"},
+		{ name = "The Book of Ur", faction = "Horde", items = {6335, 270030, 4534}, desc = "From Keeper Bel'dugur in Undercity"},
+	},
+	ExcavationSite = {
+		{ name = "Lost in the Thicket Things", faction = "Alliance", items = {}, desc = "From Caitlin Grassman in Menethil Harbor, Wetlands"},
+		{ name = "Heartwoven", faction = "Alliance", items = {280766}, desc = "Quest after \"Lost in the Thicket Things\""},
+		{ name = "Songblade Search", faction = "Alliance", items = {}, desc = "From Dorin Songblade in Lakeshire, Redridge Mountains"},
+		{ name = "Fallen in the Fen", faction = "Alliance", items = {271769, 271768}, desc = "Quest after \"Songblade Search\""},
+		{ name = "Horrors in the Highland", faction = "Alliance", items = {271667, 271670, 271664}, desc = "Quest chain - starts with \"The Greenwarden\" in Menethil Harbor, Wetlands"},
+		{ name = "Lost Relic Carry", faction = "Alliance", items = {}, desc = "From looting \"Lost Relic\" from Relic Guardian inside the dungeon"},
+		{ name = "Prehistoric Prism", faction = "Alliance", items = {271716, 271766,271767}, desc = "Quest after \"Lost Relic Carry\""},
+		{ name = "Dragonmaw Rumors", faction = "Horde", items = {}, desc = "From Zaruk in Hammerfall, Arathi Highlands"},
+		{ name = "Open the Maw", faction = "Horde", items = {271740, 271732}, desc = "Quest after \"Dragonmaw Rumors\""},
+		{ name = "Elder Knowledge", faction = "Horde", items = {}, desc = "Starts by looting \"Lost Relic\" from Relic Guardian inside the dungeon"},
+		{ name = "Earthen Echo", faction = "Horde", items = {271719, 271766, 271767}, desc = "Quest after \"Elder Knowledge\""},
+		{ name = "Changing Tastes", faction = "Horde", items = {280805, 280766}, desc = "From Borstan in Orgrimmar"},
+
+
+	},
+	BlackfathomDeeps = {
+		{ name = "Blackfathom Villainy", faction = "both", items = {7001, 270031, 270032, 7002}, desc = "From Argent Guard Thaelrid inside the dungeon"},
+		{ name = "Knowledge in the Deeps", faction = "Alliance", items = {6743}, desc = "From Gerrig Bonegrip in Ironforge"},
+		{ name = "Researching the Corruption", faction = "Alliance", items = {7003, 270021, 7004}, desc = "From Gershala Nightwhisper in Auberdine, Darkshore"},
+		{ name = "Twilight Falls", faction = "Alliance", items = {6998, 270025, 7000}, desc = "From Argent Guard Manados in Darnassus"},
+		{ name = "Allegiance to the Old Gods", faction = "Horde", items = {17694, 17695}, desc = "Starts by looting \"Damp Note\" from elite Nagas outside of dungeon"},
+		{ name = "Amongst the Ruins", faction = "Horde", items = {}, desc = "From Je'neu Sancrea at Zoram'gar Outpost, Ashenvale"},
+		{ name = "Baron Aquanis", faction = "Horde", items = {16887, 16886}, desc = "Starts by looting \"Strange Water Globe\" from Baron Aquanis inside the dungeon"},
+		{ name = "The Essence of Aku'Mai", faction = "Horde", items = {}, desc = "From Je'neu Sancrea at Zoram'gar Outpost, Ashenvale"},
+	},
+	TheStockade = {
+		{ name = "Crime and Punishment", faction = "Alliance", items = {2033, 2906, 270029}, desc = "From Councilman Millstipe in Darkshire, Duskwood"},
+		{ name = "Quell the Uprising", faction = "Alliance", items = {}, desc = "From Warden Thelwater in Stormwind City"},
+		{ name = "The Color of Blood", faction = "Alliance", items = {}, desc = "From Nikova Raskol in Stormwind City"},
+		{ name = "The Fury Runs Deep", faction = "Alliance", items = {1264, 3562}, desc = "Quest after \"The Dark Iron War\" in Wetlands (49.6 18.2)"},
+		{ name = "The Stockade Riots", faction = "Alliance", items = {2933}, desc = "Part of long quest chain that starts with \"The Unsent Letter\""},
+		{ name = "What Comes Around...", faction = "Alliance", items = {3400, 270027, 1317}, desc = "From Guard Berton in Lakeshire, Redridge Mountains"},
+	},
+	RazorfenKraul = {
+		{ name = "Blueleaf Tubers", faction = "both", items = {6755}, desc = "From Mebok Mizzyrix in Ratchet, The Barrens" },
+		{ name = "Willix the Importer", faction = "both", items = {6748, 6749, 274078, 6750}, desc = "From Willix the Importer inside the dungeon" },
+		{ name = "Mortality Wanes", faction = "Alliance", items = {6751, 270047, 6752}, desc = "From Heralath Fallowbrook inside the dungeon" },
+		{ name = "The Crone of the Kraul", faction = "Alliance", items = {4197, 6742, 6725, 3041}, desc = "Starts by looting \"Lonebrow's Jurnal\" in Thousand Needles (30.7 24.5)" },
+		{ name = "A Vengeful Fate", faction = "Horde", items = {4197, 6742, 6725, 274084}, desc = "From Auld Stonespire in Thunder Bluff" },
+		{ name = "An Unholy Alliance", faction = "Horde", items = {17039, 17043, 17042}, desc = "Starts by looting \"Small Scroll\" from Charlga Razoflank inside the dungeon"},
+		{ name = "Going, Going, Guano!", faction = "Horde", items = {}, desc = "From Master Apothecary Faranell in Undercity" },
+	},
+	Gnomeregan = {
+		{ name = "A Fine Mess", faction = "both", items = {9535, 270042, 9536}, desc = "From Kernobee inside the dungeon" },
+		{ name = "Gnome Improvement", faction = "Alliance", items = {9538}, desc = "Quest chain - starts by looting \"Grime-Encrusted Ring\" inside the dungeon" },
+		{ name = "Data Rescue", faction = "Alliance", items = {9605, 9604}, desc = "From Master Mechanic Castpipe in Ironforge" },
+		{ name = "Essential Artificials", faction = "Alliance", items = {}, desc = "From Klockmort Spannerspan in Ironforge" },
+		{ name = "Gnogaine", faction = "Alliance", items = {}, desc = "From Ozzie Togglevolt in Kharanos, Dun Morogh" },
+		{ name = "Gyrodrillmatic Excavationators", faction = "Alliance", items = {9608, 270045, 9609}, desc = "From Shoni the Shilent in Stormwind City" },
+		{ name = "Save Techbot's Brain!", faction = "Alliance", items = {}, desc = "From Tinkmaster Overspark in Ironforge. Techbot is outside the dungeon" },
+		{ name = "The Grand Betrayal", faction = "Alliance", items = {9623, 9624, 9625}, desc = "From High Tinker Mekkatorque in Ironforge" },
+		{ name = "The Only Cure is More Green Glow", faction = "Alliance", items = {}, desc = "From Ozzie Togglevolt in Kharanos, Dun Morogh" },
+		{ name = "Nogg's Ring Redo", faction = "Horde", items = {9588}, desc = "Quest chain - starts by looting \"Grime-Encrusted Ring\" inside the dungeon" },
+		{ name = "Rig Wars", faction = "Horde", items = {9623, 9624, 9625}, desc = "From Nogg in Orgrimmar" },
+		{ name = "Chief Engineer Scooty", faction = "Horde", items = {}, desc = "From Sovik in Orgrimmar. Accept \"Rig Wars\" first" },
+		{ name = "Gnomer-gooooone!", faction = "Horde", items = {}, desc = "Quest after \"Chief Engineer Scooty\" from Scooty in Booty Bay, Stranglethorn Vale" },
+	},
+	--[[ Not in the beta yet. Hidden, not deleted.
+	RazorfenDowns = {
+		{ name = "A Host of Evil", faction = "both", items = {}, desc = "" },
+		{ name = "Extinguishing the Idol", faction = "both", items = {}, desc = "" },
+		{ name = "Scourge of the Downs", faction = "both", items = {}, desc = "" },
+		{ name = "Bring the Light", faction = "Alliance", items = {}, desc = "" },
+		{ name = "An Unholy Alliance", faction = "Horde", items = {}, desc = "" },
+		{ name = "Bring the End", faction = "Horde", items = {}, desc = "" },
+	},
+	]]
+	ScarletMonasteryGraveyard = {
+		{ name = "Hearts of Zeal", faction = "Horde", items = {}, desc = "From Master Apothecary Faranell in Undercity. After \"Going, Going, Guano!\" " },
+		{ name = "Vorrel's Revenge", faction = "Horde", items = {7750, 4643, 7751}, desc = "From Vorrel Sengutz inside the dungeon" },
+	},
+	ScarletMonasteryLibrary = {
+		{ name = "Mythology of the Titans", faction = "Alliance", items = {7746}, desc = "From Librarian Mae Paledust in Ironforge" },
+		{ name = "Compendium of the Fallen", faction = "Horde", items = {7747, 7749, 17508}, desc = "From Sage Truthseeker in Thunder Bluff" },
+		{ name = "Test of Lore", faction = "Horde", items = {6804, 6806}, desc = "Quest chain - starts with \"Test of Faith\" in Thousand Needles (53.8 41.6)" },
+	},
+	--[[ Not in the beta yet. Hidden, not deleted.
+	ScarletMonasteryCathedral = {
+		{ name = "In the Name of the Light", faction = "Alliance", items = {}, desc = "Quest chain - starts from \"Brother Anton\" in Stormwind City" },
+		{ name = "Into The Scarlet Monastery", faction = "Horde", items = {}, desc = "From Varimathras in Undercity" },
+	},
+	]]
+	Uldaman = {
+		{ name = "Reclaimed Treasures", faction = "both", items = {}, desc = "" },
+		{ name = "The Platinum Discs", faction = "both", items = {}, desc = "" },
+		{ name = "Uldaman Reagent Run", faction = "both", items = {}, desc = "" },
+		{ name = "A Sign of Hope", faction = "Alliance", items = {}, desc = "" },
+		{ name = "Agmond's Fate", faction = "Alliance", items = {4980}, desc = "Quest chain - starts with \"Ironband Wants You!\" in Ironforge" },
+		{ name = "Amulet of Secrets", faction = "Alliance", items = {}, desc = "" },
+		{ name = "Back to Uldaman", faction = "Alliance", items = {}, desc = "" },
+		{ name = "Find the Gems", faction = "Alliance", items = {}, desc = "" },
+		{ name = "Lore for a Price", faction = "Alliance", items = {}, desc = "" },
+		{ name = "Power Stones", faction = "Alliance", items = {}, desc = "" },
+		{ name = "Replacement Phial", faction = "Alliance", items = {}, desc = "" },
+		{ name = "Restoring the Necklace", faction = "Alliance", items = {}, desc = "" },
+		{ name = "Solution to Doom", faction = "Alliance", items = {}, desc = "" },
+		{ name = "The Hidden Chamber", faction = "Alliance", items = {}, desc = "" },
+		{ name = "The Lost Dwarves", faction = "Alliance", items = {}, desc = "" },
+		{ name = "The Lost Tablets of Will", faction = "Alliance", items = {}, desc = "" },
+		{ name = "The Shattered Necklace", faction = "Alliance", items = {}, desc = "" },
+		{ name = "Deliver the Gems", faction = "Horde", items = {}, desc = "" },
+		{ name = "Find the Gems and Power Source", faction = "Horde", items = {}, desc = "" },
+		{ name = "Necklace Recovery", faction = "Horde", items = {}, desc = "" },
+		{ name = "Necklace Recovery, Takes 2", faction = "Horde", items = {}, desc = "" },
+		{ name = "Necklace Recovery, Take 3", faction = "Horde", items = {}, desc = "" },
+		{ name = "Translating the Journal", faction = "Horde", items = {}, desc = "" },
+	},
+};
+
+ForeverLoot.RaidQuests = {};

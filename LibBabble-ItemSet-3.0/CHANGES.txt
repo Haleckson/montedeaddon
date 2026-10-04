@@ -1,0 +1,34 @@
+------------------------------------------------------------------------
+r116 | arithmandar | 2026-09-29 08:04:41 +0000 (Tue, 29 Sep 2026) | 1 line
+Changed paths:
+   M /trunk
+   M /trunk/.pkgmeta
+   A /trunk/.util
+   A /trunk/.util/csv_to_lua_locale.py
+   A /trunk/.util/download_wago_tables.py
+   A /trunk/Core
+   A /trunk/Core/Core.lua
+   A /trunk/Core/LibBabble-3.0.lua (from /trunk/LibBabble-3.0.lua:115)
+   D /trunk/LibBabble-3.0.lua
+   D /trunk/LibBabble-ItemSet-3.0-BCC.toc
+   D /trunk/LibBabble-ItemSet-3.0-Classic.toc
+   D /trunk/LibBabble-ItemSet-3.0.lua
+   M /trunk/LibBabble-ItemSet-3.0.toc
+   D /trunk/LibBabble-ItemSet-3.0_Template.lua
+   A /trunk/Locale
+   A /trunk/Locale/deDE.lua
+   A /trunk/Locale/enUS.lua
+   A /trunk/Locale/esES.lua
+   A /trunk/Locale/esMX.lua
+   A /trunk/Locale/frFR.lua
+   A /trunk/Locale/itIT.lua
+   A /trunk/Locale/koKR.lua
+   A /trunk/Locale/ptBR.lua
+   A /trunk/Locale/ruRU.lua
+   A /trunk/Locale/zhCN.lua
+   A /trunk/Locale/zhTW.lua
+   M /trunk/lib.xml
+
+
+------------------------------------------------------------------------
+

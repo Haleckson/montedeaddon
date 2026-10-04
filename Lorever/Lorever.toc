@@ -1,0 +1,58 @@
+## Interface: 16001
+## Title: Lorever
+## Notes: The histories of Azeroth, uncovered as you travel. Regions and figures unlock like quests and grant Lore experience.
+## Notes-ptBR: As histórias de Azeroth, descobertas enquanto você viaja. Regiões e figuras se revelam como missões e dão experiência de Lore.
+## Notes-deDE: Die Geschichten Azeroths, enthüllt auf Euren Reisen. Regionen und Figuren schalten sich wie Quests frei und gewähren Lore-Erfahrung.
+## Notes-frFR: Les histoires d'Azeroth, découvertes au fil de vos voyages. Régions et personnages se révèlent comme des quêtes et rapportent de l'expérience de Lore.
+## Notes-esES: Las historias de Azeroth, descubiertas mientras viajas. Regiones y personajes se revelan como misiones y otorgan experiencia de Lore.
+## Notes-esMX: Las historias de Azeroth, descubiertas mientras viajas. Regiones y personajes se revelan como misiones y otorgan experiencia de Lore.
+## Notes-zhCN: 艾泽拉斯的历史，随你的旅途逐一揭开。地区与人物会像任务一样解锁，并带来Lore经验。
+## Notes-ruRU: Истории Азерота, которые открываются в ваших странствиях. Земли и личности открываются, как задания, и дают опыт Lore.
+## Author: Alexandre
+## Version: v1.8.1
+## SavedVariables: LoreverDB
+## X-Curse-Project-ID: 1718233
+## IconTexture: Interface\Icons\INV_Misc_Book_09
+## AddonCompartmentFunc: Lorever_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: Lorever_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: Lorever_OnAddonCompartmentLeave
+
+Core\Init.lua
+Locales\ptBR.lua
+Locales\deDE.lua
+Locales\frFR.lua
+Locales\esES.lua
+Locales\zhCN.lua
+Locales\ruRU.lua
+Core\Lore.lua
+Core\Progress.lua
+Data\Content.xml
+Core\Triggers.lua
+Core\Library.lua
+Core\Track.lua
+Core\VoiceProfiles.lua
+Core\Voice.lua
+Core\Reports.lua
+
+UI\Theme.lua
+UI\Movable.lua
+UI\Panel.lua
+UI\Window.lua
+UI\QuestLogTab.lua
+UI\Toast.lua
+UI\Markers.lua
+UI\MapPins.lua
+UI\MapPins.xml
+UI\Tracker.lua
+UI\QuestieBridge.lua
+UI\Narrator.lua
+UI\NarratorPanel.lua
+UI\Launcher.lua
+UI\MinimapPins.lua
+UI\MapFilter.lua
+UI\QuestLore.lua
+UI\FigureButton.lua
+UI\BookNote.lua
+
+Core\Config.lua
+Core\Slash.lua

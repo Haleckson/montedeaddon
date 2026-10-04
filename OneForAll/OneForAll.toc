@@ -1,0 +1,49 @@
+## Interface: 16001
+## Title: OneForAll
+## Notes: All-in-one WoW Forever reference for dungeons, quests, loot, Library Books, Mage Scrolls, professions, talent planning and map locations.
+## Author: Smoergi
+## Version: 4.17.7
+## IconTexture: Interface\AddOns\OneForAll\Assets\minimap_icon
+## SavedVariables: ForeverCompanionDB, ForeverLibraryTrackerDB
+## SavedVariablesPerCharacter: ForeverCompanionCharDB
+
+Data.lua
+ExtraData.lua
+ProfessionData.lua
+DungeonJournalData.lua
+Data\Dungeons\HallofThanes.lua
+Data\Dungeons\RagefireChasm.lua
+Data\Dungeons\RuinsofLordaeron.lua
+Data\Dungeons\Deadmines.lua
+Data\Dungeons\WailingCaverns.lua
+Data\Dungeons\ShadowfangKeep.lua
+Data\Dungeons\BlackfathomDeeps.lua
+Data\Dungeons\ExcavationSite.lua
+Data\Dungeons\Stockade.lua
+Data\Dungeons\CityofDalaran.lua
+Data\Dungeons\Gnomeregan.lua
+Data\Dungeons\SMGraveyard.lua
+Data\DungeonQuestChains.lua
+Data\HunterPets.lua
+DungeonData.lua
+Core.lua
+ProfessionRuntime.lua
+Map.lua
+Proximity.lua
+UI\Widgets.lua
+UI\General.lua
+UI\Settings.lua
+UI\DungeonHelpers.lua
+UI\DungeonPortraits.lua
+UI\Dungeons.lua
+UI\Books.lua
+UI\Mage.lua
+UI\Professions.lua
+UI\QuestShare.lua
+TalentData.lua
+TalentSpellIDs.lua
+TalentLayoutFallback.lua
+TalentPlanner.lua
+UI\HunterPets.lua
+UI\MainFrame.lua
+Minimap.lua

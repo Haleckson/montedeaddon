@@ -1,0 +1,21 @@
+## Interface: 120100, 16001
+## Title: PeiFang
+## IconTexture: Interface\Icons\INV_Scroll_05
+## Notes: 作者：潇湘凌风\n界面快捷键/pf，包含所有专业配方信息 - 可按物品ID / 技能ID / 名称模糊查询；\n其它插件可用 LibStub("PeiFang-1.0") 引用
+## Author: 潇湘凌风
+## Version: v1.0.0
+# SavedVariables: PeiFangNameCache
+## DefaultState: Enabled
+# LoadOnDemand: 0
+
+# 第三方库
+Libs\LibStub\LibStub.lua
+
+# 数据（由 PeiFang_data_export.py 生成）
+PeiFangData.lua
+
+# 核心库（注册为 LibStub: "PeiFang-1.0"）
+PeiFang.lua
+
+# 可选 UI：斜杠命令 /pf 与搜索面板
+PeiFangUI.lua

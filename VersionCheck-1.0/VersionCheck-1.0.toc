@@ -1,0 +1,13 @@
+## Interface: 11509, 16001, 20506, 30405, 38000, 40402, 50504, 120005, 120007, 120100
+
+## Title: |cffFF8000Lib: VersionCheck-1.0|r
+## Notes: Library for version checking across WoW addons
+## Author: Pimptasty
+## Category: Library
+## Version: VersionCheck-v1.5.3
+## Dependencies: Ace3, LibAceGUIWidgets
+## OptionalDeps: GuildRoster
+## SavedVariables: VersionCheck10_DebugEnabled
+## X-Curse-Project-ID: 1369681
+
+VersionCheck-1.0.lua

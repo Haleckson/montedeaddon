@@ -1,0 +1,14 @@
+<Bindings>
+    <Binding name="FIELDJOURNAL_OBSERVE" header="FIELDJOURNAL" category="ADDONS" runOnUp="false">
+        FieldJournal_StartObservation();
+    </Binding>
+    <Binding name="FIELDJOURNAL_SCOPE" category="ADDONS" runOnUp="false">
+        FieldJournal_UseObservationTool(1);
+    </Binding>
+    <Binding name="FIELDJOURNAL_SKETCH" category="ADDONS" runOnUp="false">
+        FieldJournal_UseObservationTool(2);
+    </Binding>
+    <Binding name="FIELDJOURNAL_TRAP" category="ADDONS" runOnUp="false">
+        FieldJournal_UseObservationTool(3);
+    </Binding>
+</Bindings>

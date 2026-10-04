@@ -1,0 +1,46 @@
+## Interface: 11509, 16001, 20506, 50504, 120100
+## LoadOnDemand: 1
+## Title: Lib: Babble-ItemSet-3.0
+## Notes: A library for localized in-game item set names.
+## Title-deDE: Lib: Babble-ItemSet-3.0
+## Notes-deDE: Eine Bibliothek für lokalisierte Namen von Gegenstandssets im Spiel.
+## Title-esES: Lib: Babble-ItemSet-3.0
+## Notes-esES: Una biblioteca para nombres localizados de conjuntos de objetos del juego.
+## Title-esMX: Lib: Babble-ItemSet-3.0
+## Notes-esMX: Una biblioteca para nombres localizados de conjuntos de objetos del juego.
+## Title-frFR: Lib: Babble-ItemSet-3.0
+## Notes-frFR: Une bibliothèque de noms localisés d’ensembles d’objets en jeu.
+## Title-itIT: Lib: Babble-ItemSet-3.0
+## Notes-itIT: Una libreria per i nomi localizzati dei set di oggetti di gioco.
+## Title-koKR: Lib: Babble-ItemSet-3.0
+## Notes-koKR: 게임 내 아이템 세트 이름의 현지화를 위한 라이브러리입니다.
+## Title-ptBR: Lib: Babble-ItemSet-3.0
+## Notes-ptBR: Uma biblioteca de nomes localizados de conjuntos de itens no jogo.
+## Title-ruRU: Lib: Babble-ItemSet-3.0
+## Notes-ruRU: Библиотека локализованных названий внутриигровых комплектов предметов.
+## Title-zhCN: Lib: Babble-ItemSet-3.0
+## Notes-zhCN: 用于本地化游戏内物品套装名称的库。
+## Title-zhTW: Lib: Babble-ItemSet-3.0
+## Notes-zhTW: 用於本地化遊戲內物品套裝名稱的函式庫。
+## Author: Arith
+## X-Category: Library
+## X-License: MIT
+## X-Date: 2026-09-29T8:04:41Z
+## X-Website: https://www.curseforge.com/wow/addons/libbabble-itemset-3-0
+## X-Credits: Thanks to the WoW community, Wago Tools (QartemisT), and all contributors.
+## Category: Libraries
+## Category-deDE: Bibliotheken
+## Category-esES: Bibliotecas
+## Category-esMX: Bibliotecas
+## Category-frFR: Bibliothèques
+## Category-itIT: Librerie
+## Category-koKR: 라이브러리
+## Category-ptBR: Bibliotecas
+## Category-ruRU: Библиотеки
+## Category-zhCN: 函数库
+## Category-zhTW: 函式庫
+## IconTexture: Interface\icons\spell_nature_enchantarmor
+
+LibStub\LibStub.lua
+lib.xml
+

@@ -1,0 +1,37 @@
+@echo off
+echo Updating Library...
+echo local LSM = LibStub("LibSharedMedia-3.0") > Kvinze.lua
+echo if LSM == nil then return end >> Kvinze.lua
+
+
+echo    FONTS
+echo.>> Kvinze.lua
+echo -- Fonts >> Kvinze.lua
+
+for %%F in (fonts\*.ttf) do (
+echo       %%~nF
+echo LSM:Register ("font", "%%~nF", [[Interface\Addons\SharedMedia_Kvinze\fonts\%%~nxF]]^) >> Kvinze.lua
+)
+for %%F in (fonts\*.otf) do (
+echo       %%~nF
+echo LSM:Register ("font", "%%~nF", [[Interface\Addons\SharedMedia_Kvinze\fonts\%%~nxF]]^) >> Kvinze.lua
+)
+
+echo    SOUNDS
+echo.>> Kvinze.lua
+echo -- Sounds >> Kvinze.lua
+for %%F in (sound\*.ogg) do (
+echo       %%~nF
+echo LSM:Register ("sound", "%%~nF", [[Interface\Addons\SharedMedia_Kvinze\sound\%%~nxF]]^) >> Kvinze.lua
+)
+
+echo    TEXTURES
+echo.>> Kvinze.lua
+echo -- Statusbar Textures >> Kvinze.lua
+for %%F in (statusbar\*.*) do (
+echo       %%~nF
+echo LSM:Register ("statusbar", "%%~nF", [[Interface\Addons\SharedMedia_Kvinze\statusbar\%%~nxF]]^) >> Kvinze.lua
+)
+
+:end_of_file
+pause

@@ -1,0 +1,1163 @@
+local _, ns = ...
+local MR = ns.MR
+local Config = assert(ns.ConfigInternal, "UI/Config/Frame.lua must load first")
+local L = Config.L
+local PANEL_MIN_WIDTH = Config.PANEL_MIN_WIDTH
+local PANEL_MAX_WIDTH = Config.PANEL_MAX_WIDTH
+local PANEL_MIN_HEIGHT = Config.PANEL_MIN_HEIGHT
+local PANEL_MAX_HEIGHT = Config.PANEL_MAX_HEIGHT
+local FONT_SIZE_MIN = Config.FONT_SIZE_MIN
+local FONT_SIZE_MAX = Config.FONT_SIZE_MAX
+local MakeBackdrop = ns.MakeBackdrop
+local OptionsGap = ns.OptionsGap
+local OptionsDivider = ns.OptionsDivider
+local OptionsSectionLabel = ns.OptionsSectionLabel
+local OptionsCheckbox = ns.OptionsCheckbox
+local OptionsBtn = ns.OptionsBtn
+local OptionsSlider = ns.OptionsSlider
+local OptionsColorSwatch = ns.OptionsColorSwatch
+local hex = ns.Hex
+local GetMainHeaderPosition = ns.GetMainHeaderPosition
+local IsAnimatedMinimizeEnabled = ns.IsAnimatedMinimizeEnabled
+local ApplyMainFrameLayout = ns.ApplyMainFrameLayout
+local GetFontSize = Config.GetFontSize
+local GetFontFlags = Config.GetFontFlags
+local SetWindowLayoutValue = Config.SetWindowLayoutValue
+local RefreshVisualSettings = Config.RefreshVisualSettings
+local RestoreFramePos = Config.RestoreFramePos
+
+local function ApplyThemeChoiceStyle(button, label, active)
+    local themeColor = MR.GetThemeColor and MR:GetThemeColor()
+    if themeColor then
+        local r, g, b = ns.ResolveThemeColor(0.22, 0.82, 0.70)
+        local strength = active and 0.20 or 0.065
+        button:SetBackdropColor(r * strength, g * strength, b * strength, 1)
+        button:SetBackdropBorderColor(r, g, b, active and 1 or 0.48)
+        label:SetTextColor(active and 1 or 0.90, active and 1 or 0.93, active and 1 or 0.96, 1)
+    else
+        button:SetBackdropColor(active and 0.11 or 0.05, active and 0.24 or 0.09, active and 0.23 or 0.15, 1)
+        button:SetBackdropBorderColor(active and 0.22 or 0.16, active and 0.82 or 0.28, active and 0.70 or 0.36, 1)
+        label:SetTextColor(active and 1 or 0.90, active and 1 or 0.93, active and 1 or 0.96)
+    end
+end
+
+local function ApplyThemeChoiceHover(button, label)
+    local r, g, b = ns.ResolveThemeColor(0.24, 0.74, 0.68)
+    button:SetBackdropColor(r * 0.16, g * 0.16, b * 0.16, 1)
+    button:SetBackdropBorderColor(r, g, b, 1)
+    label:SetTextColor(1, 1, 1)
+end
+
+local function RegisterThemeChoice(button, label, isActive)
+    ns.RegisterThemedState(button, function()
+        local active = isActive()
+        if button:IsMouseOver() and not active then
+            ApplyThemeChoiceHover(button, label)
+        else
+            ApplyThemeChoiceStyle(button, label, active)
+        end
+    end)
+end
+
+function MR:PopulateConfigFrame(f)
+    local activePage = MR._cfgPage or "windows"
+    if activePage ~= "windows" and activePage ~= "layout" and activePage ~= "modules" and activePage ~= "reset" and activePage ~= "support" then
+        activePage = "windows"
+        MR._cfgPage = activePage
+    end
+
+    local configWidth = activePage == "modules" and 384 or 344
+    f:SetWidth(configWidth)
+    if f.scroll and f.scroll:GetScrollChild() then
+        f.scroll:GetScrollChild():SetWidth(configWidth)
+    end
+
+    local bodyParent = (f.scroll and f.scroll:GetScrollChild()) or f
+    local body = f.body
+    if not body then
+        body = CreateFrame("Frame", nil, bodyParent)
+        body:SetPoint("TOPLEFT", bodyParent, "TOPLEFT", 0, 0)
+        body:SetPoint("TOPRIGHT", bodyParent, "TOPRIGHT", 0, 0)
+        f.body = body
+    end
+    local widgetPool = ns.StartWidgetPool(body)
+
+    local yOff = f.scroll and -4 or -26
+    local cfgFs = GetFontSize()
+    local moduleHeaderFs = math.max(FONT_SIZE_MIN, cfgFs - 1)
+    local moduleRowFs = math.max(FONT_SIZE_MIN, cfgFs - 2)
+    local moduleSubFs = math.max(FONT_SIZE_MIN, cfgFs - 3)
+    local moduleHeaderH = math.max(activePage == "modules" and 26 or 22, moduleHeaderFs + 14)
+    local moduleRowH = math.max(activePage == "modules" and 21 or 18, moduleRowFs + 10)
+    local moduleCompactH = math.max(16, moduleSubFs + 8)
+    local contentW = (f:GetWidth() or 344) - 16
+
+    local function Gap(h)          yOff = OptionsGap(body, yOff, h) end
+    local function Divider()       yOff = OptionsDivider(body, yOff, 4) end
+    local function SectionLabel(t) yOff = OptionsSectionLabel(body, yOff, t, 8, cfgFs) end
+    local function Checkbox(label, getVal, setVal, color, themed)
+        local r, g, b
+        if color then r, g, b = hex(color) end
+        yOff = OptionsCheckbox(body, yOff, label, getVal, setVal, r, g, b, 4, nil, cfgFs, themed)
+    end
+    local function Btn(label, onClick, style) yOff = OptionsBtn(body, yOff, label, onClick, math.max(192, contentW), 8, cfgFs, style) end
+    local function ChoiceDropdown(label, choices, getVal, setVal, getResetValue)
+        local caption = ns.AcquireFontString(body, "pagesText10", "OVERLAY")
+        caption:SetFont(ns.FONT_ROWS, cfgFs, GetFontFlags())
+        caption:SetPoint("TOPLEFT", body, "TOPLEFT", 8, yOff)
+        caption:SetPoint("TOPRIGHT", body, "TOPRIGHT", -8, yOff)
+        caption:SetJustifyH("LEFT")
+        caption:SetWordWrap(false)
+        caption:SetText(label)
+        caption:SetTextColor(0.92, 0.94, 0.96)
+
+        yOff = yOff - 14
+
+        local row = ns.AcquireFrame(body, "pagesFrame1", "Frame")
+        row:SetPoint("TOPLEFT", body, "TOPLEFT", 8, yOff)
+        row:SetSize(contentW, 26)
+
+        local opts = row._choiceOpts
+        if not opts then
+            opts = {
+                height = 20,
+                maxHeight = 20,
+                maxWidth = 420,
+                dynamicMenuWidth = true,
+                maxVisibleRows = 10,
+                style = "teal",
+            }
+            row._choiceOpts = opts
+        end
+        opts.width = math.max(170, contentW - 28)
+        opts.fontSize = cfgFs
+        opts.getOptions = function()
+            return choices
+        end
+        opts.getSelected = getVal
+        opts.onSelect = function(value, choice)
+            setVal(value, choice)
+        end
+
+        local dropdown = ns.AcquireWidget(row, "choiceDropdown", function()
+            return ns.CreateDropdown(row, opts)
+        end)
+        dropdown:SetWidth(opts.width)
+        dropdown:SetPoint("LEFT", row, "LEFT", 0, 0)
+        dropdown:Update()
+
+        local resetBtn = ns.AcquireWidget(row, "choiceReset", function()
+            return ns.CloseButton(row, nil)
+        end)
+        resetBtn:SetScript("OnClick", function()
+            local resetValue = getResetValue and getResetValue() or choices[1].value
+            for _, choice in ipairs(choices) do
+                if choice.value == resetValue then
+                    setVal(choice.value, choice)
+                    dropdown:Update()
+                    return
+                end
+            end
+            setVal(choices[1].value, choices[1])
+            dropdown:Update()
+        end)
+        resetBtn:ClearAllPoints()
+        resetBtn:SetSize(20, 20)
+        resetBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+
+        yOff = yOff - 34
+    end
+
+    local function MediaSelector(label, kind, getVal, setVal)
+        local sharedMedia = ns.GetSharedMedia and ns.GetSharedMedia()
+        local defaultLabel = kind == "font" and "Game Default" or "Midnight Default"
+        local choices = {
+            { label = defaultLabel, value = ns.MEDIA_DEFAULT_TOKEN },
+        }
+        local seen = { [defaultLabel] = true }
+        if ns.GetSharedMediaList then
+            for _, name in ipairs(ns.GetSharedMediaList(kind)) do
+                if type(name) == "string" and name ~= "" and not seen[name] then
+                    choices[#choices + 1] = { label = name, value = name }
+                    seen[name] = true
+                end
+            end
+        end
+
+        ChoiceDropdown(label, choices,
+            function()
+                local current = getVal()
+                if current == nil or current == ns.MEDIA_DEFAULT_TOKEN then
+                    return ns.MEDIA_DEFAULT_TOKEN
+                end
+                return current
+            end,
+            function(value)
+                local path
+                if value and value ~= ns.MEDIA_DEFAULT_TOKEN and sharedMedia then
+                    local mediaType = kind == "font" and sharedMedia.MediaType.FONT or sharedMedia.MediaType.BACKGROUND
+                    path = sharedMedia:Fetch(mediaType, value, true)
+                end
+                if value == ns.MEDIA_DEFAULT_TOKEN and kind == "font" and ns.GetDefaultFontTexture then
+                    path = ns.GetDefaultFontTexture()
+                elseif value == ns.MEDIA_DEFAULT_TOKEN and kind == "background" and ns.GetDefaultBackgroundTexture then
+                    path = ns.GetDefaultBackgroundTexture()
+                end
+                setVal(value, path)
+            end,
+            function()
+                return ns.MEDIA_DEFAULT_TOKEN
+            end)
+    end
+    local function SetLayoutMode(enabled)
+        MR.db.profile.characterWindowLayout = enabled
+        if ns.MigrateCompletionSoundsScope then
+            ns.MigrateCompletionSoundsScope(not enabled)
+        end
+        if MR.ApplySharedMediaSettings then
+            MR:ApplySharedMediaSettings()
+        end
+        MR:RefreshUI()
+        if MR.frame then
+            ApplyMainFrameLayout(MR.frame)
+        end
+        if MR.raresFrame then
+            MR.raresFrame:ClearAllPoints()
+            RestoreFramePos(MR.raresFrame, "raresPos", 580, 0)
+        end
+        if MR.renownFrame then
+            MR.renownFrame:ClearAllPoints()
+            RestoreFramePos(MR.renownFrame, "renownPos", 300, 0)
+        end
+        if MR.gatheringLocationsFrame then
+            MR.gatheringLocationsFrame:ClearAllPoints()
+            RestoreFramePos(MR.gatheringLocationsFrame, "gatheringLocPos", 860, 0)
+        end
+        if MR.raresFrame and MR.raresFrame.IsShown and MR.raresFrame:IsShown() and MR.RebuildRaresFrame then
+            MR:RebuildRaresFrame()
+        end
+        if MR.RebuildRenownFrame then
+            MR:RebuildRenownFrame()
+        end
+        if MR.RebuildGatheringLocationsFrame then
+            MR:RebuildGatheringLocationsFrame()
+        end
+        MR:PopulateConfigFrame(f)
+    end
+
+    do
+        local tabs = {
+            { key = "windows", label = L["Config_TabWindows"] or "Windows" },
+            { key = "layout",  label = L["Config_TabLayout"]  or "Layout"  },
+            { key = "modules", label = L["Config_TabModules"] or "Modules" },
+            { key = "support", label = L["Config_TabSupport"] or "Support" },
+            { key = "reset",   label = L["Config_TabReset"]   or "Reset"   },
+        }
+        local tabW = math.floor((contentW - 6) / #tabs)
+        local tabFs = math.min(cfgFs, 10)
+        local tabY = yOff
+        for i, tab in ipairs(tabs) do
+            local btn = ns.AcquireFrame(body, "pagesFrame2", "Button", "BackdropTemplate")
+            btn:SetSize(tabW, 18)
+            btn:SetPoint("TOPLEFT", body, "TOPLEFT", 8 + (i - 1) * (tabW + 2), tabY)
+            btn:SetBackdrop(MakeBackdrop())
+            if btn.SetClipsChildren then btn:SetClipsChildren(true) end
+            local isActive = activePage == tab.key
+
+            local lbl = ns.AcquireFontString(btn, "pagesText11", "OVERLAY")
+            lbl:SetFont(ns.FONT_ROWS, tabFs, GetFontFlags())
+            lbl:SetPoint("LEFT", btn, "LEFT", 2, 0)
+            lbl:SetPoint("RIGHT", btn, "RIGHT", -2, 0)
+            lbl:SetJustifyH("CENTER")
+            lbl:SetWordWrap(false)
+            lbl:SetText(tab.label)
+            ApplyThemeChoiceStyle(btn, lbl, isActive)
+
+            btn:SetScript("OnClick", function()
+                MR._cfgPage = tab.key
+                MR:PopulateConfigFrame(f)
+            end)
+            btn:SetScript("OnEnter", function()
+                if activePage ~= tab.key then
+                    ApplyThemeChoiceHover(btn, lbl)
+                end
+            end)
+            btn:SetScript("OnLeave", function()
+                local selected = (MR._cfgPage or "windows") == tab.key
+                ApplyThemeChoiceStyle(btn, lbl, selected)
+            end)
+            RegisterThemeChoice(btn, lbl, function()
+                return (MR._cfgPage or "windows") == tab.key
+            end)
+        end
+        yOff = yOff - 26
+    end
+
+    f:SetScript("OnUpdate", nil)
+
+    if activePage == "windows" then
+        SectionLabel(L["Title"])
+        Checkbox(L["Config_ShowMainFrame"],
+            function() return MR:GetMainPanelOpen() end,
+            function(v)
+                if v then
+                    MR:ShowMainPanel(true)
+                else
+                    MR:HideMainPanel(true)
+                end
+            end, "#2ae7c6", true)
+
+        Checkbox(MR.isForever and L["Forever_OpenReputations"] or L["Config_OpenRenown"],
+            function() return MR.GetManagedWindowOpen and MR:GetManagedWindowOpen("renownOpen") end,
+            function(v)
+                if v and MR.ClearManagedWindowsBundleHidden then MR:ClearManagedWindowsBundleHidden() end
+                if v and MR.EnsureRenownShown then MR:EnsureRenownShown()
+                elseif not v and MR.HideRenown then MR:HideRenown() end
+            end, "#d9b82e")
+
+        if not MR.isForever or not ns.Forever.hideRares then
+        Checkbox(L["Config_OpenRares"],
+            function() return MR.GetManagedWindowOpen and MR:GetManagedWindowOpen("raresOpen") end,
+            function(v)
+                if v and MR.ClearManagedWindowsBundleHidden then MR:ClearManagedWindowsBundleHidden() end
+                if v and MR.EnsureRaresShown then MR:EnsureRaresShown()
+                elseif not v and MR.HideRares then MR:HideRares() end
+            end, "#e05050")
+        end
+
+        if not MR.isForever or not ns.Forever.hideProfessions then
+        Checkbox(MR.isForever and L["Forever_Professions"] or L["Profession_Knowledge"],
+            function() return MR.GetManagedWindowOpen and MR:GetManagedWindowOpen("gatheringLocOpen") end,
+            function(v)
+                if v and MR.ClearManagedWindowsBundleHidden then MR:ClearManagedWindowsBundleHidden() end
+                if v and MR.EnsureGatheringLocationsShown then MR:EnsureGatheringLocationsShown()
+                elseif not v and MR.HideGatheringLocations then MR:HideGatheringLocations() end
+            end, "#c9853f")
+        end
+
+        Gap(4); Divider()
+        SectionLabel(L["Config_SectionKeyBinding"] or "KEY BINDING")
+        Gap(2)
+        local bindingKey = GetBindingKey and GetBindingKey(ns.TOGGLE_WINDOWS_BINDING)
+        local bindingText = bindingKey and GetBindingText and GetBindingText(bindingKey, "KEY_") or bindingKey
+        local bindingLabel = (L["Config_SetKeyBinding"] or "Set Show / Hide Key") .. ": "
+            .. (bindingText or L["Config_KeyBindingNotBound"] or "Not Bound")
+        Btn(bindingLabel, function()
+            MR:ShowToggleWindowsKeybindDialog()
+        end, "primary")
+
+        Gap(4); Divider()
+        SectionLabel(L["Config_SectionCompletion"] or "COMPLETION")
+        Checkbox(L["Config_AutoEnableNewModules"] or "Automatically Enable New Modules",
+            function() return MR:ShouldAutoEnableNewModules() end,
+            function(v)
+                MR:SetAutoEnableNewModules(v)
+                MR:PopulateConfigFrame(f)
+            end, "#2ae7c6", true)
+        Checkbox(L["Config_HideWhenCompleted"],
+            function() return MR.db.char.hideComplete end,
+            function(v)
+                local moduleStorage = MR:GetActiveModuleStorage()
+                MR.db.char.hideComplete = v
+                for _, mod in ipairs(MR.modules) do
+                    if moduleStorage and moduleStorage[mod.key] then
+                        moduleStorage[mod.key].hideComplete = nil
+                    end
+                end
+                if MR.RequestConfigRefresh then
+                    MR:RequestConfigRefresh()
+                else
+                    MR:RefreshUI()
+                end
+            end)
+        Checkbox(L["Config_HideCurrenciesWhenCompleted"] or "Hide Currencies When Completed",
+            function() return MR:IsModuleHideComplete("currencies") end,
+            function(v)
+                MR:SetModuleHideComplete("currencies", v and true or false, true)
+                if MR.RequestConfigRefresh then
+                    MR:RequestConfigRefresh()
+                else
+                    MR:RefreshUI()
+                end
+            end)
+        Gap(4); Divider()
+        SectionLabel(L["Config_SectionFrame"] or "FRAME")
+        Checkbox(L["Config_LockFrame"],
+            function() return MR.db.profile.locked end,
+            function(v)
+                MR.db.profile.locked = v
+                if MR.frame then MR.frame:SetMovable(not v) end
+            end)
+        Checkbox(L["Config_AutoHidePanelHeaders"],
+            function() return MR.db.profile.autoHidePanelHeaders end,
+            function(v)
+                MR.db.profile.autoHidePanelHeaders = v
+                if MR.RefreshPanelHeaderVisibility then
+                    MR:RefreshPanelHeaderVisibility(MR.frame)
+                    MR:RefreshPanelHeaderVisibility(MR.renownFrame)
+                    MR:RefreshPanelHeaderVisibility(MR.raresFrame)
+                    MR:RefreshPanelHeaderVisibility(MR.gatheringLocationsFrame)
+                    MR:RefreshPanelHeaderVisibility(MR.concentrationTrackerFrame)
+                end
+            end)
+        Checkbox(L["Config_PeekOnHover"],
+            function() return MR.db.profile.peekOnHover end,
+            function(v) MR:ApplyPeekOnHover(v) end)
+        ChoiceDropdown(L["Config_WindowPriority"] or "Window Priority", {
+            { label = "Background", value = "BACKGROUND" },
+            { label = "Low", value = "LOW" },
+            { label = "Medium", value = "MEDIUM" },
+            { label = "High", value = "HIGH" },
+            { label = "Dialog", value = "DIALOG" },
+        },
+            function() return MR:GetFrameStrata() end,
+            function(value) MR:SetFrameStrata(value) end,
+            function() return "HIGH" end)
+
+        Gap(4); Divider()
+        SectionLabel(L["Config_SectionVisibility"] or "VISIBILITY")
+        Checkbox(L["Config_AutoHideOnLogin"] or "Auto-Hide on Login",
+            function() return MR.db.profile.autoHideOnLogin == true end,
+            function(v) MR.db.profile.autoHideOnLogin = v and true or false end)
+        Checkbox(L["Config_HideInInstances"],
+            function() return MR.db.profile.hideFramesInInstances end,
+            function(v)
+                MR.db.profile.hideFramesInInstances = v
+                if MR.UpdateInstanceFrameVisibility then
+                    MR:UpdateInstanceFrameVisibility()
+                end
+            end)
+        Checkbox(L["Config_DisabledInCombat"] or "Disabled in Combat",
+            function() return MR.db.profile.disabledInCombat == true end,
+            function(v)
+                MR.db.profile.disabledInCombat = v and true or false
+                if MR.UpdateCombatDisplayState then
+                    MR:UpdateCombatDisplayState()
+                end
+                if v ~= true and MR.FlushCombatDeferredUpdates then
+                    MR:FlushCombatDeferredUpdates()
+                end
+                MR:PopulateConfigFrame(f)
+            end)
+
+        Gap(4); Divider()
+        SectionLabel(L["Config_SectionMinimap"] or "MINIMAP")
+        Checkbox(L["Config_HideMinimap"],
+            function() return MR.db.profile.minimap and MR.db.profile.minimap.hide or false end,
+            function(v) MR:SetMinimapHidden(v) end)
+        Checkbox(L["Config_RememberManagedWindowsVisibility"],
+            function() return MR.db.profile.rememberManagedWindowsVisibility end,
+            function(v)
+                MR.db.profile.rememberManagedWindowsVisibility = v and true or false
+                if not MR.db.profile.rememberManagedWindowsVisibility then
+                    MR.db.profile.managedWindowsBundleHidden = false
+                    MR:RefreshUI()
+                end
+            end)
+        Gap(4); Divider()
+        SectionLabel(L["Config_SectionAdventureGuide"] or "ADVENTURE GUIDE")
+        Checkbox(L["Config_HideAdventureGuideBossIDs"],
+            function() return MR.db.profile.hideAdventureGuideBossIDs == true end,
+            function(v)
+                MR.db.profile.hideAdventureGuideBossIDs = v and true or false
+                if MR.RefreshEncounterJournalOverlays then
+                    MR:RefreshEncounterJournalOverlays()
+                end
+            end)
+        Gap(4); Divider()
+        SectionLabel(L["GreatVault_Title"])
+        Checkbox(L["Config_CompactGreatVault"],
+            function() return MR.db and MR.db.profile and MR.db.profile.greatVaultCombined == true end,
+            function(v)
+                MR.db.profile.greatVaultCombined = v and true or false
+                MR:RefreshUI()
+            end, "#ff8000")
+    elseif activePage == "layout" then
+        SectionLabel(L["Config_LayoutMode"] or "Layout Mode")
+
+        local modeY = yOff - 4
+        local modeBtnW = math.floor((contentW - 2) / 2)
+        local function CreateModeButton(label, enabled, x)
+            local btn = ns.AcquireFrame(body, "pagesFrame3", "Button", "BackdropTemplate")
+            btn:SetSize(modeBtnW, 18)
+            btn:SetPoint("TOPLEFT", body, "TOPLEFT", x, modeY)
+            btn:SetBackdrop(MakeBackdrop())
+            local active = MR.db.profile.characterWindowLayout == enabled
+
+            local lbl = ns.AcquireFontString(btn, "pagesText12", "OVERLAY")
+            lbl:SetFont(ns.FONT_ROWS, cfgFs, GetFontFlags())
+            lbl:SetPoint("CENTER")
+            lbl:SetText(label)
+            ApplyThemeChoiceStyle(btn, lbl, active)
+
+            btn:SetScript("OnClick", function() SetLayoutMode(enabled) end)
+            btn:SetScript("OnEnter", function()
+                if MR.db.profile.characterWindowLayout ~= enabled then
+                    ApplyThemeChoiceHover(btn, lbl)
+                end
+            end)
+            btn:SetScript("OnLeave", function()
+                local selected = MR.db.profile.characterWindowLayout == enabled
+                ApplyThemeChoiceStyle(btn, lbl, selected)
+            end)
+            RegisterThemeChoice(btn, lbl, function()
+                return MR.db.profile.characterWindowLayout == enabled
+            end)
+        end
+
+        CreateModeButton(L["Config_LayoutShared"] or "Shared", false, 8)
+        CreateModeButton(L["Config_LayoutCharacter"] or "Per Character", true, 8 + modeBtnW + 2)
+        yOff = yOff - 30
+
+        Divider()
+        SectionLabel(L["Config_Display"])
+
+        yOff = OptionsSlider(body, yOff, L["WIDTH"], PANEL_MIN_WIDTH, PANEL_MAX_WIDTH, 10,
+            function() return MR.db.profile.width or 260 end,
+            function(v)
+                MR.ApplyWidth(v)
+                if MR.RequestConfigRepopulate then
+                    MR:RequestConfigRepopulate(f, 0.08)
+                else
+                    MR:PopulateConfigFrame(f)
+                end
+            end,
+            0.16, 0.78, 0.75, 8, nil, cfgFs)
+
+        Gap(6)
+        yOff = OptionsSlider(body, yOff, L["HEIGHT"], PANEL_MIN_HEIGHT, PANEL_MAX_HEIGHT, 10,
+            function() return MR.db.profile.height or 400 end,
+            function(v)
+                MR.ApplyHeight(v)
+                if MR.RequestConfigRepopulate then
+                    MR:RequestConfigRepopulate(f, 0.08)
+                else
+                    MR:PopulateConfigFrame(f)
+                end
+            end,
+            0.16, 0.75, 0.78, 8, nil, cfgFs)
+
+        Gap(6)
+        yOff = OptionsSlider(body, yOff, L["SCALE"], 0.5, 2.0, 0.05,
+            function() return MR.db.profile.scale or 1.0 end,
+            function(v)
+                if MR.db.profile.syncWindowScale then
+                    MR:ApplyScaleToAll(v)
+                else
+                    MR.db.profile.scale = v
+                    if MR.frame then MR.frame:SetScale(v) end
+                end
+            end,
+            0.55, 0.22, 0.82, 8, nil, cfgFs)
+
+        Gap(2)
+        yOff = OptionsCheckbox(body, yOff, L["Config_SyncScale"],
+            function() return MR.db.profile.syncWindowScale end,
+            function(v)
+                MR.db.profile.syncWindowScale = v
+                if v then MR:ApplyScaleToAll(MR.db.profile.scale or 1.0) end
+                MR:PopulateConfigFrame(f)
+            end,
+            0.55, 0.22, 0.82, 8, nil, cfgFs)
+
+        Gap(6)
+        yOff = OptionsSlider(body, yOff, L["BACKGROUND"], 0, 1, 0.05,
+            function() return MR.db.profile.frameAlpha or 1.0 end,
+            function(v)
+                MR.db.profile.frameAlpha = v
+                if MR.ApplyTheme then MR.ApplyTheme() end
+                MR:RefreshUI()
+            end,
+            0.40, 0.40, 0.40, 8, nil, cfgFs)
+
+        Gap(2)
+        yOff = OptionsCheckbox(body, yOff,
+            L["Config_ShowIcons"] or "Show Icons",
+            function() return MR.db.profile.keepIconsVisibleInTextMode ~= false end,
+            function(v)
+                MR.db.profile.keepIconsVisibleInTextMode = v
+                RefreshVisualSettings()
+            end,
+            1, 1, 1, 8, nil, cfgFs)
+
+        Gap(2)
+        yOff = OptionsCheckbox(body, yOff,
+            L["Config_HideStatusBoxes"] or "Hide Clickable Boxes",
+            function() return MR.db.profile.hideStatusBoxes == true end,
+            function(v)
+                MR.db.profile.hideStatusBoxes = v and true or false
+                MR:RefreshUI()
+            end,
+            1, 1, 1, 8, nil, cfgFs)
+
+        Gap(4); Divider()
+        SectionLabel(L["Config_MainHeaderPosition"] or "Header & Sections")
+
+        local headerModeY = yOff - 4
+        local headerModeBtnW = math.floor((contentW - 2) / 2)
+        local function CreateHeaderModeButton(label, value, x)
+            local btn = ns.AcquireFrame(body, "pagesFrame4", "Button", "BackdropTemplate")
+            btn:SetSize(headerModeBtnW, 18)
+            btn:SetPoint("TOPLEFT", body, "TOPLEFT", x, headerModeY)
+            btn:SetBackdrop(MakeBackdrop())
+            local active = GetMainHeaderPosition() == value
+
+            local lbl = ns.AcquireFontString(btn, "pagesText13", "OVERLAY")
+            lbl:SetFont(ns.FONT_ROWS, cfgFs, GetFontFlags())
+            lbl:SetPoint("CENTER")
+            lbl:SetText(label)
+            ApplyThemeChoiceStyle(btn, lbl, active)
+
+            btn:SetScript("OnClick", function()
+                if GetMainHeaderPosition() == value then
+                    return
+                end
+                SetWindowLayoutValue("mainHeaderPosition", value)
+                ApplyMainFrameLayout(MR.frame, true)
+                MR:RefreshUI()
+                if MR.raresFrame and MR.raresFrame.IsShown and MR.raresFrame:IsShown() and MR.RebuildRaresFrame then
+                    MR:RebuildRaresFrame()
+                end
+                if MR.RebuildRenownFrame then
+                    MR:RebuildRenownFrame()
+                end
+                if MR.RebuildGatheringLocationsFrame then
+                    MR:RebuildGatheringLocationsFrame()
+                end
+                MR:PopulateConfigFrame(f)
+            end)
+            btn:SetScript("OnEnter", function()
+                if GetMainHeaderPosition() ~= value then
+                    ApplyThemeChoiceHover(btn, lbl)
+                end
+            end)
+            btn:SetScript("OnLeave", function()
+                local selected = GetMainHeaderPosition() == value
+                ApplyThemeChoiceStyle(btn, lbl, selected)
+            end)
+            RegisterThemeChoice(btn, lbl, function()
+                return GetMainHeaderPosition() == value
+            end)
+        end
+
+        CreateHeaderModeButton(L["Config_MainHeaderTop"] or "Top / Grow Down", "top", 8)
+        CreateHeaderModeButton(L["Config_MainHeaderBottom"] or "Bottom / Grow Up", "bottom", 8 + headerModeBtnW + 2)
+        yOff = yOff - 30
+
+        Gap(2)
+        yOff = OptionsCheckbox(body, yOff,
+            L["Config_ShowMainCharacterBar"] or "Show Character Switcher Bar",
+            function() return MR.db.profile.showMainCharacterBar ~= false end,
+            function(v)
+                MR.db.profile.showMainCharacterBar = v and true or false
+                if not v and MR.HideMainAltPicker then
+                    MR:HideMainAltPicker()
+                end
+                if MR.RefreshMainHeaderChrome then
+                    MR:RefreshMainHeaderChrome()
+                elseif MR.frame then
+                    ApplyMainFrameLayout(MR.frame, true)
+                end
+                MR:RefreshUI()
+            end,
+            0.16, 0.78, 0.75, 8, nil, cfgFs)
+
+        Gap(2)
+        yOff = OptionsCheckbox(body, yOff,
+            L["Config_AnimatedMinimize"] or "Animated Minimize / Restore",
+            function() return IsAnimatedMinimizeEnabled() end,
+            function(v)
+                SetWindowLayoutValue("animatedMinimize", v and true or false)
+            end,
+            0.16, 0.78, 0.75, 8, nil, cfgFs, true)
+
+        Gap(2)
+        yOff = OptionsCheckbox(body, yOff,
+            L["Config_ShowSectionHeaders"] or "Show Section Headers",
+            function() return MR.db.profile.keepHeadersVisibleInTextMode ~= false end,
+            function(v)
+                MR.db.profile.keepHeadersVisibleInTextMode = v
+                RefreshVisualSettings()
+            end,
+            0.16, 0.78, 0.75, 8, nil, cfgFs)
+
+
+        Gap(4); Divider()
+
+        Gap(6)
+        yOff = OptionsSlider(body, yOff, L["Config_FontSize"], FONT_SIZE_MIN, FONT_SIZE_MAX, 1,
+            function() return GetFontSize() end,
+            function(v)
+                if MR.db.profile.syncWindowFontSize then
+                    MR:ApplyFontSizeToAll(math.floor(v))
+                else
+                    MR.ApplyFontSize(math.floor(v))
+                end
+                if MR.RequestConfigRepopulate then
+                    MR:RequestConfigRepopulate(f, 0.08)
+                else
+                    MR:PopulateConfigFrame(f)
+                end
+            end,
+            0.78, 0.55, 0.16, 8, nil, cfgFs)
+
+        local presets = { {"S", 9}, {"M", 11}, {"L", 14}, {"XL", 17} }
+        local btnW = math.floor((contentW - 6) / #presets)
+        for i, p in ipairs(presets) do
+            local pb = ns.AcquireFrame(body, "pagesFrame5", "Button", "BackdropTemplate")
+            pb:SetSize(btnW, 16)
+            pb:SetPoint("TOPLEFT", body, "TOPLEFT", 8 + (i - 1) * (btnW + 2), yOff - 18)
+            pb:SetBackdrop(MakeBackdrop())
+            local isActive = (GetFontSize() == p[2])
+            local pfs = ns.AcquireFontString(pb, "pagesText14", "OVERLAY")
+            pfs:SetFont(ns.FONT_ROWS, cfgFs, GetFontFlags())
+            pfs:SetPoint("CENTER")
+            pfs:SetText(p[1])
+            ApplyThemeChoiceStyle(pb, pfs, isActive)
+            pb:SetScript("OnClick", function()
+                if MR.db.profile.syncWindowFontSize then
+                    MR:ApplyFontSizeToAll(p[2])
+                else
+                    MR.ApplyFontSize(p[2])
+                end
+                if MR.RequestConfigRepopulate then
+                    MR:RequestConfigRepopulate(f, 0.08)
+                else
+                    MR:PopulateConfigFrame(f)
+                end
+            end)
+            pb:SetScript("OnEnter", function()
+                ApplyThemeChoiceHover(pb, pfs)
+            end)
+            pb:SetScript("OnLeave", function()
+                ApplyThemeChoiceStyle(pb, pfs, GetFontSize() == p[2])
+            end)
+            RegisterThemeChoice(pb, pfs, function()
+                return GetFontSize() == p[2]
+            end)
+        end
+
+        yOff = yOff - 40
+
+        Gap(2)
+        yOff = OptionsCheckbox(body, yOff, L["Config_SyncFontSize"],
+            function() return MR.db.profile.syncWindowFontSize end,
+            function(v)
+                MR.db.profile.syncWindowFontSize = v
+                if v then MR:ApplyFontSizeToAll(GetFontSize()) end
+                MR:PopulateConfigFrame(f)
+            end,
+            0.55, 0.22, 0.82, 8, nil, cfgFs)
+
+        Gap(4); Divider()
+        SectionLabel(L["Config_ThemeColor"] or "Theme Color")
+
+        do
+            local classBtn, classLbl, resetBtn, resetLbl
+            local function RefreshThemeChoiceButtons()
+                if classBtn and classLbl then
+                    ApplyThemeChoiceStyle(classBtn, classLbl, MR:IsThemeColorClassColor())
+                end
+                if resetBtn and resetLbl then
+                    ApplyThemeChoiceStyle(resetBtn, resetLbl, MR:GetThemeColor() == nil)
+                end
+            end
+
+            local caption = ns.AcquireFontString(body, "themeColorCaption", "OVERLAY")
+            caption:SetFont(ns.FONT_ROWS, cfgFs, GetFontFlags())
+            caption:SetPoint("TOPLEFT", body, "TOPLEFT", 8, yOff)
+            caption:SetPoint("TOPRIGHT", body, "TOPRIGHT", -8, yOff)
+            caption:SetJustifyH("LEFT")
+            caption:SetWordWrap(true)
+            caption:SetText(L["Config_ThemeColorDesc"] or "Recolor headers and accents across the tracker.")
+            caption:SetTextColor(0.55, 0.65, 0.66)
+
+            yOff = yOff - (2 * (cfgFs + 4)) - 4
+
+            local rowY = yOff
+            local DEFAULT_THEME_HEX = "#d9a61a"
+            local themeColor = MR:GetThemeColor()
+            local tr, tg, tb = hex(themeColor or DEFAULT_THEME_HEX)
+            local pickerOriginalMode
+            local pickerOriginalColor
+
+            local swatch = OptionsColorSwatch(body, tr, tg, tb, function(r, g, b)
+                MR:SetThemeColor(string.format("#%02x%02x%02x", r * 255, g * 255, b * 255))
+                RefreshThemeChoiceButtons()
+            end, function()
+                MR:ResetThemeColor()
+                RefreshThemeChoiceButtons()
+                return hex(DEFAULT_THEME_HEX)
+            end, L["Config_ThemeColor"] or "Theme Color", function()
+                pickerOriginalMode = MR.db.profile.themeColorMode
+                pickerOriginalColor = MR.db.profile.themeColor
+            end, function()
+                MR.db.profile.themeColorMode = pickerOriginalMode or "default"
+                MR.db.profile.themeColor = pickerOriginalColor
+                MR:ApplyThemeColorSelection()
+                pickerOriginalMode = nil
+                pickerOriginalColor = nil
+                RefreshThemeChoiceButtons()
+            end)
+            swatch:SetSize(20, 20)
+            swatch:SetPoint("TOPLEFT", body, "TOPLEFT", 8, rowY)
+
+            local btnAreaW = contentW - 20 - 6
+            local classBtnW = math.floor((btnAreaW - 4) / 2)
+            local resetBtnW = btnAreaW - classBtnW - 4
+
+            classBtn = ns.AcquireFrame(body, "themeColorClassBtn", "Button", "BackdropTemplate")
+            classBtn:SetSize(classBtnW, 20)
+            classBtn:SetPoint("LEFT", swatch, "RIGHT", 6, 0)
+            classBtn:SetBackdrop(MakeBackdrop())
+            local isClassColor = MR:IsThemeColorClassColor()
+            classLbl = ns.AcquireFontString(classBtn, "themeColorClassLabel", "OVERLAY")
+            classLbl:SetFont(ns.FONT_ROWS, cfgFs, GetFontFlags())
+            classLbl:SetPoint("CENTER")
+            classLbl:SetText(L["Config_UseClassColor"] or "Use Class Color")
+            ApplyThemeChoiceStyle(classBtn, classLbl, isClassColor)
+            classBtn:SetScript("OnClick", function()
+                MR:SetThemeColorToClassColor()
+                RefreshThemeChoiceButtons()
+            end)
+            classBtn:SetScript("OnEnter", function()
+                ApplyThemeChoiceHover(classBtn, classLbl)
+            end)
+            classBtn:SetScript("OnLeave", function()
+                ApplyThemeChoiceStyle(classBtn, classLbl, MR:IsThemeColorClassColor())
+            end)
+            RegisterThemeChoice(classBtn, classLbl, function()
+                return MR:IsThemeColorClassColor()
+            end)
+
+            resetBtn = ns.AcquireFrame(body, "themeColorResetBtn", "Button", "BackdropTemplate")
+            resetBtn:SetSize(resetBtnW, 20)
+            resetBtn:SetPoint("LEFT", classBtn, "RIGHT", 4, 0)
+            resetBtn:SetBackdrop(MakeBackdrop())
+            resetBtn:SetBackdropColor(0.05, 0.09, 0.16, 1)
+            ns.RegisterThemedBackdropBorder(resetBtn, 0.16, 0.28, 0.36, 0.72)
+            resetLbl = ns.AcquireFontString(resetBtn, "themeColorResetLabel", "OVERLAY")
+            resetLbl:SetFont(ns.FONT_ROWS, cfgFs, GetFontFlags())
+            resetLbl:SetPoint("CENTER")
+            resetLbl:SetText(L["Config_Default"] or "Default")
+            resetBtn:SetScript("OnClick", function()
+                MR:ResetThemeColor()
+                RefreshThemeChoiceButtons()
+            end)
+            resetBtn:SetScript("OnEnter", function()
+                resetBtn:SetBackdropBorderColor(0.82, 0.42, 0.42, 1)
+                resetLbl:SetTextColor(1.0, 0.90, 0.90)
+            end)
+            resetBtn:SetScript("OnLeave", function()
+                ApplyThemeChoiceStyle(resetBtn, resetLbl, MR:GetThemeColor() == nil)
+            end)
+            ns.RegisterThemedState(resetBtn, function()
+                if resetBtn:IsMouseOver() then
+                    resetBtn:SetBackdropBorderColor(0.82, 0.42, 0.42, 1)
+                    resetLbl:SetTextColor(1.0, 0.90, 0.90)
+                else
+                    ApplyThemeChoiceStyle(resetBtn, resetLbl, MR:GetThemeColor() == nil)
+                end
+            end)
+            RefreshThemeChoiceButtons()
+
+            yOff = yOff - 28
+        end
+
+        Gap(4); Divider()
+        SectionLabel(L["Config_SharedMedia"] or "Shared Media")
+        MediaSelector(L["Config_Font"] or "Font", "font",
+            function() return MR.GetMediaSetting and MR:GetMediaSetting("fontMedia") or MR.db.profile.fontMedia end,
+            function(value, path)
+                if MR.SetMediaSetting then
+                    MR:SetMediaSetting("fontMedia", value, true)
+                    MR:SetMediaSetting("fontMediaPath", path, true)
+                else
+                    MR.db.profile.fontMedia = value
+                    MR.db.profile.fontMediaPath = path
+                end
+                MR:ApplySharedMediaSettings()
+                if MR.RequestConfigRepopulate then
+                    MR:RequestConfigRepopulate("fontMedia", 0.02)
+                else
+                    MR:PopulateConfigFrame(f)
+                end
+            end)
+        ChoiceDropdown(L["Config_FontStyle"] or "Font Style", {
+                { label = L["Config_FontStyleOutline"] or "Outline", value = "OUTLINE" },
+                { label = L["Config_FontStyleNone"] or "None", value = "" },
+                { label = L["Config_FontStyleThick"] or "Thick Outline", value = "THICKOUTLINE" },
+                { label = L["Config_FontStyleMono"] or "Monochrome", value = "MONOCHROME" },
+                { label = L["Config_FontStyleMonoOutline"] or "Monochrome Outline", value = "OUTLINE, MONOCHROME" },
+                { label = L["Config_FontStyleMonoThick"] or "Monochrome Thick Outline", value = "THICKOUTLINE, MONOCHROME" },
+            },
+            function()
+                if ns.GetFontFlags then
+                    return ns.GetFontFlags(MR.GetActiveMediaSettings and MR:GetActiveMediaSettings() or MR.db.profile)
+                end
+                return MR.GetMediaSetting and MR:GetMediaSetting("fontFlags") or MR.db.profile.fontFlags or "OUTLINE"
+            end,
+            function(value)
+                if MR.SetMediaSetting then
+                    MR:SetMediaSetting("fontFlags", value, true)
+                else
+                    MR.db.profile.fontFlags = value
+                end
+                MR:ApplySharedMediaSettings()
+                if MR.RequestConfigRepopulate then
+                    MR:RequestConfigRepopulate("fontFlags", 0.02)
+                else
+                    MR:PopulateConfigFrame(f)
+                end
+            end,
+            function()
+                return "OUTLINE"
+            end)
+        MediaSelector(L["Config_BackgroundTexture"] or "Background texture", "background",
+            function() return MR.GetMediaSetting and MR:GetMediaSetting("backgroundMedia") or MR.db.profile.backgroundMedia end,
+            function(value, path)
+                if MR.SetMediaSetting then
+                    MR:SetMediaSetting("backgroundMedia", value, true)
+                    MR:SetMediaSetting("backgroundMediaPath", path, true)
+                else
+                    MR.db.profile.backgroundMedia = value
+                    MR.db.profile.backgroundMediaPath = path
+                end
+                MR:ApplySharedMediaSettings()
+            end)
+
+        Gap(4); Divider()
+        SectionLabel(L["Config_TooltipPosition"] or "Tooltip Position")
+
+        local tooltipChoices = {
+            { label = L["Config_TooltipLeft"] or "Left", value = "left" },
+            { label = L["Config_TooltipRight"] or "Right", value = "right" },
+            { label = L["Config_TooltipMiddle"] or "Middle", value = "middle" },
+            { label = L["Config_TooltipBottom"] or "Bottom", value = "bottom" },
+            { label = L["Config_TooltipCursor"] or "Cursor", value = "cursor" },
+        }
+        local tooltipY = yOff - 4
+        local tooltipBtnW = math.floor((contentW - ((#tooltipChoices - 1) * 2)) / #tooltipChoices)
+        local function CreateTooltipPositionButton(choice, index)
+            local btn = ns.AcquireFrame(body, "pagesFrame6", "Button", "BackdropTemplate")
+            btn:SetSize(tooltipBtnW, 18)
+            btn:SetPoint("TOPLEFT", body, "TOPLEFT", 8 + (index - 1) * (tooltipBtnW + 2), tooltipY)
+            btn:SetBackdrop(MakeBackdrop())
+            local current = MR.GetWindowLayoutValue and MR:GetWindowLayoutValue("tooltipPosition") or MR.db.profile.tooltipPosition
+            local active = (current or "right") == choice.value
+
+            local lbl = ns.AcquireFontString(btn, "pagesText15", "OVERLAY")
+            lbl:SetFont(ns.FONT_ROWS, math.min(cfgFs, 10), GetFontFlags())
+            lbl:SetPoint("LEFT", btn, "LEFT", 2, 0)
+            lbl:SetPoint("RIGHT", btn, "RIGHT", -2, 0)
+            lbl:SetJustifyH("CENTER")
+            lbl:SetWordWrap(false)
+            lbl:SetText(choice.label)
+            ApplyThemeChoiceStyle(btn, lbl, active)
+
+            btn:SetScript("OnClick", function()
+                SetWindowLayoutValue("tooltipPosition", choice.value)
+                MR:PopulateConfigFrame(f)
+            end)
+            btn:SetScript("OnEnter", function()
+                local selected = ((MR.GetWindowLayoutValue and MR:GetWindowLayoutValue("tooltipPosition")) or "right") == choice.value
+                if not selected then
+                    ApplyThemeChoiceHover(btn, lbl)
+                end
+            end)
+            btn:SetScript("OnLeave", function()
+                local selected = ((MR.GetWindowLayoutValue and MR:GetWindowLayoutValue("tooltipPosition")) or "right") == choice.value
+                ApplyThemeChoiceStyle(btn, lbl, selected)
+            end)
+            RegisterThemeChoice(btn, lbl, function()
+                return ((MR.GetWindowLayoutValue and MR:GetWindowLayoutValue("tooltipPosition")) or "right") == choice.value
+            end)
+        end
+
+        for index, choice in ipairs(tooltipChoices) do
+            CreateTooltipPositionButton(choice, index)
+        end
+        yOff = yOff - 30
+
+        Gap(4)
+        yOff = OptionsCheckbox(body, yOff,
+            L["Config_ShowWarbandTooltips"] or "Show Warband Info in Tooltips",
+            function() return MR.db.profile.showWarbandTooltips ~= false end,
+            function(v) MR.db.profile.showWarbandTooltips = v end,
+            0.24, 0.82, 0.70, 8, nil, cfgFs, true)
+    end
+
+    if activePage == "modules" then
+        yOff = Config.BuildModulesPage({
+            frame = f,
+            body = body,
+            yOff = yOff,
+            cfgFs = cfgFs,
+            moduleHeaderFs = moduleHeaderFs,
+            moduleRowFs = moduleRowFs,
+            moduleSubFs = moduleSubFs,
+            moduleHeaderH = moduleHeaderH,
+            moduleRowH = moduleRowH,
+            moduleCompactH = moduleCompactH,
+            contentW = contentW,
+        })
+    end
+
+    if activePage == "support" then
+        local function CopyableLinkRow(label, url, accentHex)
+            local capLabel = ns.AcquireFontString(body, "pagesText16", "OVERLAY")
+            capLabel:SetFont(ns.FONT_ROWS, cfgFs, GetFontFlags())
+            capLabel:SetPoint("TOPLEFT", body, "TOPLEFT", 8, yOff)
+            capLabel:SetPoint("TOPRIGHT", body, "TOPRIGHT", -8, yOff)
+            capLabel:SetJustifyH("LEFT")
+            capLabel:SetWordWrap(false)
+            capLabel:SetText("|c" .. (accentHex or "ffcfe9e5") .. label .. "|r")
+
+            yOff = yOff - 14
+
+            local boxBg = ns.AcquireFrame(body, "pagesFrame7", "Frame", "BackdropTemplate")
+            boxBg:SetPoint("TOPLEFT", body, "TOPLEFT", 8, yOff)
+            boxBg:SetSize(math.max(192, contentW), 20)
+            boxBg:SetBackdrop(MakeBackdrop())
+            boxBg:SetBackdropColor(0.05, 0.12, 0.20, 0.95)
+            boxBg:SetBackdropBorderColor(0.18, 0.40, 0.45, 1)
+            boxBg:EnableMouse(true)
+
+            local eb = ns.AcquireFrame(boxBg, "pagesFrame8", "EditBox")
+            eb:SetAutoFocus(false)
+            eb:SetPoint("TOPLEFT", boxBg, "TOPLEFT", 6, -3)
+            eb:SetPoint("BOTTOMRIGHT", boxBg, "BOTTOMRIGHT", -6, 3)
+            eb:SetFont(ns.FONT_ROWS, cfgFs, GetFontFlags())
+            eb:SetTextColor(0.76, 0.97, 0.94)
+            eb:SetText(url)
+            eb:SetCursorPosition(0)
+            eb:SetScript("OnEditFocusGained", function(selfEb)
+                selfEb:HighlightText(0, -1)
+            end)
+            eb:SetScript("OnEscapePressed", function(selfEb) selfEb:ClearFocus() end)
+            eb:SetScript("OnEnterPressed", function(selfEb) selfEb:ClearFocus() end)
+            eb:SetScript("OnEditFocusLost", function(selfEb)
+                selfEb:HighlightText(0, 0)
+                selfEb:SetText(url)
+                selfEb:SetCursorPosition(0)
+            end)
+
+            boxBg:SetScript("OnEnter", function(selfBg)
+                selfBg:SetBackdropBorderColor(0.26, 0.78, 0.72, 1)
+            end)
+            boxBg:SetScript("OnLeave", function(selfBg)
+                selfBg:SetBackdropBorderColor(0.18, 0.40, 0.45, 1)
+            end)
+            boxBg:SetScript("OnMouseDown", function()
+                eb:SetFocus()
+            end)
+
+            yOff = yOff - 28
+        end
+
+        SectionLabel(L["Config_SupportUs"] or "Support Us")
+        Gap(2)
+
+        CopyableLinkRow(L["Config_SupportPayPal"] or "PayPal",
+            "https://www.paypal.com/donate/?business=Jhookftw1@hotmail.com", "ff5ea0e0")
+        CopyableLinkRow(L["Config_SupportBuyMeACoffee"] or "Buy Me a Coffee",
+            "https://www.buymeacoffee.com/azroaddons", "ffffc95c")
+        CopyableLinkRow(L["Config_SupportPatreon"] or "Patreon",
+            "https://www.patreon.com/join/AzroAddons", "ffff8a7a")
+        CopyableLinkRow(L["Config_SupportDiscord"] or "Discord",
+            "https://discord.gg/5jvvmr3bMB", "ff8a93ff")
+
+        Gap(4); Divider()
+        SectionLabel(L["Config_Translators"] or "Translators")
+
+        local translators = {
+            { lang = "Traditional Chinese",     name = "BlueNightSky" },
+            { lang = "Simplified Chinese",      name = "Nanjuekaien1" },
+            { lang = "Latin American Spanish",  name = "DarkChiken" },
+            { lang = "Russian",                 name = "Hubbotu" },
+            { lang = "German",                  name = "Paspatu" },
+            { lang = "Korean",                  name = "Crazyyoungs" },
+        }
+
+        for _, t in ipairs(translators) do
+            local row = ns.AcquireFrame(body, "pagesFrame9", "Frame")
+            row:SetPoint("TOPLEFT", body, "TOPLEFT", 8, yOff)
+            row:SetSize(contentW, 16)
+
+            local dot = ns.AcquireTexture(row, "pagesTexture19", "ARTWORK")
+            dot:SetSize(5, 5)
+            dot:SetPoint("LEFT", row, "LEFT", 0, 0)
+            dot:SetColorTexture(0.20, 0.66, 0.63, 0.9)
+
+            local rowFs = ns.AcquireFontString(row, "pagesText17", "OVERLAY")
+            rowFs:SetFont(ns.FONT_ROWS, cfgFs, GetFontFlags())
+            rowFs:SetPoint("LEFT", row, "LEFT", 10, 0)
+            rowFs:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+            rowFs:SetJustifyH("LEFT")
+            rowFs:SetWordWrap(false)
+            rowFs:SetText("|cff9fb8c9" .. t.lang .. ":|r  |cff76f7ee" .. t.name .. "|r")
+
+            yOff = yOff - 18
+        end
+
+        Gap(6)
+        local wanted = ns.AcquireFontString(body, "pagesText18", "OVERLAY")
+        wanted:SetFont(ns.FONT_ROWS, math.max(8, cfgFs - 1), GetFontFlags())
+        wanted:SetPoint("TOPLEFT", body, "TOPLEFT", 8, yOff)
+        wanted:SetPoint("TOPRIGHT", body, "TOPRIGHT", -8, yOff)
+        wanted:SetJustifyH("LEFT")
+        wanted:SetWordWrap(true)
+        wanted:SetText("|cffffd27a" .. (L["Config_TranslatorsWanted"] or "Always looking for translators \226\128\148 join our Discord!") .. "|r")
+        yOff = yOff - (2 * (math.max(8, cfgFs - 1) + 4)) - 4
+    end
+
+    if activePage == "reset" then
+        SectionLabel(L["RESETS"])
+        Btn(L["Config_ResetEverything"], function()
+            MR:ResetAllSettings()
+            MR:PopulateConfigFrame(f)
+        end)
+        Btn(L["Config_ResetColors"], function()
+            MR.db.profile.headerColors = {}
+            MR.db.profile.headerBackgroundColors = {}
+            MR.db.profile.rowColors = {}
+            MR:RefreshUI()
+            MR:PopulateConfigFrame(f)
+        end)
+        Btn(L["Config_ResetOrder"], function()
+            if MR:IsCharacterWindowLayoutEnabled() then
+                MR.db.char.moduleOrder = {}
+                MR.db.char.expansionModuleOrder = {}
+            else
+                MR.db.profile.moduleOrder = {}
+                MR.db.profile.expansionModuleOrder = {}
+            end
+            for _, mod in ipairs(MR.modules or {}) do
+                local storage = MR:GetActiveModuleStorage(MR:GetModuleExpansionKey(mod))
+                local state = storage and storage[mod.key]
+                if type(state) == "table" then
+                    state.rowOrder = nil
+                end
+            end
+            MR._orderedModulesCache = nil
+            MR._orderedAllModulesCache = nil
+            MR._moduleStatsCache = nil
+            MR:RefreshUI()
+            MR:PopulateConfigFrame(f)
+        end)
+    end
+
+    Gap(8)
+    ns.FinishWidgetPool(widgetPool)
+
+    local totalH = math.abs(yOff) + 8
+    local maxBodyH = math.max(220, math.min(PANEL_MAX_HEIGHT - 22, (UIParent:GetHeight() or 768) - 120))
+    body:SetHeight(totalH)
+    bodyParent:SetHeight(totalH)
+    if f.scroll then
+        f:SetHeight(math.min(totalH + 22, maxBodyH + 22))
+        if f.UpdateScrollBar then f.UpdateScrollBar() end
+    else
+        f:SetHeight(totalH)
+    end
+end

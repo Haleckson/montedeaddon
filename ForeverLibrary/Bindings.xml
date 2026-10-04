@@ -1,0 +1,4 @@
+<Bindings>
+    <Binding name="LIBRARYSCOUT_JOURNAL" header="FOREVERLIBRARYSCOUT">LibraryScoutToggleJournal()</Binding>
+    <Binding name="LIBRARYSCOUT_TRACKER">LibraryScoutNavigateTracker()</Binding>
+</Bindings>

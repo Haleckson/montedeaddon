@@ -1,0 +1,105 @@
+## Interface: 50504
+## Title: |cffFF8000Lib: ItemDB|r |cff999999Mists|r
+## Notes: Standalone offline item database — resolve a name to an item link / id (and back) and filter by type / subtype, no client cache needed. Data source for the TOG suite.
+## Author: Pimptasty
+## Version: ItemDB-v1.1.4
+## Category: Library
+## X-Curse-Project-ID: 1558208
+## Dependencies: Ace3, VersionCheck-1.0, LibAceGUIWidgets
+## OptionalDeps: AllTheThings, TradeSkillMaster, TradeSkillMaster_AppHelper, Auctionator, Auc-Advanced
+## SavedVariables: LibItemDB_PriceDB
+## DefaultState: enabled
+
+libs\LibStub\LibStub.lua
+
+LibItemDB-1.0.lua
+
+# Third-party addon bridges (ATT / TSM / Auctionator). All optional, all
+# feature-detected at call time — must load AFTER the library it extends.
+Integrations.lua
+
+# The reagent tooltip -- our OWN lines on an item's tooltip ("Used by: Alchemy, Tailoring"),
+# from Reagents.lua. Not a bridge: nothing here reads another addon. After the library, and
+# after Integrations.lua so the tooltip chain is already in place when we hook it.
+Tooltip.lua
+
+# Item VALUE: the price ladder over Auctionator / Auctioneer / TSM / our own AH scan, the scan
+# itself, and the configuration window. Same rule: after the library, feature-detected at call time.
+Price\Sources.lua
+Price\Scanner.lua
+Price\Window.lua
+
+# The "Where to get it" window: every way to get an item, one row per place. After Price\Sources.lua,
+# whose SavedVariables table it keeps its window position in.
+Where.lua
+
+ItemDB.lua
+
+# Locale-independent core (stats / item level / class / subclass / equip) — loaded once.
+Data\Mists\_core\Armor.lua
+Data\Mists\_core\Effects.lua
+Data\Mists\_core\Class17.lua
+Data\Mists\_core\Class18.lua
+Data\Mists\_core\Consumable.lua
+Data\Mists\_core\Container.lua
+Data\Mists\_core\Gem.lua
+Data\Mists\_core\Gems.lua
+Data\Mists\_core\Generic.lua
+Data\Mists\_core\Glyph.lua
+Data\Mists\_core\Hidden.lua
+Data\Mists\_core\Key.lua
+Data\Mists\_core\Miscellaneous.lua
+Data\Mists\_core\Money.lua
+Data\Mists\_core\Projectile.lua
+Data\Mists\_core\Quest.lua
+Data\Mists\_core\Quiver.lua
+# Race-locked gear (ItemSparse.AllowableRace). Mists has the most of any flavour -- 2,580
+# items, 2,545 of which need the mask's HIGH 32-bit word -- see tools/build-races.py.
+Data\Mists\_core\Races.lua
+Data\Mists\_core\Reagents.lua
+Data\Mists\_core\Recipe.lua
+Data\Mists\_core\Sources.lua
+Data\Mists\_core\SourceNames.lua
+# Where an item comes from (quest / vendor / crafted / drop / gathered) and where to get it
+# (drops, vendors and nodes with map points), both from SkyFire 5.4.8's world DB.
+Data\Mists\_core\ItemLocations.lua
+Data\Mists\_core\ItemPlaces.lua
+Data\Mists\_core\TradeGoods.lua
+Data\Mists\_core\Weapon.lua
+
+# Per-locale names + random properties — each self-guards on GetLocale(); only the active language loads.
+Data\Mists\deDE\Names.lua
+Data\Mists\deDE\RandomProps.lua
+Data\Mists\enGB\Names.lua
+Data\Mists\enGB\RandomProps.lua
+Data\Mists\enUS\Names.lua
+Data\Mists\enUS\RandomProps.lua
+Data\Mists\esES\Names.lua
+Data\Mists\esES\RandomProps.lua
+Data\Mists\esMX\Names.lua
+Data\Mists\esMX\RandomProps.lua
+Data\Mists\frFR\Names.lua
+Data\Mists\frFR\RandomProps.lua
+Data\Mists\itIT\Names.lua
+Data\Mists\itIT\RandomProps.lua
+Data\Mists\koKR\Names.lua
+Data\Mists\koKR\RandomProps.lua
+Data\Mists\ptBR\Names.lua
+Data\Mists\ptBR\RandomProps.lua
+Data\Mists\ruRU\Names.lua
+Data\Mists\ruRU\RandomProps.lua
+Data\Mists\zhCN\Names.lua
+Data\Mists\zhCN\RandomProps.lua
+Data\Mists\zhTW\Names.lua
+Data\Mists\zhTW\RandomProps.lua
+
+# Where-to-get place names (creatures, vendors, nodes) in the client's language -- self-guarded on
+# GetLocale(). English needs none: its names are in _core\ItemPlaces.lua.
+Data\Mists\deDE\PlaceNames.lua
+Data\Mists\esES\PlaceNames.lua
+Data\Mists\esMX\PlaceNames.lua
+Data\Mists\frFR\PlaceNames.lua
+Data\Mists\koKR\PlaceNames.lua
+Data\Mists\ruRU\PlaceNames.lua
+Data\Mists\zhCN\PlaceNames.lua
+Data\Mists\zhTW\PlaceNames.lua

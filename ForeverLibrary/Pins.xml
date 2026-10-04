@@ -1,0 +1,9 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <Frame name="ForeverLibraryPinTemplate" mixin="ForeverLibraryPinMixin" virtual="true" enableMouse="true">
+        <Size x="26" y="26"/>
+        <Layers>
+            <Layer level="BACKGROUND"><Texture parentKey="Ring" file="Interface\Buttons\WHITE8X8"><Anchors><Anchor point="TOPLEFT" x="2" y="-2"/><Anchor point="BOTTOMRIGHT" x="-2" y="2"/></Anchors></Texture></Layer>
+            <Layer level="ARTWORK"><Texture parentKey="Icon" file="Interface\Icons\INV_Misc_Book_09"><Anchors><Anchor point="TOPLEFT" x="3" y="-3"/><Anchor point="BOTTOMRIGHT" x="-3" y="3"/></Anchors></Texture></Layer>
+        </Layers>
+    </Frame>
+</Ui>

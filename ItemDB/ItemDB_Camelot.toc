@@ -1,0 +1,131 @@
+## Interface: 16001
+## Title: |cffFF8000Lib: ItemDB|r |cff999999Forever|r
+## Notes: Standalone offline item database — resolve a name to an item link / id (and back) and filter by type / subtype, no client cache needed. Data source for the TOG suite.
+## Author: Pimptasty
+## Version: ItemDB-v1.1.4
+## Category: Library
+## X-Curse-Project-ID: 1558208
+## Dependencies: Ace3, VersionCheck-1.0, LibAceGUIWidgets
+## OptionalDeps: AllTheThings, TradeSkillMaster, TradeSkillMaster_AppHelper, Auctionator, Auc-Advanced
+## SavedVariables: LibItemDB_PriceDB
+## DefaultState: enabled
+
+libs\LibStub\LibStub.lua
+
+LibItemDB-1.0.lua
+
+# Third-party addon bridges (ATT / TSM / Auctionator). All optional, all
+# feature-detected at call time — must load AFTER the library it extends.
+Integrations.lua
+
+# The reagent tooltip -- our OWN lines on an item's tooltip ("Used by: Alchemy, Tailoring"),
+# from Reagents.lua. Not a bridge: nothing here reads another addon. After the library, and
+# after Integrations.lua so the tooltip chain is already in place when we hook it.
+Tooltip.lua
+
+# Item VALUE: the price ladder over Auctionator / Auctioneer / TSM / our own AH scan, the scan
+# itself, and the configuration window. Same rule: after the library, feature-detected at call time.
+Price\Sources.lua
+Price\Scanner.lua
+Price\Window.lua
+
+# The "Where to get it" window: every way to get an item, one row per place. After Price\Sources.lua,
+# whose SavedVariables table it keeps its window position in.
+Where.lua
+
+ItemDB.lua
+
+# Game rules. Forever loads VANILLA's scoring module, not one of its own: every rule in it is
+# a rule about level-60 Classic combat, and Forever's talent tree is Classic's -- 367 talents
+# across 27 trees, every one at an identical tier, column and maxRank. That file's header
+# carries the full reasoning and the trigger for splitting the two.
+Scoring\Vanilla.lua
+
+# Locale-independent core (stats / item level / class / subclass / equip) — loaded once.
+# Forever's structure comes from wago DB2 and its STATS from WoWSims, because this client
+# stores stat allocations rather than values — see tools/build-core-wowsims.py. A TOG Tools
+# walk on an installed Forever client supersedes it and is the preferred source.
+Data\Forever\_core\Armor.lua
+Data\Forever\_core\Class18.lua
+Data\Forever\_core\Consumable.lua
+Data\Forever\_core\Container.lua
+Data\Forever\_core\Key.lua
+Data\Forever\_core\Miscellaneous.lua
+Data\Forever\_core\Projectile.lua
+Data\Forever\_core\Quest.lua
+Data\Forever\_core\Quiver.lua
+Data\Forever\_core\Reagent.lua
+Data\Forever\_core\Recipe.lua
+Data\Forever\_core\TradeGoods.lua
+Data\Forever\_core\Weapon.lua
+
+# Side tables, all wago-sourced and all locale-independent.
+#
+# None of these is empty. Three were, once: Forever renames SpellEffect's EffectBasePoints
+# to EffectBasePointsF and drops the Classic "+1" along with EffectDieSides, so every decoder
+# read a column that is not there (fixed in itemdb_common.spell_effect_base_points). The
+# fourth, SpellSchools, has no on-equip aura 13 to read on this client at all -- its 171 rows
+# come from WoWSims' per-school stats instead, emitted by tools/build-core-wowsims.py.
+Data\Forever\_core\AuraBuffs.lua
+Data\Forever\_core\BiSWeights.lua
+Data\Forever\_core\Classes.lua
+# Race-locked gear (ItemSparse.AllowableRace). Forever's ChrRaces reaches id 96, so 91 of
+# its 105 restricted items need the mask's HIGH 32-bit word -- see tools/build-races.py.
+Data\Forever\_core\Races.lua
+# 'One active per slot', from wowsims' ConsumesSpec model: db.json Consumable.type for the
+# typed slots, the UI's hand-listed arrays for conjured / explosive / drums / weapon imbues.
+Data\Forever\_core\ConsumableGroups.lua
+Data\Forever\_core\Reagents.lua
+Data\Forever\_core\Effects.lua
+Data\Forever\_core\EquipStats.lua
+Data\Forever\_core\Factions.lua
+Data\Forever\_core\Hidden.lua
+Data\Forever\_core\Mounts.lua
+Data\Forever\_core\ReqLevels.lua
+Data\Forever\_core\ScoreModel.lua
+Data\Forever\_core\SellPrices.lua
+Data\Forever\_core\Sets.lua
+# Drop sources: CLASSIC instances (27 instances, 545 items), from wowsims' own
+# atlasloot_db.json + db.json, kept only where the zone is in Forever's own AreaTable -- those
+# inputs cover every expansion and joined to us by item id alone, which put items 3 and 4 in
+# Trial of the Crusader. See tools/build-sources-wowsims.py.
+Data\Forever\_core\Sources.lua
+Data\Forever\_core\SourceNames.lua
+# The NEW Forever dungeons, under source "imenso", from a community reference with no licence
+# (credited in the file). 3 dungeons, 11 bosses, 33 items (Hall of Thanes, City of Dalaran, Ruins
+# of Lordaeron); their item ids arrived with the v1.1.3 walk. Encounter ids are synthetic. See
+# tools/build-sources-imenso.py.
+Data\Forever\_core\SourcesImenso.lua
+Data\Forever\_core\SourceNamesImenso.lua
+# Chest / object / trash drops: a zone with no boss, so they cannot be Sources rows. Same
+# shape Vanilla's CMaNGOS locations use -- GetSources returns { instance, source="drop" }.
+Data\Forever\_core\ItemLocations.lua
+# Battleground + reputation reward gear, from AtlasLoot's Classic tables intersected with
+# Forever's own _core. AFTER Factions.lua, as on Vanilla: this file also carries faction tags
+# and LoadFactions is last-write-wins per item id, so the reward data must win.
+Data\Forever\_core\RepLoot.lua
+Data\Forever\_core\SpellSchools.lua
+Data\Forever\_core\TalentEffects.lua
+Data\Forever\_core\Talents.lua
+Data\Forever\_core\UseEffects.lua
+Data\Forever\_core\VendorPrices.lua
+
+# Per-locale names — each self-guards on GetLocale(); only the active language loads.
+# There is no RandomProps for Forever: the client ships NO ItemRandomProperties or
+# ItemRandomSuffix table (both 404 on wago at 1.60.1.69913, both present on Classic Era),
+# and wowsims/forever's database carries zero random suffixes. GetRandomProps returns nil.
+# itIT: 17,779 of 19,171 names are Italian; the other 1,392 (7.3%) fall back to English
+# because Blizzard never translated those items. Names only in every Forever locale: the
+# client has no random-suffix table, so there is no RandomProps file for any of them.
+Data\Forever\deDE\Names.lua
+Data\Forever\enGB\Names.lua
+Data\Forever\enUS\Names.lua
+Data\Forever\esES\Names.lua
+Data\Forever\esMX\Names.lua
+Data\Forever\frFR\Names.lua
+Data\Forever\itIT\Names.lua
+Data\Forever\koKR\Names.lua
+Data\Forever\ptBR\Names.lua
+Data\Forever\ruRU\Names.lua
+Data\Forever\zhCN\Names.lua
+Data\Forever\zhTW\Names.lua

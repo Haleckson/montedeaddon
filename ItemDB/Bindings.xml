@@ -1,0 +1,10 @@
+<Bindings>
+	<!-- "Where to get the item under the mouse" (Where.lua). UNBOUND by default: the player picks a key
+	     in the game's Key Bindings, under AddOns > LibItemDB, which avoids clashing with another addon's
+	     keys. The header and label globals BINDING_HEADER_LIBITEMDB / BINDING_NAME_LIBITEMDB_WHERE are
+	     set in Where.lua. Nothing protected is called, so a plain script binding is enough. -->
+	<Binding name="LIBITEMDB_WHERE" header="LIBITEMDB" category="ADDONS">
+		local lib = LibStub and LibStub("LibItemDB-1.0", true)
+		if lib and lib.WhereHovered then lib:WhereHovered() end
+	</Binding>
+</Bindings>

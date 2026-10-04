@@ -1,0 +1,28 @@
+local addonName, addon = ...
+
+local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
+
+function addon:initGroupLoot()
+    local db = addon.db.global
+    if not db.EMEOptions.groupLootContainer then return end
+    
+    addon.hookScriptOnce(GroupLootContainer, "OnShow", function()
+        addon:continueAfterCombatEnds(function()
+            addon:registerFrame(GroupLootContainer, L["Group Loot Container"], db.GroupLootContainer)
+            hooksecurefunc(GroupLootContainer, "SetPoint", function()
+                addon.ResetFrame(GroupLootContainer)
+            end)
+            hooksecurefunc("GroupLootContainer_Update", function()
+                addon.ResetFrame(GroupLootContainer)
+            end)
+            hooksecurefunc(BottomManagedFrameContainer, "Layout", function()
+                addon.ResetFrame(GroupLootContainer)
+            end)
+            GroupLootContainer:HookScript("OnShow", function()
+                if GroupLootContainer.system then
+                    addon.ResetFrame(GroupLootContainer)
+                end
+            end)
+        end)
+    end)
+end

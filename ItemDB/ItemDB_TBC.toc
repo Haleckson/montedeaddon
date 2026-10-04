@@ -1,0 +1,124 @@
+## Interface: 20506
+## Title: |cffFF8000Lib: ItemDB|r |cff999999TBC|r
+## Notes: Standalone offline item database — resolve a name to an item link / id (and back) and filter by type / subtype, no client cache needed. Data source for the TOG suite.
+## Author: Pimptasty
+## Version: ItemDB-v1.1.4
+## Category: Library
+## X-Curse-Project-ID: 1558208
+## Dependencies: Ace3, VersionCheck-1.0, LibAceGUIWidgets
+## OptionalDeps: AllTheThings, TradeSkillMaster, TradeSkillMaster_AppHelper, Auctionator, Auc-Advanced
+## SavedVariables: LibItemDB_PriceDB
+## DefaultState: enabled
+
+libs\LibStub\LibStub.lua
+
+LibItemDB-1.0.lua
+
+# Third-party addon bridges (ATT / TSM / Auctionator). All optional, all
+# feature-detected at call time — must load AFTER the library it extends.
+Integrations.lua
+
+# The reagent tooltip -- our OWN lines on an item's tooltip ("Used by: Alchemy, Tailoring"),
+# from Reagents.lua. Not a bridge: nothing here reads another addon. After the library, and
+# after Integrations.lua so the tooltip chain is already in place when we hook it.
+Tooltip.lua
+
+# Item VALUE: the price ladder over Auctionator / Auctioneer / TSM / our own AH scan, the scan
+# itself, and the configuration window. Same rule: after the library, feature-detected at call time.
+Price\Sources.lua
+Price\Scanner.lua
+Price\Window.lua
+
+# The "Where to get it" window: every way to get an item, one row per place. After Price\Sources.lua,
+# whose SavedVariables table it keeps its window position in.
+Where.lua
+
+# Scoring rules for THIS expansion only. The core carries no game rules; each flavour's TOC
+# loads exactly one of these, so a TBC client never has Vanilla's mechanics in memory.
+Scoring\TBC.lua
+
+ItemDB.lua
+
+# Locale-independent core (stats / item level / class / subclass / equip) — loaded once.
+Data\TBC\_core\Armor.lua
+Data\TBC\_core\Class18.lua
+Data\TBC\_core\Consumable.lua
+Data\TBC\_core\Effects.lua
+Data\TBC\_core\ConsumableGroups.lua
+Data\TBC\_core\Reagents.lua
+Data\TBC\_core\Expansion.lua
+Data\TBC\_core\AuraBuffs.lua
+Data\TBC\_core\Talents.lua
+Data\TBC\_core\TalentEffects.lua
+Data\TBC\_core\EquipStats.lua
+Data\TBC\_core\Container.lua
+Data\TBC\_core\Gem.lua
+Data\TBC\_core\Generic.lua
+Data\TBC\_core\Sets.lua
+Data\TBC\_core\Factions.lua
+Data\TBC\_core\Classes.lua
+# Race-locked gear (ItemSparse.AllowableRace) -- Dibs' DIBSREQ-IDB-006.
+Data\TBC\_core\Races.lua
+Data\TBC\_core\ReqLevels.lua
+Data\TBC\_core\VendorPrices.lua
+Data\TBC\_core\SellPrices.lua
+Data\TBC\_core\SpellSchools.lua
+Data\TBC\_core\UseEffects.lua
+Data\TBC\_core\Gems.lua
+Data\TBC\_core\ScoreModel.lua
+Data\TBC\_core\BiS.lua
+Data\TBC\_core\BiSWeights.lua
+Data\TBC\_core\Mounts.lua
+Data\TBC\_core\Hidden.lua
+Data\TBC\_core\Key.lua
+Data\TBC\_core\Miscellaneous.lua
+Data\TBC\_core\Projectile.lua
+Data\TBC\_core\Quest.lua
+Data\TBC\_core\Quiver.lua
+Data\TBC\_core\Reagent.lua
+Data\TBC\_core\Recipe.lua
+Data\TBC\_core\Sources.lua
+Data\TBC\_core\SourceNames.lua
+Data\TBC\_core\DropRates.lua
+Data\TBC\_core\RepLoot.lua
+Data\TBC\_core\ItemLocations.lua
+Data\TBC\_core\ItemPlaces.lua
+Data\TBC\_core\TradeGoods.lua
+Data\TBC\_core\Weapon.lua
+
+# Per-locale names + random properties — each self-guards on GetLocale(); only the active language loads.
+Data\TBC\deDE\Names.lua
+Data\TBC\deDE\RandomProps.lua
+Data\TBC\enGB\Names.lua
+Data\TBC\enGB\RandomProps.lua
+Data\TBC\enUS\Names.lua
+Data\TBC\enUS\RandomProps.lua
+Data\TBC\esES\Names.lua
+Data\TBC\esES\RandomProps.lua
+Data\TBC\esMX\Names.lua
+Data\TBC\esMX\RandomProps.lua
+Data\TBC\frFR\Names.lua
+Data\TBC\frFR\RandomProps.lua
+Data\TBC\itIT\Names.lua
+Data\TBC\itIT\RandomProps.lua
+Data\TBC\koKR\Names.lua
+Data\TBC\koKR\RandomProps.lua
+Data\TBC\ptBR\Names.lua
+Data\TBC\ptBR\RandomProps.lua
+Data\TBC\ruRU\Names.lua
+Data\TBC\ruRU\RandomProps.lua
+Data\TBC\zhCN\Names.lua
+Data\TBC\zhCN\RandomProps.lua
+Data\TBC\zhTW\Names.lua
+Data\TBC\zhTW\RandomProps.lua
+
+# Where-to-get place names (creatures, vendors, nodes) in the client's language -- self-guarded on
+# GetLocale(). English needs none: its names are in _core\ItemPlaces.lua.
+Data\TBC\deDE\PlaceNames.lua
+Data\TBC\esES\PlaceNames.lua
+Data\TBC\esMX\PlaceNames.lua
+Data\TBC\frFR\PlaceNames.lua
+Data\TBC\koKR\PlaceNames.lua
+Data\TBC\ruRU\PlaceNames.lua
+Data\TBC\zhCN\PlaceNames.lua
+Data\TBC\zhTW\PlaceNames.lua

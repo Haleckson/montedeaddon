@@ -1,0 +1,38 @@
+## Interface: 30405
+## Title: |cffFF8000Lib: ItemDB|r |cff999999Wrath|r
+## Notes: Standalone offline item database — resolve a name to an item link / id (and back) and filter by type / subtype, no client cache needed. Data source for the TOG suite.
+## Author: Pimptasty
+## Version: ItemDB-v1.1.4
+## Category: Library
+## X-Curse-Project-ID: 1558208
+## Dependencies: Ace3, VersionCheck-1.0, LibAceGUIWidgets
+## OptionalDeps: AllTheThings, TradeSkillMaster, TradeSkillMaster_AppHelper, Auctionator, Auc-Advanced
+## SavedVariables: LibItemDB_PriceDB
+## DefaultState: enabled
+
+libs\LibStub\LibStub.lua
+
+LibItemDB-1.0.lua
+
+# Third-party addon bridges (ATT / TSM / Auctionator). All optional, all
+# feature-detected at call time — must load AFTER the library it extends.
+Integrations.lua
+
+# The reagent tooltip -- our OWN lines on an item's tooltip ("Used by: Alchemy, Tailoring"),
+# from Reagents.lua. Not a bridge: nothing here reads another addon. After the library, and
+# after Integrations.lua so the tooltip chain is already in place when we hook it.
+Tooltip.lua
+
+# Item VALUE: the price ladder over Auctionator / Auctioneer / TSM / our own AH scan, the scan
+# itself, and the configuration window. Same rule: after the library, feature-detected at call time.
+Price\Sources.lua
+Price\Scanner.lua
+Price\Window.lua
+
+# The "Where to get it" window: every way to get an item, one row per place. After Price\Sources.lua,
+# whose SavedVariables table it keeps its window position in.
+Where.lua
+
+ItemDB.lua
+
+# No Wrath data captured yet — add Data\wrath\<locale>.lua here once built.

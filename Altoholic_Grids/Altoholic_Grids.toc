@@ -1,0 +1,36 @@
+## Interface: 120100
+## Title: Altoholic_Grids
+## IconTexture: Interface\Icons\inv_drink_13
+
+## Notes: Altoholic's Grids Tab
+## Author: Thaoky (EU-Marécages de Zangar)
+## Version: 12.1.004
+## Dependencies: Altoholic, DataStore, DataStore_Characters
+## SavedVariables: Altoholic_GridsTab_Options, Altoholic_GridsTab_Columns
+## LoadOnDemand: 1
+## X-Category: Interface Enhancements
+
+Locale.xml
+Services\DungeonsLists.lua
+Services\TransmogSetsLists.lua
+Services\ProfessionEquipment.lua
+
+Templates\UITemplates.xml
+TabGrids.xml
+Frames\Grids.xml
+
+Grid_Equipment.lua
+Grid_ProfessionEquipment.lua
+Grid_Reputations.lua
+Grid_Currencies.lua
+Grid_Mounts.lua
+Grid_Tradeskills.lua
+Grid_Archeology.lua
+Grid_Dailies.lua
+Grid_Dungeons.lua
+Grid_GarrisonArchitect.lua
+Grid_GarrisonFollowers.lua
+Grid_FollowerAbilities.lua
+Grid_Emissaries.lua
+Grid_Sets.lua
+Grid_Weeklies.lua

@@ -1,0 +1,19 @@
+## Interface: 16001, 120100, 120105, 120005, 50503, 38000, 20505, 11508
+## Title: |cffc41e3aFallen|rMemoir · Character Memoir
+## Title-trTR: |cffc41e3aFallen|rMemoir · Karakter Anıları
+## Notes: Automatically records your character's story as a memoir and a book. /memoir
+## Notes-trTR: Karakterinin hikayesini otomatik olarak kaydeden bir anı defteri ve kitap. /anilar
+## Author: Sen & Claude
+## Version: 0.9.0
+## SavedVariables: KarakterAnilariSettings
+## SavedVariablesPerCharacter: KarakterAnilariDB
+## IconTexture: Interface\Icons\INV_Misc_Book_09
+## AddonCompartmentFunc: KarakterAnilari_OnAddonCompartmentClick
+
+Locale.lua
+Core.lua
+UI.lua
+Voices.lua
+Book.lua
+Library.lua
+Minimap.lua

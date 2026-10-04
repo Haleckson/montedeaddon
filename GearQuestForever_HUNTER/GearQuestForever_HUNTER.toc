@@ -1,0 +1,12 @@
+## Interface: 16001
+## Title: GearQuest Forever: Hunter
+## Notes: Hunt lists for this class. GearQuest Forever loads this when you play or simulate it.
+## Author: Henrik8210
+## Version: 0.2.18-beta
+## LoadOnDemand: 1
+## Dependencies: GearQuestForever
+## RequiredDeps: GearQuestForever
+
+Data.Hunter.generated.lua
+Data.Hunter.Early.1to9.generated.lua
+AuditTips.lua

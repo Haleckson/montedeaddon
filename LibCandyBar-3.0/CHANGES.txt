@@ -1,0 +1,15 @@
+------------------------------------------------------------------------
+r229 | funkehdude | 2026-09-28 16:38:53 +0000 (Mon, 28 Sep 2026) | 1 line
+Changed paths:
+   A /trunk/.luacheckrc
+   M /trunk/LibCandyBar-3.0/LibCandyBar-3.0.lua
+
+Removed approximate timers, added `GetIconAtlas`, `SetIconAtlas`, `IsIconAtlas`, `SetIconVisibility`, `IsIconVisible`, `IsTimeVisible`, `IsLabelVisible`, and did various cleanups. Potential for breakage.
+------------------------------------------------------------------------
+r228 | funkehdude | 2026-09-28 14:35:13 +0000 (Mon, 28 Sep 2026) | 1 line
+Changed paths:
+   M /trunk/LibCandyBar-3.0.toc
+
+Bump toc
+------------------------------------------------------------------------
+

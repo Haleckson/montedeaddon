@@ -1,0 +1,51 @@
+Field Journal - Forever Test Build 51
+
+Zephras Isle mob-registration pass.
+
+WHAT THIS BUILD DOES
+- Registers 77 verified Zephras Isle combat NPC IDs across 18 lore subjects.
+- Covers wildlife, named/rare beasts, bandits, Al'Aketh, elementals, and faction-conflict mobs.
+- Includes both ordinary and named variants when a reliable Forever NPC ID is available.
+- Keeps all five lore tiers as "Lore entry pending." for the next dedicated lore-research pass.
+- Preserves Zephras Isle as the single top-level client zone.
+- Preserves all 27 Zephras Isle subregions already added in Builds 49-50.
+- Does not register vendors, trainers, friendly quest givers, mounts, dead scenery NPCs, or other
+  units that cannot normally trigger Field Journal's player-damaged UNIT_DIED encounter flow.
+
+REGISTERED SUBJECTS
+- Vuldren: 5 NPC ID(s)
+- Ursera: 7 NPC ID(s)
+- Prideclaws: 1 NPC ID(s)
+- Galestriders: 3 NPC ID(s)
+- Cloudrunners: 3 NPC ID(s)
+- Hippogryphs: 3 NPC ID(s)
+- Cirrusflies: 3 NPC ID(s)
+- Shrieklings: 4 NPC ID(s)
+- Windsong Crawlers: 1 NPC ID(s)
+- Flutterflies: 1 NPC ID(s)
+- Skyhoppers: 1 NPC ID(s)
+- Zephras Bandits: 7 NPC ID(s)
+- Al'Aketh: 25 NPC ID(s)
+- Wind Elementals: 5 NPC ID(s)
+- Forest Sprites: 1 NPC ID(s)
+- High Order Combatants: 4 NPC ID(s)
+- Windshaper Combatants: 2 NPC ID(s)
+- Den'dralass: 1 NPC ID(s)
+
+REGISTERED NPC IDs
+250873, 250868, 250874, 254589, 255887, 250926, 250937, 251115, 250928, 250927, 258443, 259388, 251245, 251661, 251707, 256492, 271707, 271712, 271710, 251291, 251284, 251261, 251169, 251402, 251404, 253282, 253283, 256092, 256108, 254588, 251622, 251314, 251918, 255534, 252875, 252820, 252863, 252802, 274868, 251451, 254626, 270201, 251145, 251160, 252665, 252762, 254596, 252767, 251448, 253511, 253195, 252764, 252763, 252068, 252664, 256996, 252765, 252077, 256966, 251966, 253622, 268602, 256935, 257196, 251143, 251662, 251676, 252481, 256250, 250921, 257521, 256619, 259060, 273968, 257532, 276415, 250936
+
+INTENTIONALLY NOT FORCED INTO THE DATABASE
+- High Priestess Lorthuna: story/event NPC; the Zephras encounter is scripted rather than a normal player kill.
+- Rohash: story/event NPC, not a normal killable encounter.
+- Malevolent Storm event variants: current beta reports show inconsistent/neutral behavior in the final event,
+  so these are not registered until a stable killable NPC ID/behavior is confirmed.
+- Any future beta-spawn variants whose name exists publicly but whose exact creature ID cannot be verified.
+  Do not guess IDs; add them when verified.
+
+ZONE STATUS
+Zephras Isle was already present in ZoneDB from Build 49 and remains unchanged.
+All 27 current client AreaTable subregions are present.
+
+This build is intentionally the data-registration pass. The next pass can replace the
+placeholder text with researched lore for these subjects.

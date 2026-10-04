@@ -1,0 +1,17 @@
+## Interface: 16001
+## Title: HandyNotes - Forever Books
+## Notes: Books and scrolls from the SoD library guide, mapped for WoW Forever.
+## Notes-deDE: BÃ¼cher und Schriftrollen fÃ¼r WoW Forever, mit Fundort-Hinweisen.
+## Author: Forever Books
+## Version: 1.1.3
+## RequiredDeps: HandyNotes
+## SavedVariables: HandyNotes_ForeverBooksDB
+## SavedVariablesPerCharacter: HandyNotes_ForeverBooksCharDB
+## IconTexture: Interface\AddOns\HandyNotes_ForeverBooks\media\ForeverBooks
+## X-Category: Map
+
+nodes.lua
+items.lua
+tracking.lua
+options.lua
+core.lua

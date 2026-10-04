@@ -1,0 +1,15 @@
+## Interface: 110207, 120005, 120007, 120100
+## Title: Lib: Graph-2.0
+## Notes: A library allowing for easy creation of graphs
+## Author: Cryect, Xinhuan (maintained by Pimptasty)
+## Version: LibGraph-2.0-v2.0.8
+## X-Category: Libraries
+## X-License: See LICENSE (original All Rights Reserved; later changes MIT)
+## X-Website: https://github.com/Pimptasty/LibGraph
+## X-Curse-Project-ID: 1668535
+## Dependencies: Ace3, VersionCheck-1.0
+## LoadOnDemand: 1
+## DefaultState: enabled
+
+LibStub.lua
+LibGraph-2.0\LibGraph-2.0.lua

@@ -1,0 +1,10 @@
+lightweight tag ed43458de3095c987175cbb86f68086b05accf92 3.2.12
+Author:	Joao L. Cardoso <me@jaliborc.com>
+Date:	Sun Oct 4 01:27:11 2026 +0100
+
+commit ed43458de3095c987175cbb86f68086b05accf92
+Author: Joao L. Cardoso <me@jaliborc.com>
+Date:   Sun Oct 4 01:27:11 2026 +0100
+
+    Apparently camelot cant be trusted. Fml
+

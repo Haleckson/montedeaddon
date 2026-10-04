@@ -1,0 +1,11 @@
+<Bindings>
+	<Binding name="LOREVER_TOGGLE" header="LOREVER" category="ADDONS">
+		Lorever_Toggle()
+	</Binding>
+	<Binding name="LOREVER_NARRATE" category="ADDONS">
+		Lorever_NarrateToggle()
+	</Binding>
+	<Binding name="LOREVER_NARRATE_HERE" category="ADDONS">
+		Lorever_NarrateHere()
+	</Binding>
+</Bindings>

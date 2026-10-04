@@ -1,0 +1,19 @@
+## Interface: 11509, 16001, 20506, 30405, 38000, 40402, 50504, 120005, 120007, 120100
+## Title: |cffFF8000Lib: DeltaSync|r
+## Notes: DeltaSync library for addon development
+## Author: Pimptasty
+## X-Category: Library
+## Category: Library
+## Version: DeltaSync-v4.4.1
+## X-Curse-Project-ID: 1488652
+## Dependencies: Ace3, VersionCheck-1.0, AceCommQueue-1.0, GuildRoster
+
+DeltaSync.lua
+DeltaSyncChannel.lua
+DeltaOperations.lua
+P2PSession.lua
+DeltaSyncRoster.lua
+DeltaSyncGuildMode.lua
+DeltaSyncNumbers.lua
+DeltaSyncP2PNumbered.lua
+DeltaSyncVersionCheck.lua

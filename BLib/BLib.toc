@@ -1,0 +1,30 @@
+## Interface: 120100, 16001
+## Title: BLib
+## Notes: Shared UI library
+## Author: Musu32
+## SavedVariables: BLibDB
+## Version: 1.10.0
+## IconTexture: Interface\AddOns\BLib\Textures\Logo.tga
+
+BLib_Compat.lua
+BLib_Core.lua
+BLib_Pixel.lua
+BLib_Format.lua
+BLib_Output.lua
+BLib_Rivals.lua
+BLib_ProbeLog.lua
+BLib_Data.lua
+BLib_Account.lua
+BLib_Vendor.lua
+BLib_Comm.lua
+BLib_People.lua
+BLib_Scroll.lua
+BLib_Widgets.lua
+BLib_List.lua
+BLib_Window.lua
+BLib_Options.lua
+BLib_Dock.lua
+BLib_Layout.lua
+BLib_Profiles.lua
+BLib_CharSettings.lua
+BLib_Taint.lua

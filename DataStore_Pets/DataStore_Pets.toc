@@ -1,0 +1,26 @@
+## Interface: 120100
+## Title: DataStore_Pets
+## IconTexture: Interface\Icons\garrison_building_storehouse
+
+## Notes: Stores information about character pets and mounts
+## Author: Thaoky (EU-Marécages de Zangar)
+## Version: 2026.09.30
+## Dependencies: AddonFactory, DataStore
+## SavedVariables: DataStore_Pets_Characters, DataStore_Pets_GUIDs
+## X-Category: Interface Enhancements
+
+## Category: Libraries
+## Category-deDE: Bibliotheken
+## Category-esES: Bibliotecas
+## Category-esMX: Bibliotecas
+## Category-frFR: Bibliothèques
+## Category-itIT: Librerie
+## Category-koKR: 라이브러리
+## Category-ptBR: Bibliotecas
+## Category-ruRU: Библиотеки
+## Category-zhCN: 函数库
+## Category-zhTW: 函式庫
+
+DataStore_Pets.lua
+Data\CompanionList.lua
+Data\CompanionToSpellID.lua

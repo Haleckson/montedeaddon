@@ -1,0 +1,157 @@
+## Interface: 11509
+## Title: |cffFF8000Lib: ItemDB|r |cff999999Vanilla|r
+## Notes: Standalone offline item database — resolve a name to an item link / id (and back) and filter by type / subtype, no client cache needed. Data source for the TOG suite.
+## Author: Pimptasty
+## Version: ItemDB-v1.1.4
+## Category: Library
+## X-Curse-Project-ID: 1558208
+## Dependencies: Ace3, VersionCheck-1.0, LibAceGUIWidgets
+## OptionalDeps: AllTheThings, TradeSkillMaster, TradeSkillMaster_AppHelper, Auctionator, Auc-Advanced
+## SavedVariables: LibItemDB_PriceDB
+## DefaultState: enabled
+
+libs\LibStub\LibStub.lua
+
+LibItemDB-1.0.lua
+
+# Third-party addon bridges (ATT / TSM / Auctionator). All optional, all
+# feature-detected at call time — must load AFTER the library it extends.
+Integrations.lua
+
+# The reagent tooltip -- our OWN lines on an item's tooltip ("Used by: Alchemy, Tailoring"),
+# from Reagents.lua. Not a bridge: nothing here reads another addon. After the library, and
+# after Integrations.lua so the tooltip chain is already in place when we hook it.
+Tooltip.lua
+
+# Item VALUE: the price ladder over Auctionator / Auctioneer / TSM / our own AH scan, the scan
+# itself, and the configuration window. Same rule: after the library, feature-detected at call time.
+Price\Sources.lua
+Price\Scanner.lua
+Price\Window.lua
+
+# The "Where to get it" window: every way to get an item, one row per place. After Price\Sources.lua,
+# whose SavedVariables table it keeps its window position in.
+Where.lua
+
+# Scoring rules for THIS expansion only. The core carries no game rules; each flavour's TOC
+# loads exactly one of these, so a Vanilla client never has TBC's mechanics in memory.
+Scoring\Vanilla.lua
+
+ItemDB.lua
+
+# Locale-independent core (stats / item level / class / subclass / equip) — loaded once.
+Data\Vanilla\_core\Armor.lua
+Data\Vanilla\_core\Class18.lua
+Data\Vanilla\_core\Consumable.lua
+Data\Vanilla\_core\Effects.lua
+Data\Vanilla\_core\ConsumableGroups.lua
+Data\Vanilla\_core\Reagents.lua
+Data\Vanilla\_core\Expansion.lua
+Data\Vanilla\_core\AuraBuffs.lua
+Data\Vanilla\_core\Talents.lua
+Data\Vanilla\_core\TalentEffects.lua
+Data\Vanilla\_core\EquipStats.lua
+Data\Vanilla\_core\SpellSchools.lua
+Data\Vanilla\_core\UseEffects.lua
+Data\Vanilla\_core\ScoreModel.lua
+Data\Vanilla\_core\Sets.lua
+Data\Vanilla\_core\Factions.lua
+Data\Vanilla\_core\Classes.lua
+# Race-locked gear (ItemSparse.AllowableRace). Ships as data because Classic Era's
+# C_TooltipInfo namespace has NO functions, so a consumer cannot read the tooltip's
+# "Races:" line at run time -- Dibs' DIBSREQ-IDB-006.
+Data\Vanilla\_core\Races.lua
+Data\Vanilla\_core\Hidden.lua
+Data\Vanilla\_core\ReqLevels.lua
+Data\Vanilla\_core\VendorPrices.lua
+Data\Vanilla\_core\SellPrices.lua
+Data\Vanilla\_core\Mounts.lua
+Data\Vanilla\_core\Container.lua
+Data\Vanilla\_core\Key.lua
+Data\Vanilla\_core\Miscellaneous.lua
+Data\Vanilla\_core\Projectile.lua
+Data\Vanilla\_core\Quest.lua
+Data\Vanilla\_core\Quiver.lua
+Data\Vanilla\_core\Reagent.lua
+Data\Vanilla\_core\Recipe.lua
+Data\Vanilla\_core\Sources.lua
+Data\Vanilla\_core\SourceNames.lua
+Data\Vanilla\_core\DropRates.lua
+Data\Vanilla\_core\ItemLocations.lua
+Data\Vanilla\_core\ItemPlaces.lua
+Data\Vanilla\_core\RepLoot.lua
+Data\Vanilla\_core\BiS.lua
+Data\Vanilla\_core\BiSWeights.lua
+Data\Vanilla\_core\TradeGoods.lua
+Data\Vanilla\_core\Weapon.lua
+
+# Per-locale names + random properties — each self-guards on GetLocale(); only the active language loads.
+Data\Vanilla\deDE\Names.lua
+Data\Vanilla\deDE\RandomProps.lua
+Data\Vanilla\enGB\Names.lua
+Data\Vanilla\enGB\RandomProps.lua
+Data\Vanilla\enUS\Names.lua
+Data\Vanilla\enUS\RandomProps.lua
+Data\Vanilla\esES\Names.lua
+Data\Vanilla\esES\RandomProps.lua
+Data\Vanilla\esMX\Names.lua
+Data\Vanilla\esMX\RandomProps.lua
+Data\Vanilla\frFR\Names.lua
+Data\Vanilla\frFR\RandomProps.lua
+Data\Vanilla\itIT\Names.lua
+Data\Vanilla\itIT\RandomProps.lua
+Data\Vanilla\koKR\Names.lua
+Data\Vanilla\koKR\RandomProps.lua
+Data\Vanilla\ptBR\Names.lua
+Data\Vanilla\ptBR\RandomProps.lua
+Data\Vanilla\ruRU\Names.lua
+Data\Vanilla\ruRU\RandomProps.lua
+Data\Vanilla\zhCN\Names.lua
+Data\Vanilla\zhCN\RandomProps.lua
+Data\Vanilla\zhTW\Names.lua
+Data\Vanilla\zhTW\RandomProps.lua
+
+# Where-to-get place names (creatures, vendors, nodes) in the client's language -- self-guarded on
+# GetLocale(). English needs none: its names are in _core\ItemPlaces.lua.
+Data\Vanilla\deDE\PlaceNames.lua
+Data\Vanilla\esES\PlaceNames.lua
+Data\Vanilla\esMX\PlaceNames.lua
+Data\Vanilla\frFR\PlaceNames.lua
+Data\Vanilla\koKR\PlaceNames.lua
+Data\Vanilla\ruRU\PlaceNames.lua
+Data\Vanilla\zhCN\PlaceNames.lua
+Data\Vanilla\zhTW\PlaceNames.lua
+
+# Seasonal overlay (SoD / Fresh-Anniversary items, ID >= 25000) — each self-guards on lib:IsSeasonalRealm(); on Era/Hardcore these no-op.
+Data\Vanilla\_seasonal\Armor.lua
+Data\Vanilla\_seasonal\Class18.lua
+Data\Vanilla\_seasonal\Consumable.lua
+Data\Vanilla\_seasonal\Container.lua
+Data\Vanilla\_seasonal\Effects.lua
+Data\Vanilla\_seasonal\EquipStats.lua
+Data\Vanilla\_seasonal\Key.lua
+Data\Vanilla\_seasonal\Miscellaneous.lua
+Data\Vanilla\_seasonal\Projectile.lua
+Data\Vanilla\_seasonal\Quest.lua
+Data\Vanilla\_seasonal\Quiver.lua
+Data\Vanilla\_seasonal\Reagent.lua
+Data\Vanilla\_seasonal\Recipe.lua
+Data\Vanilla\_seasonal\TradeGoods.lua
+Data\Vanilla\_seasonal\Weapon.lua
+Data\Vanilla\_seasonal\Sets.lua
+Data\Vanilla\_seasonal\Classes.lua
+Data\Vanilla\_seasonal\ReqLevels.lua
+Data\Vanilla\_seasonal\SellPrices.lua
+Data\Vanilla\_seasonal\ItemLocations.lua
+Data\Vanilla\_seasonal\deDE\Names.lua
+Data\Vanilla\_seasonal\enGB\Names.lua
+Data\Vanilla\_seasonal\enUS\Names.lua
+Data\Vanilla\_seasonal\esES\Names.lua
+Data\Vanilla\_seasonal\esMX\Names.lua
+Data\Vanilla\_seasonal\frFR\Names.lua
+Data\Vanilla\_seasonal\itIT\Names.lua
+Data\Vanilla\_seasonal\koKR\Names.lua
+Data\Vanilla\_seasonal\ptBR\Names.lua
+Data\Vanilla\_seasonal\ruRU\Names.lua
+Data\Vanilla\_seasonal\zhCN\Names.lua
+Data\Vanilla\_seasonal\zhTW\Names.lua

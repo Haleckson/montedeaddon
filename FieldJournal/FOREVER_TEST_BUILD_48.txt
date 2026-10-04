@@ -1,0 +1,17 @@
+Field Journal - Forever Test Build 48
+
+Ruins of Lordaeron and missing quest-chain coverage update.
+
+Changes from Build 47:
+- Added Ruins of Lordaeron to Field Notes / ZoneDB (recommended level 16-22, Contested).
+- Added four Ruins of Lordaeron subregions: King's Alley, Lordaeron Graveyard, Lordamere Overlook, and Market Street.
+- Added the full identified Horde Ruins of Lordaeron quest set.
+- Added the full five-part Unending Torment chain (97288-97292).
+- Added the identified Alliance Ruins of Lordaeron quests, including the Duskwood follow-up to Remember That I Love You.
+- Added the complete Undead Sepulcher supply/flight chain: Supplying the Sepulcher, Ride to the Undercity, Michael Garrett, and Return to Podrig.
+- Added handcrafted first-person RP journal summaries for all new quest records.
+- Preserved all Build 47 quest fixes and existing UI/reporting behavior.
+
+Quest IDs added:
+92422, 92401, 92421, 95216, 95204, 97288, 97289, 97290, 97291, 97292,
+95189, 95250, 95195, 92415, 95161, 6321, 6323, 6322, 6324.

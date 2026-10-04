@@ -1,0 +1,57 @@
+## Interface: 16001, 120100, 120000
+## Title: Spellbook Levels
+## Notes: Spellbook-style window showing the level each spell can be trained. /sbl to open.
+## OptionalDeps: EllesmereUI, EllesmereUIBlizzardSkin
+## Author: Exordiums
+## Version: 3.3.21
+## SavedVariables: SpellbookLevelsDB, SpellbookLevelsAppearanceDB
+ObsidianSkin.lua
+
+EllesmereStyle.lua
+NativeBookArt.lua
+# Embedded MIT-licensed LibProfessionDB Forever dataset (v1.8.0)
+Libs\LibStub.lua
+Libs\LibProfessionDB\LibProfessionDB-1.0.lua
+Data\Professions\Core\Alchemy.lua
+Data\Professions\Core\Blacksmithing.lua
+Data\Professions\Core\Cooking.lua
+Data\Professions\Core\Enchanting.lua
+Data\Professions\Core\Engineering.lua
+Data\Professions\Core\Firstaid.lua
+Data\Professions\Core\Fishing.lua
+Data\Professions\Core\Leatherworking.lua
+Data\Professions\Core\Mining.lua
+Data\Professions\Core\Tailoring.lua
+Data\Professions\Core\RecipeItems.lua
+Data\Professions\Core\AcquireMethods.lua
+Data\Professions\enUS\Alchemy.lua
+Data\Professions\enUS\Blacksmithing.lua
+Data\Professions\enUS\Cooking.lua
+Data\Professions\enUS\Enchanting.lua
+Data\Professions\enUS\Engineering.lua
+Data\Professions\enUS\Firstaid.lua
+Data\Professions\enUS\Fishing.lua
+Data\Professions\enUS\Leatherworking.lua
+Data\Professions\enUS\Mining.lua
+Data\Professions\enUS\Tailoring.lua
+Data\Professions\enUS\RecipeScrollPrefixes.lua
+
+Data\WARRIOR.lua
+Data\PALADIN.lua
+Data\HUNTER.lua
+Data\ROGUE.lua
+Data\PRIEST.lua
+Data\SHAMAN.lua
+Data\MAGE.lua
+Data\WARLOCK.lua
+Data\DRUID.lua
+Data\PROFESSIONS.lua
+Materials.lua
+ClassSpells.lua
+Professions.lua
+UIHelpers.lua
+Provenance.lua
+SpellbookLevels.lua
+Performance.lua
+
+

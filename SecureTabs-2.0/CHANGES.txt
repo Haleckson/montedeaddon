@@ -1,0 +1,10 @@
+lightweight tag 93ad1da9f7e764aee92f58148f0353c831cc9c72 2.0.15-93ad1da
+Author:	Joao L. Cardoso <me@jaliborc.com>
+Date:	Fri Sep 18 16:24:56 2026 +0100
+
+commit 93ad1da9f7e764aee92f58148f0353c831cc9c72
+Author: Joao L. Cardoso <me@jaliborc.com>
+Date:   Fri Sep 18 16:24:56 2026 +0100
+
+    Automated year or interface number update
+

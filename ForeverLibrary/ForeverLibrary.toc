@@ -1,0 +1,22 @@
+## Interface: 16001
+## Title: Forever Library Scout
+## Notes: A character book journal, reward previews and world map navigation for WoW Forever.
+## Author: Kushen
+## Version: 1.2.1-beta
+## Category: Quests
+## IconTexture: Interface\Icons\INV_Misc_Book_09
+## SavedVariablesPerCharacter: ForeverLibraryDB
+
+Libs\LibStub.lua
+Libs\CallbackHandler-1.0.lua
+Libs\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0.lua
+Data.lua
+Core.lua
+Maps.lua
+Pins.xml
+Theme.lua
+Scrollbars.lua
+UI.lua
+Integrations.lua
+Gamepad.lua

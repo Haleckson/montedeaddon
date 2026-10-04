@@ -1,0 +1,10 @@
+lightweight tag e327461ed64bb7ae8fa609e42b8378f3df71e2de 2.0.6-e327461
+Author:	Joao L. Cardoso <me@jaliborc.com>
+Date:	Fri Sep 18 16:24:53 2026 +0100
+
+commit e327461ed64bb7ae8fa609e42b8378f3df71e2de
+Author: Joao L. Cardoso <me@jaliborc.com>
+Date:   Fri Sep 18 16:24:53 2026 +0100
+
+    Automated year or interface number update
+

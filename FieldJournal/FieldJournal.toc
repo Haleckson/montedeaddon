@@ -1,0 +1,32 @@
+## Interface: 16001
+## Title: Field Journal
+## Notes: RP field journal for observing enemies and tracking lore.
+## Author: Zane Price
+## Version: 0.2.47-forever-test52
+## SavedVariablesPerCharacter: FieldJournalDB
+
+Core.lua
+Config.lua
+Compat.lua
+
+Lore/SubjectLoreDB.lua
+Lore/ZoneDB.lua
+Lore/QuestDB.lua
+QuestSystem.lua
+SubjectIndex.lua
+
+DataManager.lua
+ChronicleSystem.lua
+SubjectSystem.lua
+EncounterSystem.lua
+ZoneSystem.lua
+ObserveSystem.lua
+
+UI/Widgets.lua
+UI/JournalFrame.lua
+UI/Pagination.lua
+UI/ObserveFrame.lua
+UI/MinimapButton.lua
+UI/QuestReport.lua
+
+Events.lua

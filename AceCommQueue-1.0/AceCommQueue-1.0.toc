@@ -1,0 +1,10 @@
+## Interface: 11509, 11507, 20506, 20505, 30405, 38002, 38000, 40402, 50504, 50503, 50502, 120100, 120007, 120005, 120001, 110207, 120000, 16001
+## Title: |cffFF8000Lib: AceCommQueue-1.0|r
+## Notes: Serializes AceComm-3.0 sends on a per-prefix queue to prevent chunk interleaving caused by ChatThrottleLib priority ordering.
+## Author: Pimptasty
+## Category: Library
+## Version: AceCommQueue-v1.1.1
+## Dependencies: Ace3
+## X-Curse-Project-ID: 1501532
+
+AceCommQueue-1.0.lua

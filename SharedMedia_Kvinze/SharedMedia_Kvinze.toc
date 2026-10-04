@@ -1,0 +1,7 @@
+## Interface: 16001
+## Author: Kvinze
+## Title: SharedMedia_Kvinze
+## Version: 1.0 
+## IconTexture: Interface\AddOns\SharedMedia_Kvinze\logo\icon.tga
+
+Kvinze.lua 

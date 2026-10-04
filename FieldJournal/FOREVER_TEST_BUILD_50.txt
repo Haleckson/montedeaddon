@@ -1,0 +1,27 @@
+Field Journal - Forever Test Build 50
+
+Zephras Isle level 7-12 quest continuation.
+
+Changes from Build 49:
+- Added 63 additional Zephras Isle quest records.
+- Added Shen'dar Highlands side quests and the Al'Aketh infiltration chain.
+- Added the western pylon watchtower story and Shadowsong signet follow-up.
+- Added Windfield Orchard / Gustberry Lowlands quests.
+- Added Valanaar surveillance and faction-hub progression.
+- Added High Order-specific and Windshaper-specific Valanaar story branches.
+- Added the eastern pylon defense.
+- Added the shared late Al'Aketh campaign through the Shrine of Akir.
+- Added both faction versions of Confront Lorthuna, The Fate of Zephras, and What Comes Next.
+- Added the Shadowgale / Nightclaw druid storyline through The Fate of the Den.
+- Added The Fate of a Loved One at the Ruins of Ban'aethal.
+- Added four verified Windshaper Skyborne Call of Fire quest IDs: 97243, 97244, 97245, 97257.
+- Preserved all Build 47-49 additions.
+
+Scope:
+Build 50 carries the core Zephras Isle experience through level 12 and ends with
+the faction-specific What Comes Next quests while the player is still on Zephras.
+The level 13 travel/arrival chains into Dalaran/Stormwind and Mulgore/Orgrimmar
+are intentionally reserved for the next transition pass.
+
+Quest IDs added:
+92516, 92517, 93318, 93036, 92529, 92528, 93926, 93927, 93948, 92550, 92579, 92679, 92682, 92683, 92684, 92698, 92693, 92703, 93949, 92699, 92709, 92727, 92849, 92850, 92840, 92834, 92860, 92700, 92708, 93735, 93737, 93738, 93746, 92871, 93320, 92642, 92880, 92881, 92643, 98512, 92644, 94568, 92640, 93065, 92947, 93958, 93835, 94369, 93089, 92646, 93836, 93090, 94484, 94485, 94486, 94489, 94490, 94491, 94897, 97243, 97244, 97245, 97257
