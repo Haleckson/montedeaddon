@@ -1,0 +1,19 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+..\FrameXML\UI.xsd">
+	<EditBox name="ArcaneWizardLibrary_InputTemplate" mixin="ArcaneWizardLibrary_InputMixin" virtual="true">
+		<Size x="180" y="24" />
+		<Scripts>
+			<OnLoad>self:OnLoad()</OnLoad>
+			<OnSizeChanged>self:OnSizeChanged()</OnSizeChanged>
+			<OnEnter>self:OnEnter()</OnEnter>
+			<OnLeave>self:OnLeave()</OnLeave>
+			<OnEditFocusGained>self:OnEditFocusGained()</OnEditFocusGained>
+			<OnEditFocusLost>self:OnEditFocusLost()</OnEditFocusLost>
+			<OnTextChanged>self:OnTextChanged(userInput)</OnTextChanged>
+			<OnEnterPressed>self:OnEnterPressed()</OnEnterPressed>
+			<OnEscapePressed>self:OnEscapePressed()</OnEscapePressed>
+			<OnEnable>self:OnEnable()</OnEnable>
+			<OnDisable>self:OnDisable()</OnDisable>
+		</Scripts>
+	</EditBox>
+</Ui>

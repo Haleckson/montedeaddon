@@ -1,0 +1,5 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <include file="TabSystem\Manifest.xml"/>
+  <include file="TableElement\Manifest.xml"/>
+  <include file="DataProvider\Manifest.xml"/>
+</Ui>

@@ -1,0 +1,14 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/..\FrameXML\UI.xsd">
+    <Include file="locales\locales.xml" />
+    <Script file="locales.lua" />
+    <Script file="profession-icons.lua" />
+    <Script file="profession-backgrounds.lua" />
+    <Script file="profession-spells.lua" />
+    <Script file="specialization-spells.lua" />
+    <Script file="seasonal-vendors.lua" />
+    <Script file="self-conversions.lua" />
+    <Script file="self-only-skills.lua" />
+    <Script file="mining-node-contents.lua" />
+    <Script file="gathering-zones.lua" />
+    <Script file="gathering-node-variants.lua" />
+</Ui>

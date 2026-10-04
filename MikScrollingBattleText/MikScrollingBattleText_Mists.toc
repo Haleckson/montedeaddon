@@ -1,0 +1,32 @@
+## Interface: 50504
+## Version: 1.0.5
+## Title: Mik's Scrolling Battle Text
+## Author: Mikord
+## Notes: Scrolls battle information around the character model.
+## IconTexture: Interface\AddOns\MikScrollingBattleText\Artwork\MinimapIcon
+## SavedVariables: MSBTProfiles_SavedVars, MSBT_SavedMedia
+## SavedVariablesPerCharacter: MSBTProfiles_SavedVarsPerChar
+## OptionalDeps: LibSharedMedia-3.0
+
+Libs\LibStub.lua
+Libs\CallbackHandler-1.0.lua
+Libs\LibSharedMedia-3.0.lua
+
+Mists\Code\MikSBT.lua
+Localization\localization.xml
+Mists\Code\MSBTProfiles.lua
+Mists\Code\MSBTParser.lua
+Mists\Code\MSBTMedia.lua
+Mists\Code\MSBTAnimations.lua
+Mists\Code\MSBTTriggers.lua
+Mists\Code\MSBTCooldowns.lua
+Mists\Code\MSBTLoot.lua
+Mists\Code\MSBTMain.lua
+Mists\Code\MSBTAnimationStyles.lua
+Mists\Code\MSBTMinimapButton.lua
+
+Mists\MSBTOptions\Localization\localization.xml
+Mists\MSBTOptions\MSBTOptionsControls.lua
+Mists\MSBTOptions\MSBTOptionsPopups.lua
+Mists\MSBTOptions\MSBTOptionsMain.lua
+Mists\MSBTOptions\MSBTOptionsTabs.lua

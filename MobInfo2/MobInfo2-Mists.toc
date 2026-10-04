@@ -1,0 +1,51 @@
+## Interface: 50504
+## Title: MobInfo2 |cFF00D1FFMists Classic
+## Version: 12.1.8
+## Authors: ILeClerk
+## Notes: Adds information about the hovered mob to the tooltip and shows health/mana information in the target frame
+## Notes-zhCN: 在鼠标提示中显示生物的掉落物相关信息。
+## Category: Interface Enhancements
+## Category-zhCN: 界面增强
+## SavedVariables: MobInfoConfig, MobInfoDB, MI2_ItemNameTable, MI2_CharTable, MI2_ZoneTable, MI2_UnitId2Name, MI2_CurrencyNameTable, MI2_DB, MI2_RecentLoots
+## SavedVariablesPerCharacter: MI2_SummaryDB
+## Dependencies: 
+## OptionalDeps: LibStub, LibDeflate, LibSerialize, LibPeriodicTable-3.1, LibPeriodicTable-3.1-Tradeskill, LibDataBroker-1.1, LibDBIcon-1.0, HereBeDragons
+## X-Curse-Packaged-Version: 12.1.8
+## X-Curse-Project-Name: MobInfo2
+## X-Curse-Project-ID: mobinfo2
+
+#@no-lib-strip@
+libs\LibStub\LibStub.lua
+libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
+libs\LibPeriodicTable-3.1\LibPeriodicTable-3.1\LibPeriodicTable-3.1.lua
+libs\LibPeriodicTable-3.1\LibPeriodicTable-3.1-Tradeskill\LibPeriodicTable-3.1-Tradeskill.lua
+libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+libs\LibUIDropDownMenu\LibUIDropDownMenu.lua
+libs\HereBeDragons\HereBeDragons-2.0.lua
+libs\LibSerialize\LibSerialize.lua
+libs\LibDeflate\LibDeflate.lua
+#@end-no-lib-strip@
+
+## localization files
+Localization\Manifest.xml
+
+# main AddOns source code
+MI2_Import.lua
+Database\Manifest.xml
+MI2_EventBusMixin.lua
+MI2_ProtectedNames.lua
+MobInfo2.lua
+MI2_Events.lua
+MI2_ItemData.lua 
+MI2_Health.lua 
+MI2_Slash.lua 
+MI2_Search.lua
+MI2_Config.lua
+MI2_Tooltip.lua
+Summary\Manifest.xml
+
+## frame definition files
+Frames\MobInfo2.xml
+Frames\MI2_Config.xml
+Frames\MI2_Tooltip.xml

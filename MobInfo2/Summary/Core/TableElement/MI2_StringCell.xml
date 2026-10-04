@@ -1,0 +1,14 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Script file="MI2_StringCell.lua"/>
+  <Button
+    name="MI2_StringCellTemplate"
+    mixin="MI2_StringCellTemplateMixin"
+    virtual="true"
+  >
+    <Layers>
+      <Layer level="BACKGROUND">
+        <FontString parentKey="Text" inherits="GameFontNormalTiny" setAllPoints="true"/>
+      </Layer>
+    </Layers>
+  </Button>
+</Ui>

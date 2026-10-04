@@ -1,0 +1,114 @@
+local addonName,ns=...
+if type(ns)~="table"then
+ns={}
+end
+
+local ChannelType=ns.ChannelType or require("WhisperMessenger.Model.Identity.ChannelType")
+
+local Localization=ns.Localization or require("WhisperMessenger.Locale.Localization")
+local TimeFormat=ns.TimeFormat or require("WhisperMessenger.Util.TimeFormat")
+
+local GroupLabel={}
+
+local CHANNEL_LABELS={
+[ChannelType.PARTY]="Party",
+[ChannelType.RAID]="Raid",
+[ChannelType.INSTANCE_CHAT]="Instance (BG)",
+[ChannelType.BN_CONVERSATION]="Battle.net Group",
+[ChannelType.GUILD]="Guild",
+[ChannelType.OFFICER]="Officer",
+[ChannelType.CHANNEL]="Channel",
+[ChannelType.COMMUNITY]="Community",
+}
+
+local SESSION_CHANNELS={
+[ChannelType.PARTY]=true,
+[ChannelType.RAID]=true,
+[ChannelType.INSTANCE_CHAT]=true,
+}
+
+
+
+function GroupLabel.LabelForChannel(channel)
+if channel==nil then
+return""
+end
+return Localization.Text(CHANNEL_LABELS[channel])or""
+end
+
+
+function GroupLabel.LabelForSession(channel,leftGroup,ownerProfileId,lastActivityAt)
+local label=GroupLabel.LabelForChannel(channel)
+if not SESSION_CHANNELS[channel]then
+return label
+end
+
+local suffix
+if ownerProfileId==nil and leftGroup~=true then
+suffix=Localization.Text("Current")
+elseif lastActivityAt and lastActivityAt~=0 then
+suffix=TimeFormat.GroupSessionTimestamp(lastActivityAt)
+end
+
+if type(suffix)~="string"or suffix==""then
+return label
+end
+return label.." - "..suffix
+end
+
+
+
+
+function GroupLabel.OwnerShortName(profileId)
+if type(profileId)~="string"or profileId==""then
+return nil
+end
+local token=string.match(profileId,"^[^-]+")or profileId
+if#token==0 then
+return profileId
+end
+return string.upper(string.sub(token,1,1))..string.sub(token,2)
+end
+
+
+
+
+function GroupLabel.PlayerGuildName()
+local getGuildInfo=_G.GetGuildInfo
+if type(getGuildInfo)~="function"then
+return nil
+end
+local ok,name=pcall(getGuildInfo,"player")
+if not ok then
+return nil
+end
+if type(name)=="string"and name~=""then
+return name
+end
+return nil
+end
+
+
+
+
+
+
+
+function GroupLabel.LabelForChannelAndTitle(channel,title)
+if channel==ChannelType.BN_CONVERSATION then
+if type(title)=="string"and title~=""then
+return title
+end
+return Localization.Text("Battle.net Group")
+end
+if channel==ChannelType.COMMUNITY then
+if type(title)=="string"and title~=""then
+return title
+end
+return"Community"
+end
+return GroupLabel.LabelForChannel(channel)
+end
+
+ns.ContactsListGroupLabel=GroupLabel
+return GroupLabel

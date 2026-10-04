@@ -1,0 +1,9 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Include file="MI2_StringCell.xml"/>
+  <Include file="MI2_PriceCell.xml"/>
+  <Include file="MI2_TimeCell.xml"/>
+  <Include file="MI2_StringColumnHeader.xml"/>
+  <Include file="MI2_CustomizeColumnsDropDown.xml"/>
+  <Include file="MI2_ResultsRow.xml"/>
+  <Include file="MI2_ResultList.xml"/>
+</Ui>

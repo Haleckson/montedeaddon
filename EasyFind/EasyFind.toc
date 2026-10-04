@@ -1,0 +1,146 @@
+## Interface: 16001, 120100, 120007, 120001, 120000
+## Title: EasyFind
+## Notes: Search and locate UI elements and map locations with ease
+## Author: justawower
+## Version: 3.4.3
+## X-Curse-Project-ID: 1454793
+## IconTexture: Interface\AddOns\EasyFind\textures\SpyglassMinimap
+## Group: EasyFind
+## Category: UI
+## AddonCompartmentFunc: EasyFind_OnAddonCompartmentClick
+## SavedVariables: EasyFindDB
+## SavedVariablesPerCharacter: EasyFindCharDB
+## DefaultState: enabled
+
+Shared/Localization.lua
+Shared/Caps.lua
+Locales/enUS.lua
+Locales/deDE.lua
+Locales/esES.lua
+Locales/esMX.lua
+Locales/frFR.lua
+Locales/itIT.lua
+Locales/koKR.lua
+Locales/ptBR.lua
+Locales/ruRU.lua
+Locales/zhCN.lua
+Locales/zhTW.lua
+Shared/Utils.lua
+Shared/TogglePopup.lua
+Shared/SecureOpeners.lua
+Shared/ControlSync.lua
+Shared/SearchText.lua
+Shared/CategoryMap.lua
+Shared/Scheduler.lua
+Shared/MapUtils.lua
+MapSearch/Categories.lua
+MapSearch/Indicators.lua
+MapSearch/Frames.lua
+Core/Main.lua
+Core/VersionCheck.lua
+Database/TeleportData.lua
+Database/Main.lua
+Database/SearchIndex.lua
+Database/Search.lua
+Database/Dynamic.lua
+Database/StaticLocations_Forever.lua
+Database/StaticLocations.lua
+Shared/Aliases.lua
+Shared/Shortkeys.lua
+Shared/UIPins.lua
+Shared/Profiles.lua
+Shared/ResultLinks.lua
+Shared/ChatPasteSwap.lua
+Search/Modules.lua
+Search/Engine.lua
+Search/SearchBar.lua
+Search/Focus.lua
+Search/Openers.lua
+Options/SurfaceGuard.lua
+Search/Commands.lua
+Search/Results/ResultState.lua
+Search/Results/Handlers/Utils.lua
+Search/Results/Handlers/Spellbook.lua
+Search/Results/Handlers/Talents.lua
+Search/Results/Handlers/Mounts.lua
+Search/Results/Handlers/Toys.lua
+Search/Results/Handlers/Outfits.lua
+Search/Results/Handlers/Appearances.lua
+Search/Results/Handlers/Pets.lua
+Search/Results/Handlers/Selection.lua
+Search/Results/Handlers/Character.lua
+Search/Results/Handlers/Achievements.lua
+Search/Results/Handlers/Macros.lua
+Search/Filters/Config.lua
+Search/Filters/ClassSpecSelector.lua
+Search/Filters/QuickFilter.lua
+Search/Filters/SourceFlyout.lua
+Search/Filters/SelectDropdown.lua
+Search/Filters/MountOptions.lua
+Search/Filters/HeirloomOptions.lua
+Search/Filters/CheckboxOptions.lua
+Search/Filters/ToyOptions.lua
+Search/Filters/PetOptions.lua
+Search/Filters/CharacterScope.lua
+Search/Filters/BankOptions.lua
+Search/Filters/CatalogOptions.lua
+Search/Filters/AppearanceSets.lua
+Search/Filters/AppearanceItemOptions.lua
+Search/Filters/GearOptions.lua
+Database/ProfessionData.lua
+Search/Filters/HousingOptions.lua
+Search/Filters/ProfessionOptions.lua
+Search/Filters/Dropdown.lua
+Search/Providers/Achievements.lua
+Search/MacroListSearch.lua
+Search/Aliases.lua
+Search/History.lua
+Search/Answers.lua
+Search/AppsMenu.lua
+Search/ExtensionButtons.lua
+Search/Query.lua
+Search/Results/Theme.lua
+Search/Results/Shortcuts.lua
+Search/Results/ResultsFrame.lua
+Search/Results/PinPopup.lua
+Search/Results/Icons.lua
+Search/Results/SecureAttributes.lua
+Search/Results/RowText.lua
+Search/Results/Tooltips.lua
+Search/Results/BagActions.lua
+Search/Results/ActionHints.lua
+Search/Results/Render/Shared.lua
+Search/Results/Render/Tree.lua
+Search/Results/Render/Text.lua
+Search/Results/Render/Widgets.lua
+Search/Results/Render/Reputation.lua
+Search/Results/Render/Layout.lua
+Search/Results/Render/RowContent.lua
+Search/Results/Render/Core.lua
+Search/Results/Rows/OutfitState.lua
+Search/Results/Rows/Settings.lua
+Search/Results/Rows/ResultContextMenu.lua
+Search/Results/Rows/InlineDropdown.lua
+Search/Results/Rows/CalculatorWidgets.lua
+Search/Results/Rows/SettingWidgets.lua
+Search/Results/Rows/Interactions.lua
+Search/Results/RowCopy.lua
+Search/Results/Rows/Tooltips.lua
+Search/Results/Rows/ResultButton.lua
+Search/Results/Navigation.lua
+Guide/DirectOpen.lua
+MapSearch/Main.lua
+MapSearch/Zones/Highlight.lua
+MapSearch/Zones/Navigation.lua
+MapSearch/Zones/Breadcrumbs.lua
+MapSearch/Navigation.lua
+MapSearch/Pins.lua
+MapSearch/Preview.lua
+MapSearch/UINavigation.lua
+MapSearch/Search/Core.lua
+MapSearch/Search/Sources.lua
+MapSearch/Search/Scanners.lua
+MapSearch/Search/Results.lua
+MapSearch/Zones/Catalog.lua
+MapSearch/MapTab.lua
+Search/Rescaler.lua

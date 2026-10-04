@@ -1,0 +1,284 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/">
+	<!-- ============================================================ -->
+	<!-- =              MobInfo Tooltip Window                      = -->
+	<!-- ============================================================ -->
+	<!-- -->
+	<!-- =========================================== -->
+	<!-- Tooltip Anchor Frame                        -->
+	<!-- Movable Anchor position for the mob tooltip -->
+	<Frame name="MI2_TooltipAnchor" inherits="MI2_OptionsBoxTemplate" parent="UIParent" frameStrata="LOW" enableMouse="true" movable="true">
+		<KeyValues>
+			<KeyValue key="backdropInfo" value="BACKDROP_TOOLTIP_12_12_4444" type="global"/>
+		</KeyValues>
+		<Size x="25" y="18"/>
+		<Anchors>
+			<Anchor point="TOPRIGHT">
+				<Offset x="-4" y="-200"/>
+			</Anchor>
+		</Anchors>
+		<Layers>
+			<Layer level="ARTWORK">
+				<FontString name="MI2_AnchorText" inherits="GameFontNormalSmall" text="MI">
+					<Anchors>
+						<Anchor point="CENTER"/>
+					</Anchors>
+					<Color r="1.0" g="0.8" b="0.0"/>
+				</FontString>
+			</Layer>
+		</Layers>
+		<Scripts>
+			<OnLoad inherit="prepend">self:RegisterForDrag("LeftButton")</OnLoad>
+			<OnDragStart>self:StartMoving()</OnDragStart>
+			<OnDragStop>self:StopMovingOrSizing()</OnDragStop>
+			<OnEnter>MI2_TooltipAnchorOnEnter()</OnEnter>
+			<OnLeave>MI2_TooltipAnchorOnLeave()</OnLeave>
+		</Scripts>
+	</Frame>
+	<!-- -->
+	<!-- ================================================================== -->
+	<!-- Mob Tooltip Frame                                                  -->
+	<!-- Shows all Mob information collected by MobInfo,fully configurable -->
+	<!-- through the MobInfo options window                                 -->
+	<Frame name="MI2_TooltipFrame" parent="UIParent" inherits="BackdropTemplate" frameStrata="TOOLTIP" hidden="true" enableMouse="true" movable="true">
+		<Size x="4" y="4"/>
+		<Anchors>
+			<Anchor point="TOPRIGHT" relativePoint="BOTTOMRIGHT"/>
+		</Anchors>
+		<Layers>
+			<Layer level="OVERLAY">
+				<FontString name="MI2TT_MobLevel" inherits="MI2TT_InfoTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT">
+							<Offset x="4" y="-4"/>
+						</Anchor>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_MobName" inherits="MI2TT_InfoTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_MobLevel" relativePoint="TOPRIGHT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_ClassInfo" inherits="MI2TT_InfoTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_MobLevel" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_ExtraInfo1" inherits="MI2TT_TextTemplate" text="XXX YYY ZZZ">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_ClassInfo" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_ExtraInfo2" inherits="MI2TT_TextTemplate" text="XXX YYY ZZZ">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_ExtraInfo1" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_ExtraInfo3" inherits="MI2TT_TextTemplate" text="XXX YYY ZZZ">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_ExtraInfo2" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_ExtraInfo4" inherits="MI2TT_TextTemplate" text="XXX YYY ZZZ">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_ExtraInfo3" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_ExtraInfo5" inherits="MI2TT_TextTemplate" text="XXX YYY ZZZ">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_ExtraInfo4" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_ExtraInfo6" inherits="MI2TT_TextTemplate" text="XXX YYY ZZZ">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_ExtraInfo5" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_ExtraInfo7" inherits="MI2TT_TextTemplate" text="XXX YYY ZZZ">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_ExtraInfo6" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_ExtraInfo8" inherits="MI2TT_TextTemplate" text="XXX YYY ZZZ">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_ExtraInfo7" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_ExtraInfo9" inherits="MI2TT_TextTemplate" text="XXX YYY ZZZ">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_ExtraInfo8" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_ExtraInfo10" inherits="MI2TT_TextTemplate" text="XXX YYY ZZZ">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_ExtraInfo9" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Col1" inherits="GameFontNormalSmall"/>
+				<FontString name="MI2TT_Col2" inherits="GameFontNormalSmall"/>
+				<FontString name="MI2TT_Col3" inherits="GameFontNormalSmall"/>
+				<FontString name="MI2TT_Col4" inherits="GameFontNormalSmall"/>
+				<FontString name="MI2TT_Text1" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text2" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text3" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text4" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text5" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text6" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text7" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text8" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text9" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text10" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text11" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text12" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text13" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text14" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text15" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text16" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text17" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text18" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text19" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text20" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text21" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text22" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text23" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text24" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text25" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text26" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text27" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text28" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text29" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Text30" inherits="MI2TT_TextTemplate"/>
+				<FontString name="MI2TT_Val1" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val2" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val3" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val4" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val5" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val6" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val7" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val8" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val9" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val10" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val11" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val12" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val13" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val14" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val15" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val16" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val17" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val18" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val19" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val20" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val21" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val22" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val23" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val24" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val25" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val26" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val27" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val28" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val29" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Val30" inherits="MI2TT_ValTemplate"/>
+				<FontString name="MI2TT_Item1" inherits="MI2TT_ItemTemplate"/>
+				<FontString name="MI2TT_Item2" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item1" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item3" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item2" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item4" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item3" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item5" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item4" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item6" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item5" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item7" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item6" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item8" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item7" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item9" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item8" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item10" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item9" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item11" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item10" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item12" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item11" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item13" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item12" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item14" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item13" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item15" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item14" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item16" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item15" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item17" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item16" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item18" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item17" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item19" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item18" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+				<FontString name="MI2TT_Item20" inherits="MI2TT_ItemTemplate">
+					<Anchors>
+						<Anchor point="TOPLEFT" relativeTo="MI2TT_Item19" relativePoint="BOTTOMLEFT"/>
+					</Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+		<Scripts>
+			<OnLoad>self:RegisterEvent("UPDATE_MOUSEOVER_UNIT")</OnLoad>
+			<OnUpdate>MI2_TooltipOnUpdate(self, elapsed)</OnUpdate>
+			<OnEvent>MI2_TooltipMouseoverUnit( 5.0 )</OnEvent>
+		</Scripts>
+	</Frame>
+</Ui>

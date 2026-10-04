@@ -1,0 +1,248 @@
+--[[
+    Horizon Suite - Core Slash Commands
+    Centralized /h and /horizon handler. Core commands (options, edit, help) and dispatcher to module handlers.
+]]
+
+local addon = _G.HorizonSuite
+
+local HSPrint = addon.HSPrint or function(msg) print("|cFF00CCFFHorizon Suite:|r " .. tostring(msg or "")) end
+
+-- ============================================================================
+-- MODULE REGISTRY
+-- ============================================================================
+
+addon.slashHandlers = addon.slashHandlers or {}
+addon.slashHandlersDebug = addon.slashHandlersDebug or {}
+addon.debugLiveRegistry = addon.debugLiveRegistry or {}
+
+-- Register a module's slash handler. Called by each module at load.
+-- @param moduleKey string  "focus"|"presence"|"vista"|"augment"|"insight"
+-- @param handler function(msg)  Receives remainder after module name (e.g. "toggle" for /h focus toggle)
+function addon.RegisterSlashHandler(moduleKey, handler)
+    if not moduleKey or type(handler) ~= "function" then return end
+    addon.slashHandlers[moduleKey] = handler
+end
+
+-- Register a module's debug slash handler. Called for /h debug <module> [cmd].
+-- @param moduleKey string  "focus"|"presence"|"vista"|"augment"|"insight"
+-- @param handler function(msg)  Receives remainder after module name (e.g. "wqdebug" for /h debug focus wqdebug)
+function addon.RegisterSlashHandlerDebug(moduleKey, handler)
+    if not moduleKey or type(handler) ~= "function" then return end
+    addon.slashHandlersDebug[moduleKey] = handler
+end
+
+-- Register a module's SetDebugLive function. Called by each module at load.
+-- Centralises the DEV_MODE guard and isEnabled toggle so modules don't repeat it.
+-- @param moduleKey string
+-- @param fn function(enabled: boolean)  Called with the new enabled state
+function addon.RegisterDebugLive(moduleKey, fn)
+    if not moduleKey or type(fn) ~= "function" then return end
+    addon.debugLiveRegistry[moduleKey] = fn
+end
+
+-- ============================================================================
+-- CORE HELP
+-- ============================================================================
+
+local function ShowCoreHelp()
+    HSPrint("Horizon Suite")
+    HSPrint("  /h, /horizon         - This help")
+    HSPrint("  /hedit, /h edit      - Open edit screen")
+    HSPrint("  /hopt, /h options    - Open options")
+    HSPrint("  /h notes             - Show latest patch notes")
+    HSPrint("  /h devmode           - Toggle Dev Mode (show Blizzard tracker alongside Focus)")
+    HSPrint("  /h platform          - Show client (Retail / Forever) and capability table")
+    HSPrint("  /h platform probe    - Query each game system live (settles unverified capabilities)")
+    HSPrint("  /hlocaledev          - Toggle locale dev mode (UI shows locale keys; reload required)")
+    HSPrint("  /h focus [cmd]       - Tracker (toggle, collapse, test, ...)")
+    HSPrint("  /hfs delvedebug      - Delve / Nemesis widget debug (alias: /h debug focus delvedebug)")
+    HSPrint("  /h scenario debug    - Scenario timer debug (diagnose missing timers)")
+    HSPrint("  /h presence [cmd]    - Zone/notification tests")
+    HSPrint("  /h vista [cmd]       - Minimap")
+    HSPrint("  /h augment [cmd]     - Loot toasts")
+    HSPrint("  /h insight [cmd]     - Tooltips")
+end
+
+-- ============================================================================
+-- MAIN HANDLER
+-- ============================================================================
+
+local function OnSlashCommand(msg)
+    local raw = strtrim(msg or "")
+    local lower = raw:lower()
+    local first, rest = lower:match("^(%S+)%s*(.*)$")
+    first = first or lower
+    rest = rest or ""
+
+    if lower == "" or lower == "help" then
+        ShowCoreHelp()
+        return
+    end
+
+    if lower == "options" or lower == "config" then
+        if addon.ShowOptions then
+            addon.ShowOptions()
+        elseif _G.HorizonSuite_ShowOptions then
+            _G.HorizonSuite_ShowOptions()
+        else
+            HSPrint("Options not loaded.")
+        end
+        return
+    end
+
+    if lower == "edit" then
+        if addon.ShowEditPanel then
+            addon.ShowEditPanel()
+        elseif _G.HorizonSuite_ShowEditPanel then
+            _G.HorizonSuite_ShowEditPanel()
+        else
+            HSPrint("Edit panel not loaded.")
+        end
+        return
+    end
+
+    if lower == "notes" or lower == "whatsnew" then
+        if addon.ShowPatchNotes then
+            addon.ShowPatchNotes()
+        else
+            HSPrint("Patch notes not loaded.")
+        end
+        return
+    end
+
+    if lower == "platform" or lower == "platform probe" then
+        if addon.Platform and addon.Platform.Print then
+            if lower == "platform probe" then addon.Platform.Probe() else addon.Platform.Print() end
+        else
+            HSPrint("Platform table not loaded.")
+        end
+        return
+    end
+
+    if lower == "devmode" then
+        local v = not (addon.GetDB and addon.GetDB("focusDevMode", false))
+        if addon.SetDB then addon.SetDB("focusDevMode", v) end
+        HSPrint("Dev mode (Blizzard tracker): " .. (v and "on" or "off"))
+        ReloadUI()
+        return
+    end
+
+    if first == "debug" then
+        local moduleKey, subMsg = rest:match("^(%S+)%s*(.*)$")
+        moduleKey = (moduleKey or ""):lower()
+        subMsg = strtrim(subMsg or "")
+        if moduleKey == "" or moduleKey == "help" then
+            local devState = addon.Log and addon.Log.isDevMode()
+                and "|cFF00FF00enabled|r" or "|cFFFF4444disabled|r (set DEV_MODE = true in core/Logger.lua)|r"
+            HSPrint("Horizon Suite — Debug commands")
+            HSPrint("  DEV_MODE: " .. devState)
+            HSPrint(" ")
+            HSPrint("  /h debug <module> [cmd]       - Run a module debug command")
+            HSPrint("  /h debug <module> help         - List commands for that module")
+            HSPrint("  /h debug <module> debuglive    - Toggle live debug panel (DEV_MODE required)")
+            HSPrint("  /h debug locale                - Toggle missing-locale key logging")
+            HSPrint("  /h debug logger [dump|clear]   - Inspect/clear the log ring buffer (DEV_MODE required)")
+            HSPrint(" ")
+            HSPrint("  Modules: focus, presence, vista, augment, insight, essence, echo")
+            return
+        end
+        -- Core debug: locale
+        if moduleKey == "locale" then
+            addon.debugLocale = not addon.debugLocale
+            HSPrint("Locale debug " .. (addon.debugLocale and "|cff00ff00ON|r — missing keys will print to chat." or "|cffff0000OFF|r"))
+            return
+        end
+        if subMsg == "debuglive" then
+            if not addon.Log.isDevMode() then
+                HSPrint("Debug requires DEV_MODE = true in core/Logger.lua")
+                return
+            end
+            local fn = addon.debugLiveRegistry[moduleKey]
+            if not fn then HSPrint("No debuglive registered for: " .. moduleKey); return end
+            local v = not addon.Log.isEnabled(moduleKey)
+            fn(v)
+            HSPrint(moduleKey:sub(1,1):upper() .. moduleKey:sub(2) .. " debug log: " .. (v and "|cFF00FF00on|r" or "|cFFFF0000off|r"))
+            return
+        end
+        local debugHandler = addon.slashHandlersDebug[moduleKey]
+        if debugHandler then
+            debugHandler(subMsg)
+        else
+            HSPrint("No debug commands for that module.")
+        end
+        return
+    end
+
+    -- Alias: /h scenario debug -> /h debug focus scendebug (scenario timer debug)
+    if first == "scenario" then
+        local subCmd = strtrim(rest:lower())
+        if subCmd == "debug" or subCmd == "scendebug" or subCmd == "" then
+            local debugHandler = addon.slashHandlersDebug["focus"]
+            if debugHandler then
+                debugHandler(subCmd == "" and "scendebug" or "scendebug")
+            else
+                HSPrint("Focus debug not available.")
+            end
+            return
+        end
+    end
+
+    local handler = addon.slashHandlers[first]
+    if handler then
+        handler(strtrim(rest))
+        return
+    end
+
+    ShowCoreHelp()
+end
+
+-- ============================================================================
+-- REGISTER SLASH COMMANDS
+-- ============================================================================
+
+SLASH_MODERNQUESTTRACKER1 = "/horizon"
+SLASH_MODERNQUESTTRACKER2 = "/h"
+SlashCmdList["MODERNQUESTTRACKER"] = OnSlashCommand
+
+-- Short alias for Focus delve diagnostics (many guides say /hfs — core commands are /h and /horizon).
+SLASH_HSFOCUSDEBUG1 = "/hfs"
+SlashCmdList["HSFOCUSDEBUG"] = function(msg)
+    local rest = strtrim(msg or "")
+    if rest == "" then
+        HSPrint("Usage: |cffffff00/hfs delvedebug|r — same as |cffffff00/h debug focus delvedebug|r")
+        return
+    end
+    local first = (rest:match("^(%S+)") or rest):lower()
+    if first == "delvedebug" or rest:lower():find("^delvedebug", 1, true) then
+        local debugHandler = addon.slashHandlersDebug and addon.slashHandlersDebug["focus"]
+        if debugHandler then
+            debugHandler("delvedebug")
+        else
+            HSPrint("Focus debug not available.")
+        end
+        return
+    end
+    HSPrint("Unknown /hfs command. Use |cffffff00/hfs delvedebug|r or |cffffff00/h debug focus delvedebug|r")
+end
+
+SLASH_HSEDIT1 = "/hedit"
+SlashCmdList["HSEDIT"] = function()
+    OnSlashCommand("edit")
+end
+
+SLASH_HSOPT1 = "/hopt"
+SlashCmdList["HSOPT"] = function()
+    OnSlashCommand("options")
+end
+
+SLASH_HSLOCALEDEV1 = "/hlocaledev"
+SlashCmdList["HSLOCALEDEV"] = function()
+    local db = _G[addon.DATABASE]
+    if not db then HSPrint("Database not ready."); return end
+    db.localeDevMode = not db.localeDevMode
+    if db.localeDevMode then
+        HSPrint("|cffff8800Locale dev mode enabled.|r Type |cffffff00/reload|r to apply.")
+    else
+        HSPrint("Locale dev mode disabled. Type |cffffff00/reload|r to apply.")
+    end
+end

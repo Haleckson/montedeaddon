@@ -1,0 +1,129 @@
+
+--
+-- This file explains in great detail all information and functions of
+-- the MobInfo external API and the built-in MobHealth external API.
+-- (API = Application Programmers Interface)
+--
+-- It tells you how to best check for the presence of the AddOn(s) and
+-- provides functions for easy access to the MobInfo database and the
+-- MobHealth database.
+--
+-- There are 3 sections:
+--
+--   Section 1 : How to best check if (any) MobHealth AddOn is available ?
+--   Section 2 : Functions for accessing ALL MobHealth data 
+--   Section 3 : Functions for accessing ALL MobInfo data 
+--   Section 4 : Free Source Code for Accessing MobHealth in a Compatible Way
+
+
+-- ==========================================================================
+-- Section 1 : How to best check if (any) MobHealth AddOn is available ?
+-- ==========================================================================
+--
+-- Info: there are at present three known AddOns that provide MobHealth
+-- functionality and MobHealth data : "MobHealth by Telo", "MobHealth2
+-- by Wyv" and MobInfo. All three AddOns provide their service in
+-- extremely similar, almost identical fashion.
+--
+-- The best way to check whether any one MobHealth service is available
+-- is to add this simple "if" to your "VARIABLES_LOADED" event handler:
+--
+-- if  MobHealthFrame  then
+--   ......
+-- end
+--
+-- Its all that is required. If the condition is true you can rest
+-- assured that one of the MobHealth AddOns is present. Please do NOT
+-- place the check into the "OnLoad" event handler. That is potentially
+-- unsave and error prone. "OnLoad" is called at a time where NOT all
+-- AddOns have been loaded. On the other hand "VARIABLES_LOADED" is
+-- invoked at a time when you can be sure that ALL AddOns have been
+-- loaded and can thus be checked for and accessed.
+-- ==========================================================================
+
+-- ==========================================================================
+-- Section 2 : Functions for accessing ALL MobInfo data 
+-- ==========================================================================
+--
+-- Please ALWAYS use these functions for accessing the data in the MobInfo
+-- database. This is the only safe and reliable way to access the MobInfo
+-- data. For reasons of optimisation or extension the database variable(s)
+-- might change spontaneously in layout and/or name. Using the interface
+-- functions gives you the guarantee that you always get returned the
+-- correct data.
+--
+-----------------------------------------------------------------------------
+-- MI2_GetMobData( mobName, mobLevel [, unitId] )
+--
+-- Get and return all the data that MobInfo knows about a given mob.
+-- This is an externally available interface function that can be
+-- called by other AddOns to access MobInfo data. It should be fast,
+-- efficient, and easy to use
+--
+-- The data describing a Mob is returned in table form as described below.
+--
+-- To identify the mob you must supply its name and level. You can
+-- optionally supply a "unitId" to get additional info:
+--   mobName : name of mob, eg. "Forest Lurker"
+--   mobLevel : mob level as integer number
+--   unitId : optional WoW unit identification, should be either
+--            "target" or "mouseover"
+--
+-- Examples:
+--    A.   mobData = MI2_GetMobData( "Forest Lurker", 10 )
+--    B.   mobData = MI2_GetMobData( "Forest Lurker", 10, "target" )
+--
+-- Return Value:
+-- The return value is a LUA table with one table entry for each value that
+-- MobInfo can know about a Mob. Note that table entries exist ONLY if the
+-- corresponding value has actually been collected for the given Mob.
+-- Unrecorded values do NOT exist in the table and thus evaluate to a NIL
+-- expression.
+--
+-- Values you can get without "unitId" (as per Example A above):
+--    mobData.xp         :  experience value
+--    mobData.kills      :  number of times current player has killed this mob
+--    mobData.minDamage  :  minimum damage done by mob
+--    mobData.maxDamage  :  maximum damage done by mob
+--    mobData.dps        :  dps of Mon against current player
+--    mobData.loots      :  number of times this mob has been looted
+--    mobData.emptyLoots :  number of times this mob gave empty loot
+--    mobData.clothCount :  number of times this mob gave cloth loot
+--    mobData.copper     :  total money loot of this mob as copper amount
+--    mobData.itemValue  :  total item value loot of this mob as copper amount
+--    mobData.mobType    :  mob type for special mobs: 1=normal, 2=rare/elite, 3=boss
+--    mobData.r1         :  number of rarity 1 loot items (grey)
+--    mobData.r2         :  number of rarity 2 loot items (white)
+--    mobData.r3         :  number of rarity 3 loot items (green)
+--    mobData.r4         :  number of rarity 4 loot items (blue)
+--    mobData.r5         :  number of rarity 5 loot items (purple)
+--    mobData.itemList   :  table that lists all recorded items looted from this mob
+--                          table entry index gives WoW item ID, 
+--                          table entry value gives item amount
+--
+-- Additional values you will get with "unitId" (as per Example B above):
+--    mobData.class      :  class of mob as localized text
+--    mobData.healthCur  :  current health of given unit
+--    mobData.healthMax  :  health maximum
+--    mobData.manaCur    :  current mana of given unit
+--    mobData.manaMax    :  maximum mana for given unit
+--
+-- Code Example:
+--    
+--    local mobData = MI2_GetMobData( "Forest Lurker", 10 )
+--    
+--    if mobData.xp then
+--        DEFAULT_CHAT_FRAME:AddMessage( "XP = "..mobData.xp ) 
+--    end
+--    
+--    if mobData.copper and mobData.loots then
+--        local avgLoot = mobData.copper / mobData.loots
+--        DEFAULT_CHAT_FRAME:AddMessage( "average loot = "..avgLoot ) 
+--    end
+-----------------------------------------------------------------------------
+--
+-- ==========================================================================
+
+
+--
+-- ==========================================================================

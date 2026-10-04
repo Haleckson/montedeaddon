@@ -1,0 +1,7 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Include file="Core\Manifest.xml"/>
+  <Include file="Loot\Manifest.xml"/>
+  <Include file="Source\Manifest.xml"/>
+  <Include file="MI2_SettingsDropDown.xml"/>
+  <Include file="MI2_Summary.xml"/>
+</Ui>

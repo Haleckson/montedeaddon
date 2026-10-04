@@ -1,0 +1,17 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Script file="MI2_PriceCell.lua"/>
+  <Button
+    name="MI2_PriceCellTemplate"
+    mixin="MI2_PriceCellTemplateMixin"
+    virtual="true"
+  >
+    <Layers>
+      <Layer level="BACKGROUND">
+        <FontString parentKey="Text" inherits="GameFontNormalTiny" justifyH="RIGHT"
+          setAllPoints="true">
+          <Size y="1"/>
+        </FontString>
+      </Layer>
+    </Layers>
+  </Button>
+</Ui>

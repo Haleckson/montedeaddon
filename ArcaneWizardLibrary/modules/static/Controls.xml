@@ -1,0 +1,91 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+..\FrameXML\UI.xsd">
+	<Button name="ArcaneWizardLibrary_CloseButtonTemplate" virtual="true">
+		<NormalTexture file="Interface\AddOns\ArcaneWizardLibrary\assets\controls\close-normal.tga" />
+		<PushedTexture file="Interface\AddOns\ArcaneWizardLibrary\assets\controls\close-pushed.tga" />
+		<DisabledTexture file="Interface\AddOns\ArcaneWizardLibrary\assets\controls\close-disabled.tga" />
+		<HighlightTexture file="Interface\AddOns\ArcaneWizardLibrary\assets\controls\close-highlight.tga" alphaMode="ADD" />
+		<Scripts>
+			<OnClick>self:GetParent():Hide()</OnClick>
+		</Scripts>
+	</Button>
+
+	<Button name="ArcaneWizardLibrary_WindowCloseButtonTemplate" inherits="ArcaneWizardLibrary_CloseButtonTemplate" virtual="true">
+		<Size x="18" y="18" />
+	</Button>
+
+	<Button name="ArcaneWizardLibrary_PopupCloseButtonTemplate" inherits="ArcaneWizardLibrary_CloseButtonTemplate" virtual="true">
+		<Size x="14" y="14" />
+	</Button>
+
+	<Button name="ArcaneWizardLibrary_ActionButtonTemplate" mixin="ArcaneWizardLibrary_ActionButtonMixin" virtual="true">
+		<Size x="100" y="22" />
+		<Layers>
+			<Layer level="BACKGROUND">
+				<Texture parentKey="Left" file="Interface\AddOns\ArcaneWizardLibrary\assets\controls\button-normal.tga">
+					<Size x="11" />
+					<Anchors>
+						<Anchor point="TOPLEFT" />
+						<Anchor point="BOTTOMLEFT" />
+					</Anchors>
+					<TexCoords left="0" right="0.25" top="0" bottom="1" />
+				</Texture>
+				<Texture parentKey="Center" file="Interface\AddOns\ArcaneWizardLibrary\assets\controls\button-normal.tga">
+					<Anchors>
+						<Anchor point="TOPLEFT" x="11" />
+						<Anchor point="BOTTOMRIGHT" x="-11" />
+					</Anchors>
+					<TexCoords left="0.25" right="0.75" top="0" bottom="1" />
+				</Texture>
+				<Texture parentKey="Right" file="Interface\AddOns\ArcaneWizardLibrary\assets\controls\button-normal.tga">
+					<Size x="11" />
+					<Anchors>
+						<Anchor point="TOPRIGHT" />
+						<Anchor point="BOTTOMRIGHT" />
+					</Anchors>
+					<TexCoords left="0.75" right="1" top="0" bottom="1" />
+				</Texture>
+			</Layer>
+		</Layers>
+		<ButtonText parentKey="Text" inherits="GameFontNormal" justifyH="CENTER" wordwrap="false">
+			<Anchors>
+				<Anchor point="LEFT" x="8" />
+				<Anchor point="RIGHT" x="-8" />
+			</Anchors>
+		</ButtonText>
+		<Scripts>
+			<OnLoad>self:OnLoad()</OnLoad>
+			<OnSizeChanged>self:OnSizeChanged()</OnSizeChanged>
+			<OnEnter>self:OnEnter()</OnEnter>
+			<OnLeave>self:OnLeave()</OnLeave>
+			<OnMouseDown>self:OnMouseDown(button)</OnMouseDown>
+			<OnMouseUp>self:OnMouseUp(button)</OnMouseUp>
+			<OnEnable>self:OnEnable()</OnEnable>
+			<OnDisable>self:OnDisable()</OnDisable>
+		</Scripts>
+	</Button>
+
+	<CheckButton name="ArcaneWizardLibrary_CheckboxTemplate" mixin="ArcaneWizardLibrary_SelectionControlMixin" virtual="true">
+		<Size x="180" y="22" />
+		<Scripts>
+			<OnLoad>self:OnLoad("checkbox")</OnLoad>
+			<OnSizeChanged>self:OnSizeChanged()</OnSizeChanged>
+			<OnEnter>self:OnEnter()</OnEnter>
+			<OnLeave>self:OnLeave()</OnLeave>
+			<OnEnable>self:OnEnable()</OnEnable>
+			<OnDisable>self:OnDisable()</OnDisable>
+		</Scripts>
+	</CheckButton>
+
+	<CheckButton name="ArcaneWizardLibrary_OptionButtonTemplate" mixin="ArcaneWizardLibrary_SelectionControlMixin" virtual="true">
+		<Size x="180" y="22" />
+		<Scripts>
+			<OnLoad>self:OnLoad("option")</OnLoad>
+			<OnSizeChanged>self:OnSizeChanged()</OnSizeChanged>
+			<OnEnter>self:OnEnter()</OnEnter>
+			<OnLeave>self:OnLeave()</OnLeave>
+			<OnEnable>self:OnEnable()</OnEnable>
+			<OnDisable>self:OnDisable()</OnDisable>
+		</Scripts>
+	</CheckButton>
+</Ui>

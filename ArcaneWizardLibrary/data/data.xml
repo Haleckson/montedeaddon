@@ -1,0 +1,12 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+..\FrameXML\UI.xsd">
+	<Script file="CommonData.lua" />
+	<Script file="OptionsData.lua" />
+	<Script file="SettingsData.lua" />
+	<Script file="BackgroundData.lua" />
+	<Script file="UIStyleData.lua" />
+	<Script file="FrameData.lua" />
+	<Script file="ControlData.lua" />
+	<Script file="ScrollFrameData.lua" />
+	<Script file="ChangelogData.lua" />
+</Ui>

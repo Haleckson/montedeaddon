@@ -1,0 +1,61 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Script file="MI2_ResultList.lua"/>
+  <Frame
+    name="MI2_ResultListTemplate"
+    virtual="true"
+    mixin="MI2_ResultListMixin"
+  >
+    <Scripts>
+      <OnShow method="OnShow"/>
+    </Scripts>
+		<Layers>
+			<Layer level="BACKGROUND" textureSubLevel="-5">
+				<Texture parentKey="Bg" file="Interface\FrameGeneral\UI-Background-Marble" horizTile="true" vertTile="true" setAllPoints="true" alpha="0.4"/>
+			</Layer>
+		</Layers>
+    <Frames>
+      <Frame parentKey="HeaderContainer">
+        <Size y="14"/>
+        <Anchors>
+          <Anchor point="TOPLEFT" relativeKey="$parent" relativePoint="TOPLEFT" x="5"/>
+          <Anchor point="TOPRIGHT" relativeKey="$parent" relativePoint="TOPRIGHT" x="-20"/>
+        </Anchors>
+      </Frame>
+			<Frame parentKey="FilterDropDown" inherits="MI2_FilterDropDownTemplate">
+				<Anchors>
+					<Anchor point="TOPRIGHT" relativeKey="$parent" relativePoint="TOPRIGHT" x="-3" y="-1"/>
+          <Anchor point="BOTTOMLEFT" relativeKey="$parent.HeaderContainer" relativePoint="BOTTOMRIGHT" x="-10"/>
+				</Anchors>
+			</Frame>
+      <Frame parentKey="CustomizeDropDown" inherits="MI2_CustomizeColumnsDropDownTemplate" framestrata ="HIGH" hidden="true"/>
+      <Frame parentKey="ScrollArea" inherits="InsetFrameTemplate4">
+        <Anchors>
+          <Anchor point="TOPLEFT" relativeKey="$parent.HeaderContainer" relativePoint="BOTTOMLEFT" x="-2"/>
+          <Anchor point="TOPRIGHT" relativeKey="$parent.HeaderContainer" relativePoint="BOTTOMRIGHT" x="-10"/>
+          <Anchor point="BOTTOM" relativeKey="$parent" relativePoint="BOTTOM" x="-10"/>
+        </Anchors>
+        <Scripts>
+          <OnLoad>
+            if self.Bg then
+              self.Bg:SetAlpha(0.4)
+            end
+          </OnLoad>
+        </Scripts>
+        <Frames>
+          <Frame parentKey="ScrollBox" inherits="WowScrollBoxList">
+            <Anchors>
+              <Anchor point="TOPLEFT" relativeKey="$parent.LeftInset" x="3" y="-3"/>
+              <Anchor point="BOTTOMRIGHT" relativeKey="$parent.LeftInset" x="0" y="3"/>
+            </Anchors>
+          </Frame>
+          <EventFrame parentKey="ScrollBar" inherits="MinimalScrollBar" alpha="0.8">
+            <Anchors>
+              <Anchor point="TOPLEFT" relativeKey="$parent.ScrollBox" relativePoint="TOPRIGHT" x="10" y="-3"/>
+              <Anchor point="BOTTOMLEFT" relativeKey="$parent.ScrollBox" relativePoint="BOTTOMRIGHT" y="1"/>
+            </Anchors>
+          </EventFrame>
+        </Frames>
+      </Frame>
+    </Frames>
+  </Frame>
+</Ui>

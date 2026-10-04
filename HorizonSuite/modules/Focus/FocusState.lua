@@ -1,0 +1,126 @@
+--[[
+    Horizon Suite - Focus - State
+    Namespaced runtime state for the Focus module. Loaded first so all other files can reference addon.focus.*
+]]
+
+local addon = _G.HorizonSuite
+
+-- Full-table reassignment below; carry layout/hoverFade through from FocusLayoutState.lua
+-- (loaded earlier), which owns their initial shape.
+local existing = addon.focus
+addon.focus = {
+    enabled         = false,
+    collapsed       = false,
+    refreshPending  = false,
+    zoneJustChanged = false,
+    lastPlayerMapID = nil,
+    -- Set when Focus opens the world map to an appearance; second click closes (parity with ToggleQuestDetails).
+    appearanceMapToggleID = nil,
+    placeholderRefreshScheduled = false,
+    layoutPendingAfterCombat     = false,
+    pendingDimensionsAfterCombat  = false,
+    pendingHideAfterCombat       = false,
+    restoreTrackerPendingAfterCombat = false,
+    pendingEntryHideAfterCombat   = nil,  -- { [entry] = true } entries cleared during combat
+    mplusLayoutPendingAfterCombat = false,
+
+    rares = {
+        prevKeys     = {},
+        trackingInit = false,
+    },
+
+    collapse = {
+        animating = false,
+        animStart = 0,
+        groups    = {},  -- [groupKey] = startTime
+        sectionHeadersFadingOut = false,
+        sectionHeadersFadingOutKeys = nil,  -- when set, only fade these groupKeys (e.g. WQ toggle)
+        sectionHeadersFadingIn  = false,
+        sectionHeaderFadeTime   = 0,
+        expandSlideDownStarts   = nil,  -- { [key] = startY } for expand slide-down
+        expandSlideDownStartsSec = nil, -- { [groupKey] = startY }
+        pendingWQCollapse      = false,
+        pendingWQExpand        = false, -- when showWorldQuests is toggled on for slide-down animation
+        optionCollapseKeys     = nil,   -- { [questID|entryKey] = true } when animating WQ toggle off
+        panelCollapsedExpandedGroups = {},  -- session-only: { [groupKey]=true } for categories expanded while panel is collapsed
+    },
+
+    combat = {
+        fadeState = nil,  -- "out" | "in" | nil
+        fadeTime  = 0,
+        faded     = false, -- true when combat visibility mode is "fade" and fade-out completed
+        fadeFromAlpha = nil,
+        fadeInFromAlpha = nil,
+    },
+
+    hoverFade = existing.hoverFade,
+
+    layout = existing.layout,
+
+    promotion = {
+        prevWorld  = {},
+        prevWeekly = {},
+        prevDaily  = {},
+        fadeOutCount = nil,
+        onFadeOutComplete = nil,
+    },
+
+    categoryChange = {
+        prevGroupKey = {},  -- [key] = groupKey from last successful layout
+    },
+
+    callbacks = {
+        onSlideOutComplete = nil,
+    },
+
+    unacceptedPopup = {
+        dataRequestedThisSession = false,
+        loadResultDebounceGen   = 0,
+    },
+
+    -- Data tables for blacklist/tracking (used by providers)
+    recentlyUntrackedWorldQuests      = nil,
+    recentlyUntrackedWeekliesAndDailies = nil,
+    lastWorldQuestWatchSet            = nil,
+    wqtTrackedQuests                 = nil,  -- [questID] = true; synced from WorldQuestTracker
+
+    -- Recipe reagent collapse state
+    recipeOptionalCollapsed   = {},
+    recipeFinishingCollapsed  = {},
+    recipeFinishingAnimating  = {},
+    recipeFinishingAnimTime   = {},
+    recipeChoiceSlotCollapsed = {},
+
+    -- Objective signature cache for reliable quest-update flash (FocusEvents)
+    lastQuestObjectiveSignature       = {},
+
+    -- Current Quest category: [questID] = GetTime() when progress was last detected
+    recentlyProgressedQuests          = {},
+
+    -- [questID] = GetTime() when quest expired from recentlyProgressedQuests; used to route to NEARBY
+    recentlyExpiredFromCurrent        = {},
+
+    -- M+ size restore: track when we were in M+ so we can restore overworld height on zone-out
+    wasInMplusDungeon                 = false,
+
+    -- [questID] = { objectives = {...} } — last known objectives when in zone (for WQ progress outside zone)
+    cachedWorldQuestObjectives        = nil,
+
+    -- Scenario widget-step timer cache; avoids countdown jump from stale API samples on refresh.
+    -- { widgetSetID, duration, startTime }; cleared on SCENARIO_COMPLETED.
+    scenarioTimerCache                = nil,
+
+    -- Quest-based timer cache for WQ/task/calling; avoids countdown jump from C_TaskQuest fallback on refresh.
+    -- [questID] = { duration, startTime }; cleared when quest expires, completes, or leaves tracker.
+    questTimerCache                   = {},
+
+    -- Proximity sort / Auto-Focus Closest Quest (FocusAggregator RefreshProximityRank).
+    -- proximityRank: [questID] = rank (1 = closest). proximityClosestQID/DistSq: nearest candidate.
+    proximityRank                     = {},
+    proximityClosestQID               = nil,
+    proximityClosestDistSq            = nil,
+    -- Auto-Focus behaviour (session): last QID we set; true when player overrode under respectManual.
+    proximityAutoOwnedQID             = nil,
+    proximityManualOverride           = false,
+}
+

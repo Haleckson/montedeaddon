@@ -1,0 +1,331 @@
+--[[
+    Horizon Suite - Options Data
+    Core DB helpers and per-key routing (SetDB side-effects).
+    Initialises the empty OptionCategories table that self-registering module
+    files populate. Search index lives in OptionsSearch.lua.
+]]
+
+local addon = _G.HorizonSuite
+if not addon then return end
+if not _G[addon.DATABASE] then _G[addon.DATABASE] = {} end
+local L = addon.L
+
+-- ---------------------------------------------------------------------------
+-- DB key naming convention: per-module settings are prefixed <module><Setting>
+-- in camelCase (e.g. focusShowWorldQuests, augmentMaxVisible). Global/core-owned
+-- keys (dashboard chrome, UI scale, minimap button, integration accent colors)
+-- are the documented exception — see the registry comment in core/Config.lua.
+-- Source of truth for "who owns this key": check the per-module *_DEFAULTS
+-- table first (FOCUS_DEFAULTS, AUGMENT_DEFAULTS, etc.), then AXIS_DEFAULTS.
+-- This is a foundation pass, not a full audit: most existing keys have not
+-- been checked against this rule yet. Outliers corrected so far (via migration
+-- core/migrations/20260617_db_key_convention_cleanup.lua): showWorldQuests ->
+-- focusShowWorldQuests, rs_color -> rsColor, sd_color -> sdColor. New keys
+-- going forward should follow the convention from the start.
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- Migration: early global-font implementation used fontPath as the override key.
+-- If useGlobalFont is true but globalOverrideFontPath was never written, the saved
+-- fontPath is the old override value.  Copy it to the dedicated key.
+-- fontPath is intentionally kept (NOT a convention violation to fix later): it
+-- serves as the per-module "Global Font" sentinel fallback (Augment, Vista,
+-- Presence, Insight all fall through to fontPath when their own per-module key
+-- is "__global__" and the override is off), and this block is a legacy
+-- root-level compatibility shim predating the profile system.
+-- ---------------------------------------------------------------------------
+do
+    local db = _G[addon.DATABASE]
+    if db and db.useGlobalFont and db.globalOverrideFontPath == nil and db.fontPath ~= nil then
+        db.globalOverrideFontPath = db.fontPath
+    end
+end
+
+-- ---------------------------------------------------------------------------
+-- SetDB routing
+-- ---------------------------------------------------------------------------
+
+-- Populated by OptionsDefaults.lua (loads before this file)
+local TYPOGRAPHY_KEYS      = addon.TYPOGRAPHY_KEYS
+local COLOR_LIVE_KEYS      = addon.COLOR_LIVE_KEYS
+local SCALE_DEBOUNCE_KEYS  = addon.SCALE_DEBOUNCE_KEYS
+local CLASS_COLOR_KEYS     = addon.CLASS_COLOR_KEYS
+
+function OptionsData_GetDB(key, default)
+    return addon.GetDB(key, default)
+end
+
+local updateOptionsPanelFontsRef
+function OptionsData_SetUpdateFontsRef(fn)
+    updateOptionsPanelFontsRef = fn
+end
+
+function OptionsData_SetDB(key, value)
+    addon.SetDB(key, value)
+    if key == "focusShowWorldQuests" and addon.focus and addon.focus.collapse then
+        if value == false then
+            addon.focus.collapse.pendingWQCollapse = true
+        elseif value == true then
+            addon.focus.collapse.pendingWQExpand = true
+        end
+    end
+    -- When the "Show in-zone world quests" toggle is flipped on, invalidate the nearby
+    -- WQ scan augment so the next FullLayout immediately re-scans for the current zone.
+    if key == "focusShowWorldQuests" and value == true and addon.focus then
+        addon.focus.nearbyQuestAugmentDirty = true
+        addon.focus.nearbyQuestAugment = nil
+        addon.focus.nearbyTaskQuestAugment = nil
+    end
+    if (key == "fontPath" or key == "titleFontPath" or key == "zoneFontPath" or key == "objectiveFontPath" or key == "sectionFontPath" or key == "progressBarFontPath" or key == "timerFontPath" or key == "optionsFontPath" or key == "presenceTitleFontPath" or key == "presenceSubtitleFontPath" or key == "presenceDiscoveryFontPath" or key == "insightFontPath" or key == "useGlobalFont" or key == "globalOverrideFontPath") and updateOptionsPanelFontsRef then
+        updateOptionsPanelFontsRef()
+    end
+    if TYPOGRAPHY_KEYS[key] and addon.UpdateFontObjectsFromDB then
+        addon.UpdateFontObjectsFromDB()
+    end
+    -- When the global-font override toggle changes, or when fontPath changes while
+    -- the override is active, push the new font through every module immediately.
+    -- (useGlobalFont is in TYPOGRAPHY_KEYS so UpdateFontObjectsFromDB already ran;
+    --  this block handles the per-module apply functions that sit outside that path.)
+    if key == "useGlobalFont" or (key == "globalOverrideFontPath" and addon.GetDB and addon.GetDB("useGlobalFont", false)) then
+        if addon.Augment and addon.Augment.ApplyScale then addon.Augment.ApplyScale() end
+        if addon.Presence and addon.Presence.ApplyPresenceOptions then addon.Presence.ApplyPresenceOptions() end
+        if addon.Insight and addon.Insight.ApplyInsightOptions then addon.Insight.ApplyInsightOptions() end
+        if addon.Essence and addon.Essence.ApplyEssenceOptions then addon.Essence.ApplyEssenceOptions() end
+        if addon.Echo and addon.Echo.ApplyFont and addon.IsModuleEnabled and addon:IsModuleEnabled("echo") then addon.Echo.ApplyFont() end
+        if addon.Vista and addon.Vista.ApplyOptions then
+            local k = key
+            C_Timer.After(0, function() if addon.Vista and addon.Vista.ApplyOptions then addon.Vista.ApplyOptions(k) end end)
+        end
+    end
+    if addon.MPLUS_TYPOGRAPHY_KEYS and addon.MPLUS_TYPOGRAPHY_KEYS[key] and addon.ApplyMplusTypography then
+        addon.ApplyMplusTypography()
+    end
+    if addon.MPLUS_EMBEDDED_MARKUP_KEYS and addon.MPLUS_EMBEDDED_MARKUP_KEYS[key] and addon.UpdateMplusBlock then
+        addon.UpdateMplusBlock()
+    end
+    if addon.RUN_TYPOGRAPHY_KEYS and addon.RUN_TYPOGRAPHY_KEYS[key] and addon.ApplyRunTypography then
+        addon.ApplyRunTypography()
+    end
+    if addon.RUN_EMBEDDED_MARKUP_KEYS and addon.RUN_EMBEDDED_MARKUP_KEYS[key] and addon.UpdateDungeonRunBlock then
+        addon.UpdateDungeonRunBlock()
+    end
+    if addon.PRESENCE_KEYS and addon.PRESENCE_KEYS[key] and addon.Presence then
+        if addon.Presence.ApplyPresenceOptions then addon.Presence.ApplyPresenceOptions() end
+        if addon.Presence.ApplyBlizzardSuppression then addon.Presence.ApplyBlizzardSuppression() end
+    end
+    if addon.INSIGHT_KEYS and addon.INSIGHT_KEYS[key] and addon.Insight and addon.Insight.ApplyInsightOptions then
+        addon.Insight.ApplyInsightOptions()
+    end
+    if addon.ESSENCE_KEYS and addon.ESSENCE_KEYS[key] and addon.Essence and addon.Essence.ApplyEssenceOptions then
+        addon.Essence.ApplyEssenceOptions()
+    end
+    if addon.ECHO_KEYS and addon.ECHO_KEYS[key] and addon.Echo and addon.Echo.ApplyOptions
+        and addon.IsModuleEnabled and addon:IsModuleEnabled("echo") then
+        addon.Echo.ApplyOptions()
+    end
+    if addon.AUGMENT_KEYS and addon.AUGMENT_KEYS[key]
+        and addon.Augment and addon.Augment.ApplyAugmentOptions
+        and not (addon._colorPickerLive and COLOR_LIVE_KEYS[key]) then
+        addon.Augment.ApplyAugmentOptions()
+    end
+    if addon.DASHBOARD_CLASS_ICON_KEYS and addon.DASHBOARD_CLASS_ICON_KEYS[key] then
+        if addon.ApplyDashboardClassColor then addon.ApplyDashboardClassColor() end
+    end
+    if addon.DASHBOARD_BACKGROUND_KEYS and addon.DASHBOARD_BACKGROUND_KEYS[key] then
+        if addon.ApplyDashboardBackground then addon.ApplyDashboardBackground() end
+    end
+    if addon.DASHBOARD_TYPOGRAPHY_KEYS and addon.DASHBOARD_TYPOGRAPHY_KEYS[key] then
+        if addon.ApplyDashboardTypography then addon.ApplyDashboardTypography() end
+    end
+    if CLASS_COLOR_KEYS[key] then
+        if key == "classColorDashboard" then
+            if addon.ApplyOptionsClassColor then addon.ApplyOptionsClassColor() end
+            if addon.ApplyDashboardClassColor then addon.ApplyDashboardClassColor() end
+            if addon.ApplyPatchNotesAccent then addon.ApplyPatchNotesAccent() end
+            if addon.ApplyURLCopyBoxAccent then addon.ApplyURLCopyBoxAccent() end
+            if addon.focus.ApplyAuctionCraftDialogAccent then addon.focus.ApplyAuctionCraftDialogAccent() end
+        end
+        if key == "classColorVista" and addon.Vista and addon.Vista.ApplyColors then
+            addon.Vista.ApplyColors()
+        end
+        if key == "classColorInsight" and addon.Insight and addon.Insight.ApplyInsightOptions then
+            addon.Insight.ApplyInsightOptions()
+        end
+        if key == "classColorEssence" and addon.Essence and addon.Essence.ApplyEssenceOptions then
+            addon.Essence.ApplyEssenceOptions()
+        end
+        if key == "classColorFocus" and addon.ApplyFocusColors then
+            addon.ApplyFocusColors()
+        end
+        if key == "classColorPresence" and addon.Presence and addon.Presence.ApplyPresenceOptions then
+            addon.Presence.ApplyPresenceOptions()
+        end
+        if key == "classColorAugment" and addon.Augment and addon.Augment.ApplyAugmentOptions then
+            addon.Augment.ApplyAugmentOptions()
+        end
+        if key == "classColorEcho" and addon.Echo and addon.Echo.View and addon.Echo.View.ApplyAccent then
+            addon.Echo.View.ApplyAccent()
+        end
+    end
+    if addon.VISTA_KEYS and addon.VISTA_KEYS[key] and addon.Vista then
+        if addon.VISTA_OPACITY_LIVE_KEYS and addon.VISTA_OPACITY_LIVE_KEYS[key] then
+            if addon.Vista.ApplyClusterOpacity then addon.Vista.ApplyClusterOpacity(true) end
+        elseif addon._colorPickerLive and addon.VISTA_COLOR_LIVE_KEYS and addon.VISTA_COLOR_LIVE_KEYS[key] then
+            if addon.Vista.ApplyColors then addon.Vista.ApplyColors() end
+        elseif addon.Vista.ApplyOptions or addon.Vista.ApplyLockOnlyOptions then
+            local fn
+            if addon.VISTA_SKIP_FULL_LAYOUT_KEYS and addon.VISTA_SKIP_FULL_LAYOUT_KEYS[key] and addon.Vista.ApplyLockOnlyOptions then
+                fn = addon.Vista.ApplyLockOnlyOptions
+            else
+                local vistaKey = key
+                fn = function()
+                    if addon.Vista and addon.Vista.ApplyOptions then
+                        addon.Vista.ApplyOptions(vistaKey)
+                    end
+                end
+            end
+            -- vistaLock: apply immediately when not in combat for responsive toggle feedback
+            if key == "vistaLock" and not InCombatLockdown() then
+                fn()
+            elseif C_Timer and C_Timer.After then
+                C_Timer.After(0, fn)
+            else
+                fn()
+            end
+        end
+    end
+    -- vistaButtonManaged_* keys trigger a full button re-collect
+    if key:sub(1, 19) == "vistaButtonManaged_" and addon.Vista and addon.Vista.ApplyOptions then
+        local managedKey = key
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0, function()
+                if addon.Vista and addon.Vista.ApplyOptions then
+                    addon.Vista.ApplyOptions(managedKey)
+                end
+            end)
+        else
+            addon.Vista.ApplyOptions(managedKey)
+        end
+    end
+    if key == "lockPosition" and addon.UpdateResizeHandleVisibility then
+        addon.UpdateResizeHandleVisibility()
+    end
+    if key == "focusFrameStrata" and addon.ApplyFocusFrameStrata then
+        addon.ApplyFocusFrameStrata()
+    end
+    if (key == "backdropOpacity" or key == "backdropOpacityMouseover" or key == "backdropOpacityOnMouseover" or key == "backdropColorR" or key == "backdropColorG" or key == "backdropColorB") and addon.ApplyBackdropOpacity then
+        addon.ApplyBackdropOpacity()
+    end
+    if key == "insightBgOpacity" and addon.Insight and addon.Insight.ApplyInsightOptions then
+        addon.Insight.ApplyInsightOptions()
+    end
+    if addon._colorPickerLive and COLOR_LIVE_KEYS[key] then
+        if addon._suspendColorPickerLiveNotify then return end
+        OptionsData_NotifyMainAddon_Live(key)
+        return
+    end
+    -- Scale keys are handled by debounced callbacks in the slider set lambdas.
+    -- Do NOT call NotifyMainAddon here or FullLayout runs on every integer drag step.
+    if SCALE_DEBOUNCE_KEYS[key] then return end
+    -- Current Quest expiry ticker: restart when toggle or window changes.
+    if (key == "showCurrentQuestCategory" or key == "currentQuestWindowSec") and addon.StopCurrentQuestExpiryTicker and addon.StartCurrentQuestExpiryTicker then
+        addon.StopCurrentQuestExpiryTicker()
+        if key == "showCurrentQuestCategory" then
+            if value == true and addon.focus and addon.focus.enabled then
+                addon.StartCurrentQuestExpiryTicker()
+            end
+        elseif addon.GetDB("showCurrentQuestCategory", true) and addon.focus and addon.focus.enabled then
+            addon.StartCurrentQuestExpiryTicker()
+        end
+    end
+    if key == "minimapButtonShowOnlyOnMinimapHover" and addon.MinimapButton_UpdateVisibility then
+        addon.MinimapButton_UpdateVisibility()
+    end
+    if addon.VISTA_KEYS and addon.VISTA_KEYS[key] and not (addon.VISTA_KEYS_REQUIRE_NOTIFY and addon.VISTA_KEYS_REQUIRE_NOTIFY[key]) then return end
+    if key:sub(1, 19) == "vistaButtonManaged_" then return end
+    OptionsData_NotifyMainAddon()
+end
+
+-- Lightweight notify for live color picker: update only the visual surface tied
+-- to the changed key, without the heavy FullLayout path.
+function OptionsData_NotifyMainAddon_Live(key)
+    if key == "backdropOpacity" or key == "backdropOpacityMouseover" or key == "backdropColorR" or key == "backdropColorG" or key == "backdropColorB" then
+        if addon.ApplyBackdropOpacity then addon.ApplyBackdropOpacity() end
+        return
+    end
+
+    if key == "sectionDividerColor" then
+        if addon.ApplyBorderVisibility then addon.ApplyBorderVisibility() end
+        return
+    end
+
+    if key == "highlightColor" or key == "completedObjectiveColor" or key == "sectionColors"
+        or key == "progressBarFillColor" or key == "progressBarTextColor" or key == "colorMatrix" then
+        if addon.ApplyFocusColors then addon.ApplyFocusColors() end
+        return
+    end
+
+    if addon.VISTA_COLOR_LIVE_KEYS and addon.VISTA_COLOR_LIVE_KEYS[key] then
+        if addon.Vista and addon.Vista.ApplyColors then addon.Vista.ApplyColors() end
+        return
+    end
+
+    if key and key:find("^alerts") then
+        if addon.Augment and addon.Augment.Alerts then
+            if addon.Augment.Alerts.ApplyColors then
+                addon.Augment.Alerts.ApplyColors()
+            elseif addon.Augment.Alerts.ApplyScale then
+                addon.Augment.Alerts.ApplyScale()
+            end
+        end
+        return
+    end
+
+    if key == "insightBgOpacity" and addon.Insight and addon.Insight.ApplyInsightOptions then
+        addon.Insight.ApplyInsightOptions()
+        return
+    end
+
+    local applyTy = addon.ApplyTypography or _G.HorizonSuite_ApplyTypography
+    if applyTy then applyTy() end
+end
+
+function OptionsData_NotifyMainAddon()
+    -- Bust the per-entry populate-signature cache so option changes (objectivePrefixStyle,
+    -- showZoneLabels, useTickForCompletedObjectives, etc.) take effect on the next FullLayout
+    -- instead of waiting for /reload or a fingerprinted qData field to perturb.
+    if addon.focus and addon.focus.InvalidatePopulateCache then addon.focus.InvalidatePopulateCache() end
+    local applyTy = addon.ApplyTypography or _G.HorizonSuite_ApplyTypography
+    if applyTy then applyTy() end
+    if addon.ApplyDimensions then addon.ApplyDimensions()
+    elseif _G.HorizonSuite_ApplyDimensions then _G.HorizonSuite_ApplyDimensions() end
+    if addon.ApplyBackdropOpacity then addon.ApplyBackdropOpacity() end
+    if addon.ApplyBorderVisibility then addon.ApplyBorderVisibility() end
+    -- Re-apply colours and bar textures on visible entries; FullLayout repositions
+    -- but does not re-run the per-entry renderer that calls SetTexture, so without
+    -- this call texture/colour changes wait for an aggregator pass or /reload.
+    if addon.ApplyFocusColors then addon.ApplyFocusColors() end
+    if addon.RequestRefresh then addon.RequestRefresh()
+    elseif _G.HorizonSuite_RequestRefresh then _G.HorizonSuite_RequestRefresh() end
+    local fullLayout = addon.FullLayout or _G.HorizonSuite_FullLayout
+    if fullLayout and not InCombatLockdown() then fullLayout() end
+end
+
+
+-- ---------------------------------------------------------------------------
+-- OptionCategories: initialised empty here; all categories self-register.
+-- OptionsAxis.lua appends Modules and Profiles first.
+-- OptionsGlobal.lua inserts GlobalToggles at position 2.
+-- Module-specific categories are appended by their own options files.
+-- ---------------------------------------------------------------------------
+addon.OptionCategories = {}
+
+-- Export for panel and module option files
+addon.OptionsData_GetDB = OptionsData_GetDB
+addon.OptionsData_SetDB = OptionsData_SetDB
+addon.OptionsData_GetFontList = function()
+    if addon.RefreshFontList then addon.RefreshFontList() end
+    return (addon.GetFontList and addon.GetFontList()) or {}
+end
+addon.OptionsData_NotifyMainAddon   = OptionsData_NotifyMainAddon
+addon.OptionsData_SetUpdateFontsRef = OptionsData_SetUpdateFontsRef

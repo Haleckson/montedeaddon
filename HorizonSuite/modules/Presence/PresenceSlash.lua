@@ -1,0 +1,145 @@
+--[[
+    Horizon Suite - Presence - Slash Commands
+    /h presence [cmd] subcommands. Registers with core via addon.RegisterSlashHandler.
+]]
+
+local addon = _G.HorizonSuite
+if not addon or not addon.Presence or not addon.RegisterSlashHandler then return end
+
+local HSPrint = addon.HSPrint or function(msg) print("|cFF00CCFFHorizon Suite:|r " .. tostring(msg or "")) end
+
+-- Handle /horizon presence [cmd] subcommands.
+-- @param msg string Subcommand (toggle, zone, subzone, discover, level, boss, ach, quest, wq, wqaccept, accept, update, scenario, all, help)
+local function HandlePresenceSlash(msg)
+    local cmd = strtrim(msg or ""):lower()
+    -- Accept optional leading "test " prefix (matches PR test-plan phrasing).
+    cmd = cmd:gsub("^test%s+", "")
+    -- Long-form aliases for parity with documentation.
+    if cmd == "worldquest" then cmd = "wq"
+    elseif cmd == "worldquestaccept" then cmd = "wqaccept"
+    end
+
+    if cmd == "toggle" then
+        if InCombatLockdown() then
+            HSPrint("Cannot toggle Presence during combat.")
+            return
+        end
+        addon:SetModuleEnabled("presence", not addon:IsModuleEnabled("presence"))
+        HSPrint("Presence " .. (addon:IsModuleEnabled("presence") and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+        return
+    end
+
+    if cmd == "level" then
+        if addon.Presence.PreviewToast then addon.Presence.PreviewToast("LEVEL_UP") end
+    elseif cmd == "boss" then
+        if addon.Presence.PreviewToast then addon.Presence.PreviewToast("BOSS_EMOTE") end
+    elseif cmd == "ach" then
+        if addon.Presence.PreviewToast then addon.Presence.PreviewToast("ACHIEVEMENT") end
+    elseif cmd == "quest" then
+        if addon.Presence.PreviewToast then addon.Presence.PreviewToast("QUEST_COMPLETE") end
+    elseif cmd == "wq" then
+        if addon.GetDB and addon.GetDB("presenceWorldQuestSound", true) and SOUNDKIT and SOUNDKIT.UI_WORLDQUEST_COMPLETE then
+            PlaySound(SOUNDKIT.UI_WORLDQUEST_COMPLETE)
+        end
+        if addon.Presence.PreviewToast then addon.Presence.PreviewToast("WORLD_QUEST") end
+    elseif cmd == "wqaccept" then
+        if addon.Presence.PreviewToast then addon.Presence.PreviewToast("WORLD_QUEST_ACCEPT") end
+    elseif cmd == "accept" then
+        if addon.Presence.PreviewToast then addon.Presence.PreviewToast("QUEST_ACCEPT") end
+    elseif cmd == "update" then
+        if addon.Presence.PreviewToast then addon.Presence.PreviewToast("QUEST_UPDATE") end
+    elseif cmd == "achprogress" then
+        if addon.Presence.PreviewToast then addon.Presence.PreviewToast("ACHIEVEMENT_PROGRESS") end
+    elseif cmd == "scenario" then
+        if addon.Presence.GetScenarioDisplayInfo and addon.Presence.IsScenarioActive and addon.Presence.IsScenarioActive() then
+            local title, subtitle, category = addon.Presence.GetScenarioDisplayInfo()
+            addon.Presence.QueueOrPlay("SCENARIO_START", title or "Scenario", subtitle or "", { category = category })
+        elseif addon.Presence.PreviewToast then
+            addon.Presence.PreviewToast("SCENARIO_START")
+        end
+    elseif cmd == "zone" then
+        addon.Presence.QueueOrPlay("ZONE_CHANGE", GetZoneText() or "Unknown Zone", GetSubZoneText() or "")
+    elseif cmd == "subzone" then
+        if addon.Presence.PreviewToast then addon.Presence.PreviewToast("SUBZONE_CHANGE") end
+    elseif cmd == "discover" then
+        if addon.Presence.PreviewToast then addon.Presence.PreviewToast("ZONE_CHANGE") end
+    elseif cmd == "all" then
+        local L = addon.L or {}
+        HSPrint(L["PRESENCE_PLAYING_DEMO_REEL_NOTIFICATION"])
+        local demos = {
+            { "ZONE_CHANGE",         GetZoneText() or "Valdrakken",     GetSubZoneText() or "Thaldraszus" },
+            { "SUBZONE_CHANGE",      GetZoneText() or "Valdrakken",     GetSubZoneText() or "The Seat of Aspects" },
+            { "ZONE_CHANGE",         "The Waking Shores",               "Obsidian Citadel",  true   },
+            { "QUEST_ACCEPT",        L["PRESENCE_QUEST_ACCEPTED"],               L["PRESENCE_THE_FATE_OF_THE_HORDE"] },
+            { "WORLD_QUEST_ACCEPT",  L["PRESENCE_WORLD_QUEST_ACCEPTED"],         L["PRESENCE_AZERITE_MINING"] },
+            { "QUEST_UPDATE",        L["PRESENCE_QUEST_UPDATE"],                 L["PRESENCE_DRAGON_GLYPHS_3_5"] },
+            { "QUEST_COMPLETE",      L["PRESENCE_QUEST_COMPLETE"],               L["PRESENCE_AIDING_THE_ACCORD"] },
+            { "WORLD_QUEST",         L["PRESENCE_WORLD_QUEST_COMPLETE"], L["PRESENCE_AZERITE_MINING"] },
+            { "SCENARIO_START",      "Cinderbrew Meadery",              "Defend the tavern", { category = "SCENARIO" } },
+            { "ACHIEVEMENT",         L["PRESENCE_ACHIEVEMENT_EARNED"],           L["PRESENCE_EXPLORING_KHAZ_ALGAR"] },
+            { "ACHIEVEMENT_PROGRESS", L["PRESENCE_EXPLORING_THE_MIDNIGHT_ISLES"], L["PRESENCE_DRAGON_GLYPHS_3_5"] },
+            { "BOSS_EMOTE",          "Ragnaros",                        "BY FIRE BE PURGED!" },
+            { "LEVEL_UP",            L["PRESENCE_LEVEL_UP"],                     L["PRESENCE_YOU_HAVE_REACHED_LEVEL_80"] },
+        }
+        for i, d in ipairs(demos) do
+            C_Timer.After((i - 1) * 3, function()
+                if d[4] == true then addon.Presence.SetPendingDiscovery() end
+                addon.Presence.QueueOrPlay(d[1], d[2], d[3], type(d[4]) == "table" and d[4] or nil)
+            end)
+        end
+    elseif cmd == "" or cmd == "help" then
+        local L = addon.L or {}
+        HSPrint("  /h presence toggle  - Enable / disable Presence module")
+        HSPrint(L["PRESENCE_TEST_COMMANDS"])
+        HSPrint(L["PRESENCE_H_HELP_TEST_CURRENT"])
+        HSPrint(L["PRESENCE_H_ZONE_TEST"])
+        HSPrint(L["PRESENCE_H_SUBZONE_TEST"])
+        HSPrint(L["PRESENCE_H_DISCOVER_TEST_ZONE"])
+        HSPrint(L["PRESENCE_H_LEVEL_TEST"])
+        HSPrint(L["PRESENCE_H_BOSS_TEST"])
+        HSPrint(L["PRESENCE_H_ACHIEVEMENT_TEST"])
+        HSPrint(L["PRESENCE_H_ACCEPT_TEST_QUEST"])
+        HSPrint(L["PRESENCE_H_WORLD_QUEST_ACCEPT_TEST"])
+        HSPrint(L["PRESENCE_H_SCENARIO_TEST"])
+        HSPrint(L["PRESENCE_H_QUEST_TEST_COMPLETE"])
+        HSPrint(L["PRESENCE_H_WORLD_QUEST_TEST"])
+        HSPrint(L["PRESENCE_H_QUEST_UPDATE_TEST"])
+        HSPrint(L["PRESENCE_H_ACHIEVEMENT_PROGRESS_TEST"])
+        HSPrint(L["PRESENCE_H_DEMO_REEL_TYPES"])
+        addon.Presence.QueueOrPlay("ZONE_CHANGE", GetZoneText() or "Unknown Zone", GetSubZoneText() or "")
+    end
+end
+
+local function HandlePresenceDebugSlash(msg)
+    local cmd = strtrim(msg or ""):lower()
+
+    if cmd == "" or cmd == "help" then
+        HSPrint("Presence debug commands (/h debug presence [cmd]):")
+        HSPrint("  debug      - Dump state to chat")
+        HSPrint("  debugtypes - Dump notification toggles and Blizzard suppression state")
+        HSPrint("  debuglive  - Toggle live debug panel (DEV_MODE required)")
+        return
+    end
+
+    if cmd == "debug" then
+        if addon.Presence.DumpDebug then addon.Presence.DumpDebug() end
+
+    elseif cmd == "debugtypes" then
+        if addon.Presence.DumpBlizzardSuppression then
+            addon.Presence.DumpBlizzardSuppression(HSPrint)
+        else
+            HSPrint("DumpBlizzardSuppression not available")
+        end
+
+    else
+        HSPrint("Unknown debug command. Use /h debug presence for help.")
+    end
+end
+
+addon.RegisterSlashHandler("presence", HandlePresenceSlash)
+if addon.RegisterSlashHandlerDebug then
+    addon.RegisterSlashHandlerDebug("presence", HandlePresenceDebugSlash)
+end
+if addon.RegisterDebugLive then
+    addon.RegisterDebugLive("presence", function(v) if addon.Presence.SetDebugLive then addon.Presence.SetDebugLive(v) end end)
+end

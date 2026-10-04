@@ -1,0 +1,12 @@
+## Interface: 16001
+## Version: v1.0
+## Title: |TInterface/Addons/unitscan/unitscanhardcore:18|t UnitscanAON
+## Notes:|TInterface/Addons/unitscan/ush001:64|t|TInterface/Addons/unitscan/ush002:64|t|TInterface/Addons/unitscan/ush003:64|t|n|TInterface/Addons/unitscan/ush004:64|t|TInterface/Addons/unitscan/ush005:64|t|TInterface/Addons/unitscan/ush006:64|t|n|TInterface/Addons/unitscan/ush007:64|t|TInterface/Addons/unitscan/ush008:64|t|TInterface/Addons/unitscan/ush009:64|t|n|cFFFF0000Dedicated Hardcore version of Unitscan |cFF00FF00by Slicc-Stitches |cFFFF0000with many|nimprovements & QoL changes, see the |cFFFFD700full change log on curseforge.|r
+## Author: Slicc
+## OptionalDeps: Ace3, LibSharedMedia-3.0, LibDBIcon-1.0
+## IconTexture: Interface\AddOns\unitscanAON\Media\icon
+
+embeds.xml
+
+core.lua
+

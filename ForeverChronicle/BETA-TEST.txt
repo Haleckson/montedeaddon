@@ -1,0 +1,500 @@
+0.9.5 Beta 3 — SICHERUNG / EINSTELLUNGSSEITE
+1. „Einstellungen & Daten“ öffnen. Prüfen, dass kein Exporttextfeld und keine Export-/Import-Schaltflächen angezeigt werden.
+2. Oben die Sicherungsanleitung lesen. Der angegebene Pfad soll auf ForeverChronicle.lua in WTF\Account\<Account>\SavedVariables zeigen.
+3. Prüfen, dass alle Schalter in den Bereichen „Aufzeichnung“ sowie „Anzeige & Tagebuch“ liegen, die Beschriftungen innerhalb der dunklen Einstellungsfläche bleiben und nichts überlappt.
+4. Tagebuchstufe, Minikartenschaltfläche und Sammlerdaten-Schaltfläche prüfen. Tooltip der Tagebuchstufe darf keine Steuerelemente verdecken.
+5. Einstellungen ändern und /reload ausführen. Werte müssen erhalten bleiben. Chronikdaten und Tagebuch bleiben vorhanden.
+6. Vor manueller Sicherung vollständig ausloggen und WoW schließen. Nur in einer Testkopie eine Wiederherstellung prüfen; beim Zurückkopieren ersetzt die Datei die aktuellen Chronicle-Daten dieses Accounts.
+
+FOREVER CHRONICLE 0.9.5 - INGAME-PRÜFUNG
+
+KURZTEST FÜR VERSION 0.9.5
+1. Vor dem Start in der Addon-Liste Version 0.9.5 bestätigen. Mit aktiviertem
+   `/console scriptErrors 1` einloggen und auf neue Lua-Fehler achten.
+2. Im Tagebuch unter Einstellungen & Daten nacheinander Kurz, Kompakt,
+   Ausführlich und Sehr ausführlich wählen. Sitzungs-, Tages-, Wochen-, Monats-
+   und Jahresansichten vergleichen; jede Stufe soll weniger oder gleich viele
+   Textpassagen zeigen, ohne dass gespeicherte Ereignisse verschwinden. Die
+   Auswahl muss nach `/reload` erhalten bleiben, pro Charakter getrennt sein
+   und einen Account-Export/Import überstehen.
+3. Eine Gruppe mit einem Spieler bilden. Der Spieler darf durch Login oder
+   Gruppenbeitritt allein noch nicht in „Gefährten“ auftauchen.
+4. Gemeinsam eine Quest abschließen. Der Mitspieler soll unter „Gefährten“ mit
+   dem Namen des eigenen Charakters erscheinen, der die Quest abgeschlossen hat.
+5. Eine Gruppe betreten lassen und gemeinsam einen Dungeon betreten. Prüfen, ob
+   der Mitspieler ebenfalls zugeordnet wird, auch wenn sich die Gruppe kurz zuvor
+   geändert hat.
+6. Nach `/reload` prüfen, ob der Eintrag und die Charakterzuordnung erhalten sind.
+   Mit einem zweiten eigenen Charakter wiederholen; beide eigenen Charaktere
+   sollen beim selben Mitspieler auftauchen.
+7. Kartenfilter und NPC-Bündel bei normalem Zoom und beim Hineinzoomen prüfen:
+   keine Pins außerhalb der Kartenfläche; einen Namen im Bündel anklicken und
+   prüfen, ob der Minikarten-Wegweiser auf genau diesen NPC zeigt.
+8. Einen Händler öffnen, seine Waren ansehen, eine Ware überfahren und den Tooltip
+   sowie Umschalt-Klick in den Chat prüfen.
+9. Export erstellen, `/reload` ausführen und bei Bedarf in ein Testprofil
+   importieren. Bestehende SavedVariables nicht löschen.
+10. In „Einstellungen & Daten“ das Chronicle-Minimap-Symbol ausschalten: Es muss
+   sofort verschwinden. Mit `/fc` die Chronik öffnen, die Checkbox wieder
+   aktivieren und prüfen, ob das Symbol sofort zurückkehrt und nach `/reload`
+   ausgeblendet bleibt, wenn es ausgeschaltet war.
+
+Der Kurztest prüft nur die wichtigsten Live-Übergänge. Die vollständige
+Regressionstestliste folgt weiter unten; Offline-Prüfungen ersetzen keinen
+Forever-Client-Test.
+
+Historische 0.9.0-beta.29-Prüfpunkte:
+
+Startup check: log in and confirm that the protected-action popup no longer appears.
+The add-on must not show a protected-action popup. It does not register the
+combat-log event; it watches the current hostile target with UNIT_HEALTH.
+
+Select a hostile creature, damage it, and defeat it. One named KILL entry should
+appear in the current character's diary. Repeat the test with another target.
+Then target a creature damaged by someone else and check the known group-credit
+limitation described in RELEASE-NOTES.txt.
+
+Diary prose check: compare Journeys with Days, Months and Years. Day/month/year
+views should read as short connected recaps in German or English, not as event
+lists. Full event-by-event details must still be available in Journeys.
+
+NEUE PRÜFPUNKTE
+- Einen gespeicherten Gegenstand in der Chronik anklicken: Auf der Karte muss ein klarer goldener Punkt an jedem gespeicherten Fundort erscheinen, ohne weiße Icon-Kachel.
+- Im Kartenfilter erst Erze, dann Kräuter auswählen: Es darf jeweils nur diese eine Kategorie markiert sein und auf der Karte erscheinen. Auswahl schließen und erneut öffnen; die Kategorie muss pro Charakter erhalten bleiben.
+- Einen normalen Gegner anvisieren und seine Art im Bereich „Gegner“ suchen. Pro Gebiet darf daraus kein Stapel identischer Pins entstehen; Pins erscheinen nur mit echter Gegnerposition.
+- Die drei Qualitätsfilter ungewöhnlich, selten und episch prüfen. Der Filter „Alle Gegenstände“ darf nicht mehr vorhanden sein.
+- Nach dem Klick prüfen, dass der Pin auf der sichtbaren Kartenfläche liegt und nicht außerhalb des Kartenausschnitts.
+
+MAP CHECK (ENGLISH)
+- Click a remembered item in Chronicle: a clear gold dot should appear at each saved location, without a white square icon tile.
+- Select Ore, then Herbs: exactly one category should remain selected and visible. Reopen the panel and confirm the choice is saved for that character.
+- Target an ordinary hostile creature and search for its species under Enemies. Repeated sightings in one zone must not create duplicate pins; pins require an exact unit position.
+- Confirm the Uncommon, Rare and Epic item filters work and that the redundant All Items filter is gone.
+- Confirm the marker remains on the visible map area and follows the correct saved coordinates.
+- Im Tagebuch ein Item mit Fundort anklicken: Die Weltkarte soll sich öffnen, zum gespeicherten Gebiet wechseln und ausschließlich den ausgewählten Fund zeigen.
+- Goldene Pins müssen auf heller und dunkler Karte klar erkennbar bleiben; Kategorie und Fundname müssen beim Darüberfahren im Tooltip stehen.
+- Ein Gebiet mit benannter Unterzone betreten und im Tagebuch prüfen, dass beide Entdeckungen pro Charakter auftauchen.
+- Unter einem deutschen Client müssen alle neuen Texte deutsch sein; auf anderen Clients englisch.
+
+Neustart- und Speicherprüfung:
+- Mit der vorhandenen 0.8-Datei starten: Die neue Chronik muss leer beginnen;
+  alte Einträge dürfen weder verschwinden noch automatisch zusammengeführt werden.
+- Eine Reise aufzeichnen, das Spiel regulär beenden und erneut starten. Der
+  Eintrag muss danach im selben Charakterprofil vorhanden sein.
+- Charakter umbenennen oder mit geändertem Realm-Anzeigenamen testen: Die
+  gespeicherte GUID muss dieselbe Chronik öffnen.
+- Eine 0.8-Kontosicherung exportieren und in der frischen Chronik importieren.
+  Wiederholter Import darf keine zusätzlichen identischen Ereignisse erzeugen.
+- Im `/fc diagnose` muss der sichtbare Charaktername erscheinen; der interne
+  GUID-Schlüssel darf nicht als Name im Fenster auftauchen.
+- Im Abenteuertagebuch den Ansichts-Umschalter fünfmal durchklicken: Reisen,
+  Tage, Wochen, Monate, Jahre. Die Auswahl muss nach `/reload` erhalten bleiben.
+- Einen benannten Gegner selbst oder in der Gruppe beschädigen und besiegen.
+  Der Name soll einmal in der Geschichte auftauchen; fremde Kämpfe ohne eigene
+  Gruppenbeteiligung dürfen nicht zugeschrieben werden.
+- Einen Händler öffnen: sein Name, Ort und erkennbare Warengruppen sollen im
+  Tagebuch stehen, sofern der Client diese Angaben liefert.
+- Zum ersten Mal auf einen anderen Kontinent reisen und dort ein bislang
+  unbesuchtes Gebiet betreten: Das Tagebuch muss beide Entdeckungen einzeln und
+  mit den richtigen Namen festhalten. Bei erneutem Betreten darf kein neues
+  „zum ersten Mal“-Ereignis entstehen.
+- Mehrere Kämpfe, Sammelfunde und Quests in wechselnder Reihenfolge erleben.
+  Das Tagebuch muss sie in derselben zeitlichen Reihenfolge erzählen und darf
+  nur aufeinanderfolgende gleiche Ereignisse zu einem Absatz bündeln.
+- Die dunkle Tagebuchseite mit normaler und größerer UI-Skalierung ansehen. Text darf
+  nicht überlappen oder aus dem Tagebuchbereich laufen.
+- Einen Account-Export außerhalb des WoW-Ordners speichern. Bei einem harten
+  Client-Abbruch kann WoW Änderungen seit dem letzten regulären Speichern verlieren.
+
+Live-Test ohne wiederholtes Aus- und Einloggen:
+- Classic-Rahmen und Farben in Fenster, Chronik, Tagebuch, Suche und Einstellungen prüfen.
+- Auf der Karte Erz- und Kräuterfunde vergleichen: Erz muss als Erzbrocken,
+  Kräuterfund als Blume erscheinen. Angel-, Schatz-, Quest- und NPC-Pins brauchen
+  ebenfalls eigene, bei normaler UI-Skalierung erkennbare WoW-Symbole.
+- Ungewöhnliche, seltene und epische Gegenstände anklicken. Der Kartenrand soll
+  grün, blau beziehungsweise violett sein; der Tooltip muss die Qualität nennen.
+- Export, Alle markieren und Importieren müssen ohne überlaufende Beschriftungen
+  nebeneinander stehen. Sicherung und Aufzeichnungsoptionen brauchen getrennte Rahmen.
+- Kartenfilter öffnen und einzelne Ebenen für Erz, Kräuter, Gegenstände und NPCs
+  getrennt ein-/ausschalten. Marker sollen klein und lesbar bleiben, mit passendem
+  Ressourcen-Symbol und grünem, blauem oder violettem Seltenheitsring bei Items.
+- Minikartenbuch auf verschiedenen UI-Skalierungen ansehen und ziehen. Es muss
+  neben der Minikarte bleiben und darf wichtige Karten-/Questtexte nicht verdecken.
+- `/fc demo an` zeigt die komplette Beispieldatenbank sofort im Addon. Karte,
+  Kategorien, Kartenfilter, Tagebuch und Seitenwechsel prüfen; `/fc demo aus`
+  bringt dich sofort zu deinen echten Daten zurück.
+- `/fc diagnose` ausführen. Profilname/GUID und aktuelle Karte/Koordinaten müssen
+  zum aktiven Charakter und Standort passen. Datenzähler steigen nach echten
+  Erlebnissen, Fehlerzähler bleibt im Normalfall unverändert.
+- Danach im selben Login je ein Erz/Kraut sammeln, Quest abschließen und Händler
+  öffnen. Direkt anschließend in „Wo war das?“ → „Weltkarte“, Chronik und „Wo war das?“ prüfen.
+  Dazu ist kein Logout erforderlich.
+- Einmal am Ende `/reload` ausführen und die gerade geprüften Daten erneut prüfen.
+
+0.8.0-beta.4 Langzeitdaten und Sicherung:
+- In „Wo war das?“ mehr als 30 gespeicherte Datensätze öffnen. „Ältere Einträge anzeigen“
+  muss zur nächsten Seite führen; nach Wechsel von Kategorie oder Suchbegriff beginnt
+  die Ansicht wieder auf Seite 1. `/reload` muss die gewählte Seite wiederherstellen.
+- Dasselbe in „Wo war das?“ → „Weltkarte“ mit mehr als 30 Fundorten testen. Der Seitenzähler muss alle
+  Treffer umfassen; Gebiet, Charakter- und Kategorieauswahl dürfen beim Blättern nicht
+  wechseln.
+- Account-Export erstellen und in einem Testprofil importieren. Ein Gegenstand mit
+  mehreren Fundorten muss jeden Ort, Kontinent, Quelle und Zeitstempel behalten.
+  NPC-Rolle und Item-Symbol/Link müssen nach dem Import erhalten bleiben.
+- Dieselbe Sicherung ein zweites Mal importieren. Orte, Quests, Reisen und Notizen
+  dürfen dabei nicht vervielfacht werden.
+- `/fc demo an` und `/fc demo aus`: echte Chronik, Notizen und Fundorte müssen davor
+  und danach unverändert sein. Ein `/reload` im Demomodus muss zum echten Profil führen.
+- Einen gültigen Fund aufnehmen und zusätzlich einen Testdatensatz mit Karten-ID 0
+  oder Koordinaten außerhalb 0–100 importieren: der ungültige Ort darf keinen Pin
+  erzeugen oder gültige Fundorte überschreiben.
+- Backup-Text mit einer gültigen Karten-ID, aber ungültigen/teilweisen Koordinaten
+  testen: der betroffene Atlas-, Notiz-, Quest- oder Ortsdatensatz darf keinen
+  Kartenpunkt erhalten; vorhandene gültige Punkte müssen unverändert bleiben.
+
+Chronik-Suchpins:
+- Einen einzelnen Gegenstand in der Chronik suchen und anklicken: Auf der Karte dürfen nur dessen
+  gespeicherte Fundorte erscheinen, keine übrigen Items oder Kategorien.
+- „Suchmarkierungen löschen“ anklicken: Die zuvor gewählte Kartenkategorie muss wieder erscheinen.
+- Zwei verschiedene Funde dicht nebeneinander markieren und Clustering einschalten.
+  Beide Pins müssen an ihren Koordinaten bleiben; nur exakt gleiche Punkte dürfen
+  zu einem Zähler zusammengefasst werden.
+- Ein Gegenstand mit Funden über mehrere Charaktere suchen. Alle exakten Fundorte
+  dieses Gegenstands müssen erscheinen; nahe Funde dürfen nicht verschwinden.
+
+0.8.0-beta.2 Koordinatenkorrektur:
+- Einen Händler oder freundlichen NPC direkt anvisieren und danach per Mouseover erfassen.
+  Gespeicherte Koordinaten müssen dessen Kartenposition treffen; falls die Forever-API
+  keine Einheitenposition bereitstellt, darf die Erfassung nicht abstürzen.
+- Einen NPC-Pin auf der Karte anklicken und Tooltip-Koordinaten mit der Kartenposition
+  vergleichen. Bei Kartenzoom und Verschieben muss der Pin auf demselben Ort bleiben.
+- Spielerpfeil und ein am eigenen Standort gespeicherter Fund müssen sich auf der Karte
+  überlagern. Danach /reload ausführen und prüfen, dass der Pin unverändert bleibt.
+
+0.8.0 Gebietsexplorer und Datenmigration:
+- Auf einer Installation mit 0.7.34 und vorhandenen SavedVariables aktualisieren.
+  Chronik, Notizen, Kartenfilter, Quests und Ressourcen müssen erhalten bleiben.
+- „Wo war das?“ → „Weltkarte“ öffnen. Kontinent und Gebiet müssen aus tatsächlich gespeicherten
+  Kartenorten auswählbar sein; ein leeres Gebiet darf nicht als entdeckt erscheinen.
+- Charakterauswahl öffnen und erst einen einzelnen Charakter, dann „Alle Charaktere“
+  wählen. Quests, Ressourcen, Gegenstände, NPCs und Notizen müssen die richtige
+  Charakterzuordnung behalten; gemeinsame Fundorte dürfen nicht doppelt erscheinen.
+- Ein Gebiet wählen und nacheinander Erz, Kräuter, Angelstellen, Schätze, Quests,
+  Questfolge, Gegenstände, Ungewöhnlich, Selten, Episch, Rares, NPCs, Händler,
+  Lehrer, Dungeons und Notizen anklicken. Treffer dürfen nur zur Kategorie und
+  zum gewählten Gebiet gehören.
+- Brachland wählen: Items dürfen keine Blumen-/Erz-Koordinaten übernehmen.
+  Bei alten Datensätzen ohne Kontinent muss dieser – wenn die Karten-ID im Client
+  auflösbar ist – ergänzt werden, ohne andere gespeicherte Felder zu verändern.
+- Nach Auswahl von Kontinent, Gebiet und Kategorie `/reload` ausführen. Die
+  Auswahl muss für diesen Charakter wiederhergestellt sein. Auf einem zweiten
+  Charakter die Auswahl ändern; Profilzustände dürfen sich nicht vermischen.
+- Ungewöhnlich/Selten/Episch getrennt prüfen. Datensätze ohne bekannte Qualität
+  dürfen in keinem Qualitätsfilter auftauchen.
+- Dropdowns bei vielen Gebieten mit Mausrad/Scrollbalken testen. Menü darf nicht
+  aus dem Bildschirm ragen; Einträge müssen zuverlässig auswählbar sein.
+- Im Kartenfilter Händler und Lehrer getrennt einschalten. Jeder gespeicherte
+  Besuch muss am Interaktionsort mit eigenem Symbol erscheinen; Ausschalten darf
+  nur die jeweilige Ebene verbergen.
+- Deutsche und englische Clients prüfen. Karten-APIs, tatsächliche Koordinaten,
+  Menülayout und SavedVariables-Persistenz benötigen den Forever-Spielclient.
+
+0.7.34 Tagebuch-Zuordnung:
+- Neue Profile öffnen das Abenteuertagebuch mit einzelnen Reisen.
+- Bei mehreren Logins am selben Tag bleiben Sitzungen in dieser Ansicht getrennt.
+- Auf Tagesansicht umschalten: Rückkehrsätze erscheinen nur, wenn der Login-Ort wirklich aufgezeichnet wurde.
+- Sitzungen mit leerem Startort dürfen spätere Fundorte nicht als Aufbruchsort ausgeben.
+- Bereits gespeicherte Tagebuchansicht bleibt erhalten.
+
+0.7.33 Charakterzuordnung und Fundorte:
+- Mit zwei Charakteren dieselbe Quest an unterschiedlichen Orten annehmen und abschließen.
+- Im accountweiten Questarchiv prüfen, dass jeder Ort die Charaktere aufführt, die ihn erlebt haben.
+- Auf der Karte einen Quest-Pin öffnen: Die angezeigten Namen müssen zu genau diesem Ort gehören.
+- Exportieren und wieder importieren; die Ortszuordnung zu den Charakteren muss erhalten bleiben.
+- Mit einem bestehenden Charakterprofil einloggen, dessen gespeicherter Name/Realm-Key abweicht:
+  Die Chronik und die Zuordnung in Ressourcenatlas und Questarchiv müssen am GUID erkannt und weitergeführt werden.
+- Koordinaten in Zone und Karte vergleichen. Bei einem Kartenlade-/Zonenwechsel darf kein ungültiger
+  Punkt außerhalb der Karte gespeichert oder als Kartenpin gezeigt werden.
+- Mehr als zwölf verschiedene Fundorte desselben Gegenstands sammeln/finden; ältere Punkte müssen
+  im Archiv und auf der Karte weiter auswählbar bleiben.
+- Zwei nahe, aber klar verschiedene Fundorte prüfen; sie dürfen nicht zu einem falschen Mittelpunkt
+  zusammenfallen. Ein erneuter Fund praktisch am selben Punkt darf weiter zusammengefasst werden.
+
+0.7.31 Tagebuch-Erzählstil:
+- Mehrere Quests, Funde, NPCs, Händlerbesuche und Gebietseinträge erzeugen lassen.
+- Prüfen, dass Formulierungen derselben Ereignisart deutlich wechseln und natürlich klingen.
+- Tagebuch schließen und erneut öffnen: Bereits gewählte Formulierungen dürfen nicht springen.
+- Client auf Deutsch und Englisch testen; Ereignisnamen und Grammatik müssen lesbar bleiben.
+
+0.7.30 Tagebuch-Platz:
+- Demo-Tageschronik mit schmalem und normalem UI-Scale ansehen. Zwischen Erzähltexten
+  und nächstem Tagebucheintrag darf kein großer leerer Bereich entstehen.
+- Lange deutsche Einträge mit Umlauten dürfen weder abgeschnitten sein noch
+  über die nächste Zeile laufen; englische Einträge ebenfalls prüfen.
+- Umschalter oben in der Liste muss erreichbar bleiben; Sitzungszahl, Datum und
+  Zeitspanne müssen sichtbar sein.
+
+0.7.29 Tageschronik:
+- /fc demo an aktivieren und das Abenteuertagebuch öffnen. Der Beispieltag muss
+  zwei Sitzungen als einen Eintrag zeigen, mit beiden Questabschnitten und einem
+  Rückkehrsatz dazwischen. Im Titel muss die Sitzungsanzahl stehen; rechts bleibt
+  die gemeinsame Zeitspanne sichtbar.
+- „Einzelne Reisen anzeigen“ anklicken: beide Sitzungen erscheinen wieder als
+  getrennte Einträge. Zur Tagesansicht zurückschalten.
+- Im Tagesmodus nach „Eine alte Schuld“ und nach dem Datum suchen; der Tag muss
+  jeweils als vollständige Geschichte gefunden werden. Suche löschen und
+  Seitenwechsel mit mehr als 20 Tagen testen.
+- /reload ausführen. Tagesmodus, Suche und Seitenposition müssen je Charakter
+  erhalten bleiben. /fc demo aus stellt die echten Daten wieder her.
+- Exportieren und importieren: neue Sitzungen müssen dasselbe gespeicherte
+  Tagesdatum behalten. Bei alten Exporten ohne Tagesfeld muss das Datum aus dem
+  gespeicherten Sitzungszeitpunkt entstehen.
+- Einen echten Spieltag mit zwei getrennten Logins aufzeichnen und prüfen, dass
+  beide Reisen im Tagesmodus verbunden, in der Sitzungsansicht aber weiterhin
+  einzeln lesbar sind.
+
+0.7.28 Händler- und Erinnerungsprüfung:
+- Gegenstandsaufzeichnung ausschalten, einen Händler öffnen und danach im
+  Gedächtnis nach seinem Namen suchen. Besuch, Gebiet und Koordinaten müssen
+  weiterhin vorhanden sein.
+- Gegenstandsaufzeichnung einschalten, Händler mit Waren öffnen. Händler und
+  angebotene Gegenstände suchen; bei verzögert geladenen Daten müssen Namen
+  nach kurzer Zeit ergänzt werden. Der Nachscan darf Besuche nicht verdoppeln.
+- Händlerbestand exportieren/importieren; Händler, Ware, Unterkategorien und
+  Orte müssen erhalten bleiben.
+- „Ort merken“ öffnen. Rückkehr-Erinnerung ist vorausgewählt. Einmal mit und
+  einmal ohne Häkchen speichern; in der Notizliste/über /fc notes kontrollieren,
+  dass nur die aktivierte Notiz beim Zurückkehren erinnert.
+- Lehrerdaten, NPCs, Quests, Sammelfunde und Items wie bisher einzeln prüfen.
+  Eine nicht geladene Item-ID darf nach GET_ITEM_INFO_RECEIVED keinen
+  „Gegenstand #ID“-Namen behalten.
+
+0.7.27 screenshot follow-up:
+- In the left navigation, verify the Quest Archive label stays inside its button;
+  the full archive title should still appear in the content header.
+- Verify no SavedVariables privacy text overlaps the bottom quick-navigation
+  buttons; that explanation remains in the backup/settings page header.
+- Open My World and verify resource counts read "1 find" / "1 Fund" with no
+  leftover format placeholder.
+
+0.7.26 map and merchant checks:
+- Start the client and do not open the world map manually. Click a saved item,
+  resource or NPC in the Chronicle. The map should open at that saved area and
+  show only the selected result's spotlight.
+- Visit a vendor. Confirm the journal saves the vendor name, the player's map
+  position at the interaction, plus item subcategories observed in its stock
+  (when the client provides them). The memory result should list observed
+  categories and clicking it should show all saved vendor locations on the map.
+- Export and import the account; verify merchant categories, visit coordinates
+  and diary details remain present.
+
+0.7.25 diary readability and grouping:
+- Use /fc demo on. In German and English, confirm the diary groups repeated ore,
+  herb, NPC and item discoveries into readable category sentences while quest,
+  level and dungeon milestones stay in chronological order.
+- Confirm loot is described as loot and vendor stock as an item seen for sale.
+- With a long diary entry, resize or use a narrower UI scale and verify each
+  paragraph stays inside its row without overlapping the next journey.
+- Open memory search and verify all category labels fit the wider filter buttons.
+- Turn demo mode off after the check.
+
+0.7.24 diary search checks:
+- Search a recorded quest, item, NPC, companion, zone, subzone, map ID and a saved coordinate. Each matching journey should appear as a whole entry.
+- Search a name that is absent: show the localized no-results message. Clear the query: restore the complete diary and its paging.
+- Diary and general-memory searches must remain separate and restore independently per character after close/reopen and /reload.
+- Search with more than 20 matching sessions; paging must traverse the filtered result set without duplicates or missing entries.
+
+0.7.23 diary layout and location checks:
+- In Abenteuertagebuch, confirm each session's time range stays in the title row and never overlaps the wrapped narrative, including long German text and active sessions.
+- A session with a recorded LOGIN location but no startLocation field should use the LOGIN location for its opening and ending; sessions with no known location should use grammatical fallback text.
+
+0.7.22 diary checks:
+- Turn on /fc demo on and open Abenteuertagebuch. The sample journey should read as a coherent session with a start, discoveries, quest progress, level changes, dungeon/rare moments, a companion, noteworthy loot, a merchant and a trainer. Switch demo off afterward.
+- Confirm every sentence is supported by a demo event; no route, enemy kill, quest completion or companion detail should be invented.
+- Run a real session: note its start area, complete/accept a quest, enter another area, gather a resource, visit a merchant and trainer, join a party, complete a quest or enter a dungeon with that group, then log out. The next login should leave a closed diary entry with only the observed details, names of recognized companions, and start/end times.
+- Open the same diary again and confirm wording stays identical. Check German and English client locales for natural grammar and correctly translated connective text.
+- Export the account, import it into a clean test profile, and verify each session still contains only its own events, including companion and quest IDs. Also import a 0.7.21 backup and ensure its existing sessions can be narrated from timestamps.
+- Generate more than 20 test sessions. Older/newer controls should page through the full history without dropping sessions; /reload should restore the diary page position.
+
+0.7.21 checks:
+- Fresh install and upgrade from untouched old defaults: all global map categories start off.
+- Enable only Herbs: only herb atlas pins appear; switch it off and verify the map is clear.
+- Click one item or resource in search while all persistent layers are off: only that result's spotlight appears. It must not turn on the global map toggle or unrelated layers.
+- Search items with type:item zone:Durotar; only remembered items with valid loot/vendor coordinates in that zone should match. Also try a multi-word zone with quotes.
+- Open My World, choose a zone/category, enter a search, close the window and /reload. Reopen: the last view, category, query and zone should be restored for that character. Switch character and verify its state is independent.
+- Check item rarity filters: Ungewöhnlich / Selten / Episch (English client: Uncommon / Rare / Epic).
+
+0.7.20 checks: loot Linen Cloth from a humanoid. Run /fc coords Linen Cloth to
+open the filtered item archive without flooding chat. Click the account-wide
+Linen Cloth result and confirm its loot location appears on the map. Toggle
+Items on and Herbs off: item pins must not appear on flower locations unless
+the item itself was actually looted there.
+
+NPC check: enable NPCs and Rares, then target a normal hostile creature, a
+friendly/neutral named NPC, and a rare. Ordinary hostile creatures must not
+appear under NPCs; the named NPC should, and the rare should appear only under
+Rares. Existing old mob observations should stay hidden from the NPC map layer.
+
+Item-quality check: on the world map turn off All items. Toggle Ungewöhnliche,
+Seltene and Epische Gegenstände separately; only items of the selected WoW
+quality should appear. Confirm toggles remain saved per character after /reload.
+
+0.7.18 checks: click an account-wide item with several saved coordinates.
+Confirm the map opens on its first saved map and each saved item location appears
+with the item icon. Open bags and the bank in another zone: this must not add a
+new item location unless that item is actually looted or observed from a vendor.
+
+0.7.17 checks: title lettering should be visually centered vertically inside
+the header ornament.
+0.7.15 checks: the title should be centered within the header ornament; the
+character name and level/class line should both remain fully visible above the
+first left navigation button.
+
+0.7.12 checks: collect ore and herbs, fish once, then open/loot a gatherable
+container. Confirm each recognized event is stored in its matching category and
+that repeated cast events do not create duplicate map nodes.
+
+0.7.10 checks: map markers use a pickaxe for ore, a leaf for herbs, a fishing
+icon for fishing, a monster claw for rares, and a key for dungeons. Verify that
+clicking a remembered gathering in the journey keeps its actual resource type.
+
+0.7.9 checks: verify a real character name replaces any Unknown/Unbekannt label;
+confirm the journey story is readable in its own row; check that the window title
+is centered and My World shows only its zone and result search fields.
+========================================
+
+NEU IN 0.7.3
+- In „Wo war das?“ → „Weltkarte“ Gebiet oder Fund suchen und nach Erz, Kräutern, Quests,
+  beobachteter Quest-Reihenfolge, Gegenständen, Rares, NPCs, Dungeons,
+  Angelstellen, Schätzen oder Notizen filtern.
+- Auf einen Fund klicken, um alle zugehörigen gespeicherten Orte auf der Karte
+  hervorzuheben.
+- Kartenfilter sind über einen Kartensymbolknopf und einen Schnellzugang in der
+  Chronik erreichbar; Auswahl wird pro Charakter gespeichert.
+- Chronik-Kopfzeile ist lesbar, doppelte Gebietswechsel werden zusammengefasst.
+
+VORBEREITUNG
+  /console scriptErrors 1
+  /reload
+
+INGAME-ABNAHME (45-60 MINUTEN)
+1. /fc eingeben. Das klassische WoW-Fenster und das Minikarten-Buch müssen erscheinen.
+2. Bereiche öffnen: Meine Reise, Chronik, Wo war das? (Entdeckungen und Weltkarte) und Gefährten.
+   Chronik prüfen: Gebiet-/Levelkapitel erscheinen zeitlich aufsteigend mit Ereignissen
+   darunter und Rückblicken mit Zeitraum, Quests, Dungeons, Rares und Ressourcenfunden.
+   Im Reiter „Entdeckungen“ Filter aller Datentypen anklicken.
+   In „Wo war das?“ → „Weltkarte“ Brachland suchen und zwischen Erz, Kräutern, Quests und Questverlauf
+   wechseln; mit einem zweiten Charakter andere Kartenfilter wählen und den Zustand
+   nach /reload prüfen. Ein gespeichertes Objekt anklicken und alle Kartenmarker prüfen.
+   Fundort eines Gegenstands anklicken: Weltkarte öffnet sich und zeigt die gespeicherten
+   Fundorte im Ressourcenfilter; Kartenfilter prüfen und Suchmarkierungen löschen.
+   Ressourcenfilter Erz, Kräuter, Fische/Angelstellen und Schätze einzeln schalten.
+   Danach das Zahnrad oben rechts öffnen.
+3. Einen NPC anvisieren und einen anderen per Mouseover berühren.
+4. Eine Quest annehmen; wenn möglich auch abgeben. Chronik kontrollieren.
+5. Einen Gegenstand plündern und die Taschen öffnen.
+6. In "Wo war das?" nach dem Gegenstand suchen und /fc find <Name> testen.
+7. Den Item-Tooltip öffnen. Taschen-/Bankmenge oder letzter Fundort muss erscheinen.
+8. Einen Händler öffnen. Nach dem Händler und einem seiner Gegenstände suchen.
+9. Einen Lehrer öffnen. Nach dem Lehrer und einer angebotenen Fähigkeit suchen.
+10. Einer Gruppe beitreten. Noch darf kein neuer Gefährte erscheinen. Erst nach
+    gemeinsamem Questabschluss oder Dungeon-Eintritt wird der Spieler gelistet.
+11. Rechtsklick auf das Minikarten-Buch, Notiz speichern und danach suchen.
+12. Gebiet verlassen und zurückkehren. Die gespeicherte Erinnerung muss erscheinen.
+13. Einen Treffer mit Koordinaten anklicken. Ein WoW-Kartenpunkt sollte entstehen.
+14. Bank öffnen und kontrollieren, ob Bankmengen im Tooltip/Suchergebnis erscheinen.
+15. Zahnrad öffnen, Account exportieren und "Alles markieren" testen.
+16. Export kopieren, /reload ausführen, einfügen und Importieren wählen.
+17. Normal ausloggen und wieder einloggen. Der letzte Reise-Rückblick muss erscheinen.
+18. /fc recap testen und kontrollieren, ob die Chronik erhalten blieb.
+19. Eine Erzader oder Blume selbst abbauen. Nach dem Loot müssen Ressourcenname,
+    Symbol und Koordinaten im Ressourcenatlas gespeichert sein.
+20. Weltkarte öffnen: Das Atlas-Menü testen und Ressourcen/Erinnerungen einzeln
+    aus- und wieder einblenden. Mehrere Pins müssen gleichzeitig sichtbar sein.
+21. Einen Karten-Pin überfahren: Tooltip muss Kategorie, Name und Gebiet zeigen;
+    Linksklick setzt den einzelnen WoW-Wegpunkt, Rechtsklick öffnet die Suche.
+22. Account-Export erneut erstellen und prüfen, dass ATLAS-, ATLAS_LOOT- und
+    ATLAS_CHAR-Zeilen enthalten sind. Import darf bestehende Daten nicht löschen.
+23. Eine Quest abschließen. In „Wo war das?“ müssen Quest-ID, Name, Sprache,
+    Gebiet und Koordinaten auftauchen.
+24. Mit einem zweiten Charakter nach derselben Quest suchen. Der Treffer muss
+    accountweit erscheinen und den Abschlusscharakter anzeigen.
+25. Den Export prüfen: QUEST-, QUEST_NAME-, QUEST_LOC- und QUEST_CHAR-Zeilen müssen
+    vorhanden sein. Einen englischen Export importieren und die englische Bezeichnung
+    am deutschen Questdatensatz kontrollieren.
+26. Eine Notiz anlegen. In "Wo war das?" die Notiz-ID sowie Pin- und Erinnerungsstatus
+    prüfen. Mit /fc pin <ID> off nur den Karten-Pin ausblenden; Erinnerung muss bleiben.
+27. Mit /fc remind <ID> off nur die Ankunftserinnerung ausschalten; Karten-Pin muss
+    sichtbar bleiben. Danach beide Zustände wieder einschalten.
+    Im deutschen Client auch die Befehle mit "an" und "aus" testen.
+28. Account-Export erstellen und prüfen, dass NOTE-Zeilen Felder für Erinnerung,
+    Archivzeit und Pin-Sichtbarkeit enthalten. Import testen; Zustände müssen bleiben.
+29. /fc forget <ID> ohne Bestätigung testen: Notiz darf nicht verändert werden.
+    Danach /fc forget <ID> bestätigen; Notiz darf weder auf Karte noch als Erinnerung
+    erscheinen und muss aus der aktiven Suche verschwinden.
+30. Backup mit archivierter Notiz in einen frischen Teststand importieren und wieder
+    exportieren. Archivstatus muss erhalten bleiben; aktive Suche/Karte zeigen sie nicht.
+31. Weltkarte öffnen, individuelle Kategorien abwählen und "Alle Chronik-Pins"
+    global aus- und einschalten. Kategoriehäkchen müssen ihre Auswahl behalten.
+32. Im Zahnrad jede Aufzeichnungs-Checkbox einzeln aus- und wieder einschalten.
+    Fenster schließen/öffnen und /reload ausführen: Zustände müssen korrekt bleiben.
+    Bei NPC-/Item-Tracking, Berufen, Gefährten und Tooltips zusätzlich die jeweilige
+    Funktion prüfen, nicht nur den Haken.
+
+BITTE BEI FEHLERN SENDEN
+- vollständige Lua-Fehlermeldung,
+- genaue Aktion unmittelbar davor,
+- Client-Version und Build aus dem Exportkopf,
+- ob /fc und der Minikarten-Button weiterhin funktionieren.
+
+BEKANNTE BETA-GRENZEN
+- "Unbekannt" bedeutet lokal erstmals beobachtet, nicht serverweit bestätigt neu.
+- Secret Values werden absichtlich nicht gelesen.
+- Itemdaten können verzögert eintreffen.
+- Nur Ereignisse nach der Installation werden gespeichert.
+- Lehrer-APIs können im Forever-Client abweichen und müssen besonders geprüft werden.
+
+DEMO-MODUS
+33. /fc demo on testen: Beispielcharakter und Ereignisverlauf müssen erscheinen;
+    auf Durotar und im Brachland müssen mehrere Ressourcen-Symbole sichtbar sein.
+    Kategorien im Kartenfilter umschalten und die Einträge im Gebietsexplorer prüfen.
+34. /fc demo off testen: echter Charakter und echte Daten müssen sofort zurückkehren.
+    Alternativ /reload im Demomodus: Die Beispieldaten dürfen danach nicht vorhanden
+    sein. Echte SavedVariables müssen vor/nach dem Test erhalten bleiben.
+35. Nach /fc demo off ein echtes Erz abbauen und ein echtes Kraut sammeln. Beide
+    müssen im Gebietsexplorer in der richtigen Zone erscheinen und nach /reload
+    erhalten bleiben. Karte auf dieselbe Zone stellen und Kategorie-Pins prüfen.
+
+
+Stufen und Statistik
+- Eine Stufe aufsteigen und prüfen, dass sie im Sitzungstagebuch sowie unter Tage/Monate/Jahre als Meilenstein erscheint.
+- Statistik öffnen oder /fc stats eingeben; Werte müssen zum aktiven Charakter gehören.
+- Tode, Quests, Gebiete und Funde mit der vorhandenen Chronik vergleichen.
+- Essen/Trinken zählt nur, wenn der Client eine passende Aura erkennen lässt. Gesundheitserholungen sind beobachtete Gesundheitsanstiege im Kampf, kein Zauberprotokoll.
+
+
+Kartenzeichen
+- Im Suchgedächtnis einen einzelnen Gegenstand anklicken und prüfen, ob sein Symbol auf der passenden Zone sichtbar ist.
+- Erz, Kräuter, Quest, Händler, Lehrmeister, NPC, Rare und Gegenstand vergleichen; Symbole müssen klar unterscheidbar sein.
+
+Instanz- und Schlachtfeldstatistik
+- Eine Instanz und ein Schlachtfeld betreten; beide müssen mit Namen und Besuchszahl auftauchen.
+- Im Schlachtfeld sterben und wiederbelebt werden; Statistik soll Tod und Wiederbelebung dem Schlachtfeld zuordnen.
+- Nach Verlassen und erneutem Betreten muss der Besuch erneut gezählt werden, doppelte ZONE_CHANGED/PLAYER_ENTERING_WORLD-Meldungen dürfen keinen Doppelbesuch erzeugen.
+
+- Seltenen Gegner beobachten: in „Wo war das?“ nach dem Namen suchen, dann den Filter „Seltene Gegner“ aktivieren. Der Pin muss auf der gespeicherten Sichtungsposition liegen.
+- Einen Dungeon von draußen betreten: danach „Instanzeingänge“ aktivieren. Der Marker muss draußen am zuletzt gespeicherten Außenstandort liegen, getrennt vom Dungeon-Filter.
+- Mit aktivem Dungeon wieder einloggen: dadurch darf kein neuer Eingang am alten Standort entstehen.
+- Eingangsmarker im Tagebuch/der Suche finden und Daten exportieren; Import muss den Eintrag samt Koordinaten übernehmen.
+
+- In der Chronik nach einem Gegenstand mit mehreren Fundorten suchen und anklicken: Der WoW-Minipfeil soll zum nächsten gespeicherten Fundort in der aktuellen Zone zeigen. Auf der Weltkarte bleiben sämtliche Fundorte des Suchtreffers markiert.
+- Einen Suchtreffer aus einer anderen Zone anklicken: Der erste gespeicherte Fundort wird als Wegpunkt gesetzt und auf der Weltkarte geöffnet.
+- Den Kartenfilterknopf prüfen: Er soll unten links innerhalb der Kartenfläche sitzen, nicht über Titel oder Koordinaten liegen und sich per Maus öffnen lassen.
+
+0.9.2-beta.2: Unter Wo war das? Händler und Lehrer nach Kontinent, Gebiet und beobachtender Fraktion filtern. Händler zusätzlich nach Warengruppe filtern. Nach einer Ware bzw. einem Lehrerdienst suchen und prüfen, ob Name und Ort direkt in der Trefferliste erscheinen. Filter zurücksetzen und /reload testen. Alte Händlerdaten ohne Kontinent/Warengruppe bleiben bei gesetztem Filter ggf. verborgen. Ingame-Test ausstehend.
+
+0.9.2-beta.3: Dungeon betreten, Boss besiegen, Tagebuch und Statistik prüfen. Boss sollte genau einmal mit Instanznamen erscheinen. Wipe darf keinen Sieg eintragen; gewöhnlicher Mob ebenfalls nicht. /reload und erneuter Boss-Sieg sollen den Zähler fortsetzen. Raid und Charakterwechsel getrennt prüfen. Falls kein Boss erscheint, /etrace auf ENCOUNTER_END/BOSS_KILL prüfen und Lua-Fehler melden.
+
+0.9.2-beta.4: Vor Installation SavedVariables sichern. Danach Händler- und Lehrerfilter prüfen, einschließlich Wechsel zu anderen Kategorien und /reload. Boss-Sieg speichern, Export erzeugen, in sauberem Testprofil importieren: Boss, Instanz und Siegzahl müssen erhalten bleiben; denselben Import erneut ausführen und Zähler vergleichen. Tages-/Monatsrückblick auf Boss-Eintrag prüfen. Alte SavedVariables ohne Bossdaten dürfen weiterhin öffnen.
+
+0.9.2-beta.5: Ingame-Prüfungen nach Abschluss der Offline-Prüfung: Start mit vorhandenen SavedVariables, Händler und Lehrer, Boss-Sieg und Wipe, Tages-/Wochenrückblick nach /reload, Schatz/Beute-Koordinaten auf Karte, alle sichtbaren Filter und Checkboxen bei normaler und kleiner UI-Skalierung. Testdaten vorher sichern. Keine dieser Client-Beobachtungen wird durch die Offline-Tests als bestanden gewertet.

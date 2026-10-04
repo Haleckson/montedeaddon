@@ -1,0 +1,68 @@
+--[[
+    Horizon Suite - Augment Module
+    Cinematic loot notifications (items, money, currency, reputation). Registers with addon:RegisterModule.
+]]
+
+local addon = _G.HorizonSuite
+if not addon or not addon.RegisterModule then return end
+
+addon:RegisterModule("augment", {
+    title       = "Augment",
+    description = "Loot notifications, vendor automation, self-highlight, Talking Head customisation, achievement tracking, and status alerts.",
+    order       = 30,
+
+    OnInit = function()
+        if addon.Augment and addon.Augment.InitTalkingHead then
+            addon.Augment.InitTalkingHead()
+        end
+    end,
+
+    OnEnable = function()
+        if addon.Augment then
+            local GetDB = addon.GetDB
+            local vendorOn = not GetDB or GetDB("augmentVendorEnabled",            true)  ~= false
+            local shOn     = not GetDB or GetDB("augmentSelfHighlightEnabled",     false) ~= false
+            local atOn     = (not GetDB or GetDB("augmentAchievementTrackerEnabled", false) ~= false)
+                             and not (addon.IsModuleEnabled and addon:IsModuleEnabled("focus"))
+            local alertsOn = not GetDB or GetDB("augmentAlertsEnabled",              true)  ~= false
+            -- Loot rolls default OFF pending a live test pass on both clients
+            -- (see options/modules/defaults/augment/OptionsDefaultsAugmentLootRoll.lua).
+            local rollOn   = GetDB and GetDB("augmentLootRollEnabled",              false) ~= false
+            if addon.Augment.InitFrames then addon.Augment.InitFrames() end
+            -- Loot Frame mini-module: toasts (loot events + Blizzard suppression)
+            -- and the loot window skin each follow their own switch.
+            if addon.Augment.ApplyLootFrameState then addon.Augment.ApplyLootFrameState() end
+            if addon.Augment.SetFrameVisible then addon.Augment.SetFrameVisible(true) end
+            if addon.Augment.RestoreSavedPosition then addon.Augment.RestoreSavedPosition() end
+            if addon.Augment.ApplyAugmentClassChrome then addon.Augment.ApplyAugmentClassChrome() end
+            if shOn and addon.Augment.SelfHighlight then addon.Augment.SelfHighlight.Enable() end
+            if vendorOn and addon.Augment.Vendor then addon.Augment.Vendor.Enable() end
+            -- Always call: UpdateTalkingHead self-gates on the pill and restores native when off.
+            if addon.Augment.UpdateTalkingHead then addon.Augment.UpdateTalkingHead() end
+            if atOn and addon.Augment.AchievementTracker then addon.Augment.AchievementTracker.Enable() end
+            if alertsOn and addon.Augment.Alerts then addon.Augment.Alerts.Enable() end
+            if rollOn and addon.Augment.Roll then addon.Augment.Roll.Enable() end
+        end
+    end,
+
+    OnDisable = function()
+        if addon.Augment then
+            if addon.Augment.Vendor then addon.Augment.Vendor.Disable() end
+            if addon.Augment.SelfHighlight then addon.Augment.SelfHighlight.Disable() end
+            if addon.Augment.AchievementTracker then addon.Augment.AchievementTracker.Disable() end
+            if addon.Augment.Alerts then addon.Augment.Alerts.Disable() end
+            -- Disable before the rest: it must put GroupLootContainer_AddRoll
+            -- back, or Blizzard's roll frames stay suppressed with nothing
+            -- drawing in their place.
+            if addon.Augment.Roll then addon.Augment.Roll.Disable() end
+            if addon.Augment.DisableTalkingHead then addon.Augment.DisableTalkingHead() end
+            if addon.Augment.DisableEvents then addon.Augment.DisableEvents() end
+            if addon.Augment.RestoreBlizzard then addon.Augment.RestoreBlizzard() end
+            if addon.Augment.DisableLootWindowSkin then addon.Augment.DisableLootWindowSkin() end
+            if addon.Augment.ClearActiveToasts then addon.Augment.ClearActiveToasts() end
+            if addon.Augment.SetFrameVisible then addon.Augment.SetFrameVisible(false) end
+            if addon.Augment.HideAnchorFrame then addon.Augment.HideAnchorFrame() end
+        end
+        -- Reload is handled by addon:SetModuleEnabled (immediate or user-chosen when dashboard defers).
+    end,
+})

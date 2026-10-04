@@ -1,0 +1,291 @@
+local addonName,ns=...
+if type(ns)~="table"then
+ns={}
+end
+
+local ContactEnricher=ns.ContactEnricher or require("WhisperMessenger.Model.ContactEnricher")
+local WhisperGateway=ns.WhisperGateway or require("WhisperMessenger.Transport.WhisperGateway")
+local BadgeFilter=ns.ToggleIconBadgeFilter or require("WhisperMessenger.UI.ToggleIcon.BadgeFilter")
+local Store=ns.ConversationStore or require("WhisperMessenger.Model.ConversationStore")
+
+local IconSurfaces=ns.BootstrapWindowCoordinatorIconSurfaces or require("WhisperMessenger.Core.Bootstrap.WindowCoordinator.IconSurfaces")
+local RequestFollow=ns.BootstrapWindowCoordinatorRequestFollow or require("WhisperMessenger.Core.Bootstrap.WindowCoordinator.RequestFollow")
+
+
+local STATUS_REFRESH_INTERVAL=30
+local AVAILABILITY_THROTTLE_SECONDS=10
+local AVAILABILITY_REFRESH_DEBOUNCE=0.15
+
+local WindowCoordinator={}
+
+function WindowCoordinator.Create(options)
+options=options or{}
+
+local runtime=options.runtime or{}
+local buildContacts=options.buildContacts or function()
+return{}
+end
+local getWindow=options.getWindow or function()
+return nil
+end
+local getIcon=options.getIcon or function()
+return nil
+end
+local getMinimapIcon=options.getMinimapIcon or function()
+return nil
+end
+local getLdbObject=options.getLdbObject or function()
+return nil
+end
+local buildMessagePreview=options.buildMessagePreview or function()
+return nil
+end
+local isMythicRestricted=options.isMythicRestricted or function()
+return false
+end
+local presenceCache=options.presenceCache
+local livePresenceSender=options.livePresenceSender
+local requestAvailability=options.requestAvailability or WhisperGateway.RequestAvailability
+local cTimer=options.cTimer or _G.C_Timer
+local selectConversation=options.selectConversation
+
+local statusTicker=nil
+local requestFollow=RequestFollow.Create(getWindow,selectConversation)
+
+local coordinator={}
+
+function coordinator.isWindowVisible()
+local window=getWindow()
+if window==nil or window.frame==nil then
+return false
+end
+
+if window.frame.IsShown then
+return window.frame:IsShown()
+end
+
+return window.frame.shown==true
+end
+
+local function nowSeconds()
+if type(runtime.now)=="function"then
+return runtime.now()or 0
+end
+return 0
+end
+
+local function buildPresentGUIDs(contacts)
+local presentGUIDs={}
+for _,item in ipairs(contacts)do
+if item.guid then
+presentGUIDs[item.guid]=true
+end
+end
+return presentGUIDs
+end
+
+local function pruneGUIDCache(cache,presentGUIDs)
+if type(cache)~="table"then
+return
+end
+for guid in pairs(cache)do
+if not presentGUIDs[guid]then
+cache[guid]=nil
+end
+end
+end
+
+local function pruneAvailabilityCaches(contacts)
+local presentGUIDs=buildPresentGUIDs(contacts)
+pruneGUIDCache(runtime.availabilityByGUID,presentGUIDs)
+pruneGUIDCache(runtime.availabilityRequestedAt,presentGUIDs)
+end
+
+
+
+
+local function applyRetention()
+local store=runtime.store
+if type(store)~="table"or store.config==nil then
+return false
+end
+local removed=Store.ApplyRetention(store,nowSeconds(),runtime.activeConversationKey)
+return next(removed)~=nil
+end
+
+local function startStatusTicker()
+if statusTicker or cTimer==nil or type(cTimer.NewTicker)~="function"then
+return
+end
+statusTicker=cTimer.NewTicker(STATUS_REFRESH_INTERVAL,function()
+if not coordinator.isWindowVisible()then
+return
+end
+if applyRetention()then
+coordinator.refreshWindow()
+else
+coordinator.refreshContacts()
+end
+end)
+end
+
+local function stopStatusTicker()
+if statusTicker==nil then
+return
+end
+if type(statusTicker.Cancel)=="function"then
+statusTicker:Cancel()
+end
+statusTicker=nil
+end
+
+function coordinator.setWindowVisible(nextVisible)
+local window=getWindow()
+if window==nil or window.frame==nil then
+return
+end
+
+if nextVisible then
+
+
+
+window.frame:Show()
+applyRetention()
+
+
+coordinator.refreshWindow()
+startStatusTicker()
+return
+end
+
+stopStatusTicker()
+window.frame:Hide()
+end
+
+function coordinator.buildSelectionState(contacts)
+return ContactEnricher.BuildWindowSelectionState(runtime,contacts,buildContacts)
+end
+
+local iconSurfaces={
+getWindow=getWindow,
+isWindowVisible=coordinator.isWindowVisible,
+buildMessagePreview=buildMessagePreview,
+getIcon=getIcon,
+getMinimapIcon=getMinimapIcon,
+getLdbObject=getLdbObject,
+}
+
+function coordinator.refreshContacts()
+local freshContacts=buildContacts()
+local previousRequestKeys=requestFollow.takeRequestKeys(freshContacts)
+pruneAvailabilityCaches(freshContacts)
+
+if not isMythicRestricted()then
+runtime.availabilityRequestedAt=runtime.availabilityRequestedAt or{}
+local now=nowSeconds()
+local ensureFresh=presenceCache and type(presenceCache.EnsureFresh)=="function"and presenceCache.EnsureFresh or nil
+for _,item in ipairs(freshContacts)do
+if ensureFresh and item.guid then
+ensureFresh(item.guid)
+end
+if item.channel=="WOW"and item.guid and ContactEnricher.ShouldRequestAvailability(runtime.availabilityByGUID[item.guid])then
+local lastAt=runtime.availabilityRequestedAt[item.guid]or 0
+if now-lastAt>=AVAILABILITY_THROTTLE_SECONDS then
+runtime.availabilityRequestedAt[item.guid]=now
+requestAvailability(runtime.chatApi,item.guid)
+end
+end
+end
+end
+
+local nextState,followed=requestFollow.reconcile(coordinator.buildSelectionState(freshContacts),previousRequestKeys)
+if followed then
+return nextState
+end
+IconSurfaces.Update(freshContacts,iconSurfaces)
+return nextState
+end
+function coordinator.refreshWindow(affectedConversationKey)
+local nextState=coordinator.refreshContacts()
+local window=getWindow()
+
+if coordinator.isWindowVisible()and window then
+local selectedConversationKey=nextState.selectedContact and nextState.selectedContact.conversationKey or nil
+if affectedConversationKey and selectedConversationKey and selectedConversationKey~=affectedConversationKey and window.refreshContacts then
+window.refreshContacts(nextState.contacts,selectedConversationKey)
+elseif window.refreshSelection then
+window.refreshSelection(nextState)
+end
+
+
+if livePresenceSender and type(livePresenceSender.SyncReadReceipts)=="function"then
+livePresenceSender.SyncReadReceipts(runtime,nextState.selectedContact)
+end
+end
+
+return nextState
+end
+
+local function refreshAvailabilitySurfaces(changedGUIDs)
+local nextState=coordinator.refreshContacts()
+local window=getWindow()
+if not coordinator.isWindowVisible()or window==nil then
+return
+end
+
+local selectedContact=nextState.selectedContact
+if selectedContact and selectedContact.guid and changedGUIDs[selectedContact.guid]and window.refreshSelection then
+window.refreshSelection(nextState)
+elseif window.refreshContacts then
+window.refreshContacts(nextState.contacts,selectedContact and selectedContact.conversationKey or nil)
+elseif window.refreshSelection then
+window.refreshSelection(nextState)
+end
+end
+
+local refreshScheduled=false
+local pendingAvailabilityGUIDs={}
+
+function coordinator.scheduleAvailabilityRefresh(guid)
+if not coordinator.isWindowVisible()then
+return
+end
+if guid~=nil then
+pendingAvailabilityGUIDs[guid]=true
+end
+if refreshScheduled then
+return
+end
+refreshScheduled=true
+local function refresh()
+refreshScheduled=false
+local changedGUIDs=pendingAvailabilityGUIDs
+pendingAvailabilityGUIDs={}
+if coordinator.isWindowVisible()then
+refreshAvailabilitySurfaces(changedGUIDs)
+end
+end
+if cTimer and type(cTimer.After)=="function"then
+cTimer.After(AVAILABILITY_REFRESH_DEBOUNCE,refresh)
+else
+refresh()
+end
+end
+
+function coordinator.findLatestUnreadKey()
+local freshContacts=buildContacts()
+
+for _,item in ipairs(freshContacts)do
+if BadgeFilter.BadgeUnread(item)>0 then
+return item.conversationKey
+end
+end
+
+return nil
+end
+
+return coordinator
+end
+
+ns.BootstrapWindowCoordinator=WindowCoordinator
+return WindowCoordinator

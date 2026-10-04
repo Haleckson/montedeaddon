@@ -1,0 +1,16 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<Script file="MI2_SettingsDropDown.lua"/>
+	<DropDownToggleButton name="MI2_SettingsDropDownTemplate" mixin="MI2_SettingsDropDownMixin"
+		virtual="true">
+		<Frames>
+			<Frame parentKey="DropDown" clampedToScreen="true"
+				hidden="true"/>
+		</Frames>
+		<NormalTexture file="Interface\Buttons\UI-OptionsButton"/>
+		<HighlightTexture file="Interface\Buttons\UI-Common-MouseHilight" alphaMode="ADD"/>
+		<Scripts>
+			<OnLoad method="OnLoad"/>
+			<OnMouseDown method="OnMouseDown"/>
+		</Scripts>
+	</DropDownToggleButton>
+</Ui>

@@ -1,0 +1,33 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Script file="MI2_LootKeyCell.lua"/>
+  <Frame
+    name="MI2_LootKeyCellTemplate"
+    mixin="MI2_LootKeyCellTemplateMixin"
+    parentKey="cell"
+    enableMouse="true"
+    virtual="true"
+  >
+    <Layers>
+      <Layer level="BACKGROUND" textureSubLevel="1">
+        <Texture parentKey="Icon">
+          <Anchors>
+            <Anchor point="LEFT"/>
+          </Anchors>
+        </Texture>
+      </Layer>
+
+      <Layer level="BACKGROUND" textureSubLevel="2">
+        <FontString parentKey="Text" inherits="GameFontNormalTiny" maxLines="1">
+          <Anchors>
+            <Anchor point="LEFT" relativeKey="$parent.Icon" relativePoint="RIGHT" x="4"/>
+            <Anchor point="RIGHT" x="1"/>
+          </Anchors>
+        </FontString>
+      </Layer>
+    </Layers>
+    <Scripts>
+      <OnEnter method="OnEnter"/>
+      <OnLeave method="OnLeave"/>
+    </Scripts>
+  </Frame>
+</Ui>

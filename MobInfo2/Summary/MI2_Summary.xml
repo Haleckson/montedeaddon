@@ -1,0 +1,169 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<Script file="MI2_Summary.lua"/>
+	
+	<Frame name="MI2_SummaryFrame" mixin="MI2_SummaryFrameMixin" parent="UIParent" inherits="BackdropTemplate" enableMouse="true"
+		movable="true" hidden="true" toplevel="true">
+		<KeyValues>
+			<KeyValue key="backdropInfo" value="BACKDROP_SLIDER_8_8" type="global"/>
+		</KeyValues>
+		<Size>
+			<AbsDimension x="300" y="250"/>
+		</Size>
+		<Anchors>
+			<Anchor point="CENTER"/>
+		</Anchors>
+		<Layers>
+			<Layer level="ARTWORK">
+				<FontString parentKey="Title" inherits="GameFontNormalSmall" text="MI_TXT_LOOT">
+					<Anchors>
+						<Anchor point="TOP" relativeTo="MI2_SummaryFrame">
+							<Offset>
+								<AbsDimension x="0" y="-8"/>
+							</Offset>
+						</Anchor>
+					</Anchors>
+				</FontString>
+			</Layer>
+			<Layer level="BACKGROUND">
+				<FontString parentKey="LabelTotalMobs" inherits="GameFontHighlightSmall" JustifyH="LEFT" Text="Total Mobs: ">
+					<Size x="80" y="20"/>
+				  <Anchors>
+					<Anchor point="BOTTOMLEFT" relativeTo="$parent" relativePoint="BOTTOMLEFT" x="5" Y="5"/>
+				  </Anchors>
+				</FontString>
+				<FontString parentKey="LabelTotalQuantity" inherits="GameFontHighlightSmall" JustifyH="LEFT" Text="Total Quantity: ">
+					<Size x="80" y="20"/>
+				  <Anchors>
+					<Anchor point="BOTTOMLEFT" relativeKey="$parent.LabelTotalMobs" relativePoint="TOPLEFT"/>
+				  </Anchors>
+				</FontString>
+				<FontString parentKey="LabelTotalVendor" inherits="GameFontHighlightSmall" JustifyH="LEFT" Text="Total Vendor: ">
+					<Size x="80" y="20"/>
+				  <Anchors>
+					<Anchor point="BOTTOMLEFT" relativeKey="$parent.LabelTotalQuantity" relativePoint="TOPLEFT"/>
+				  </Anchors>
+				</FontString>
+				<FontString parentKey="LabelTotalAmount" inherits="GameFontHighlightSmall" JustifyH="LEFT" Text="Total Amount: ">
+					<Size x="80" y="20"/>
+				  <Anchors>
+					<Anchor point="BOTTOMLEFT" relativeKey="$parent.LabelTotalVendor" relativePoint="TOPLEFT"/>
+				  </Anchors>
+				</FontString>
+
+				<FontString parentKey="TotalAmount" inherits="GameFontHighlightSmall" JustifyH="RIGHT">
+					<Size x="160" y="20"/>
+				  <Anchors>
+					<Anchor point="TOPLEFT" relativeKey="$parent.LabelTotalAmount" relativePoint="TOPRIGHT"/>
+				  </Anchors>
+				</FontString>
+				<FontString parentKey="TotalVendor" inherits="GameFontHighlightSmall" JustifyH="RIGHT">
+					<Size x="160" y="20"/>
+				  <Anchors>
+					<Anchor point="TOPLEFT" relativeKey="$parent.LabelTotalVendor" relativePoint="TOPRIGHT"/>
+				  </Anchors>
+				</FontString>
+				<FontString parentKey="TotalQuantity" inherits="GameFontHighlightSmall" JustifyH="RIGHT">
+					<Size x="160" y="20"/>
+				  <Anchors>
+					<Anchor point="TOPLEFT" relativeKey="$parent.LabelTotalQuantity" relativePoint="TOPRIGHT"/>
+				  </Anchors>
+				</FontString>
+				<FontString parentKey="TotalMobs" inherits="GameFontHighlightSmall" JustifyH="RIGHT">
+					<Size x="160" y="20"/>
+				  <Anchors>
+					<Anchor point="TOPLEFT" relativeKey="$parent.LabelTotalMobs" relativePoint="TOPRIGHT"/>
+				  </Anchors>
+				</FontString>
+			  </Layer>
+		</Layers>
+		<Frames>
+			<Button parentKey="CloseButton" inherits="UIPanelCloseButton" virtual="true">
+				<Anchors>
+					<Anchor point="TOPRIGHT" y="-4"/>
+				</Anchors>
+				<Size x="18" y="18"/>
+			</Button>
+			<Frame parentKey="MaximizeMinimizeFrame" inherits="MaximizeMinimizeButtonFrameTemplate">
+				<Anchors>
+					<Anchor point="RIGHT" relativeKey="$parent.CloseButton" relativePoint="LEFT" x="-1"/>
+				</Anchors>
+				<Size x="18" y="18"/>
+			</Frame>
+			<Button parentKey="ResizeButton" inherits="PanelResizeButtonTemplate" hidden="true">
+				<Anchors>
+					<Anchor point="BOTTOMRIGHT" x="1" y="3"/>
+				</Anchors>
+				<Scripts>
+					<OnEnter>if not self:IsShown() then self:Show() end</OnEnter>
+					<OnLeave>if not self:GetParent():IsMouseOver() then self:Hide() end</OnLeave>
+				</Scripts>				
+			</Button>
+
+			<DropDownToggleButton parentKey="SettingsButton" inherits="MI2_SettingsDropDownTemplate">
+				<Size x="16" y="16"/>
+				<Anchors>
+					<Anchor point="TOPLEFT" x="2" y="-5"/>
+				</Anchors>
+			</DropDownToggleButton>
+
+			<Frame parentKey="DataProvider" mixin="MI2_LootDataProviderMixin">
+				<Scripts>
+					<OnLoad method="OnLoad"/>
+					<OnUpdate method="OnUpdate"/>
+				</Scripts>
+			</Frame>
+
+			<Frame parentKey="SourceDataProvider" mixin="MI2_SourceDataProviderMixin">
+				<Scripts>
+					<OnLoad method="OnLoad"/>
+					<OnUpdate method="OnUpdate"/>
+				</Scripts>
+			</Frame>
+
+			<Frame parentKey="Tabs" inherits="MI2_TabSystemOwnerTemplate" hidden="true">
+				<Size y="143"/>
+				<Anchors>
+					<Anchor point="TOPLEFT" y="-23"/>
+					<Anchor point="TOPRIGHT" relativeKey="$parent" relativePoint="TOPRIGHT" />
+				</Anchors>
+			</Frame>
+
+			<Frame parentKey="TabSystem" inherits="MI2_TabSystemTemplate">
+				<KeyValues>
+					<KeyValue key="minTabWidth" value="50" type="number"/>
+					<KeyValue key="maxTabWidth" value="150" type="number"/>
+					<KeyValue key="tabTemplate" value="MI2_TabSystemButtonTemplate" type="string"/>
+				</KeyValues>
+				<Anchors>
+					<Anchor point="TOPLEFT" relativeKey="$parent.Tabs" relativePoint="BOTTOMLEFT" x="5" y="-2"/>
+				</Anchors>
+			</Frame>
+
+			<Frame parentKey="LootListing" inherits="MI2_ResultListTemplate" hidden="true">
+				<Size y="143"/>
+				<Anchors>
+					<Anchor point="TOPLEFT" y="-23"/>
+					<Anchor point="TOPRIGHT" relativeKey="$parent.Tabs" relativePoint="TOPRIGHT" />
+				</Anchors>
+			</Frame>
+
+			<Frame parentKey="SourceListing" inherits="MI2_ResultListTemplate" hidden="true">
+				<Size y="143"/>
+				<Anchors>
+					<Anchor point="TOPLEFT" y="-23"/>
+					<Anchor point="TOPRIGHT" relativeKey="$parent.Tabs" relativePoint="TOPRIGHT" />
+				</Anchors>
+			</Frame>
+		</Frames>
+		<Scripts>
+			<OnLoad method="OnLoad"/>
+			<OnShow method="OnShow"/>
+			<OnHide method="OnHide"/>
+			<OnEnter method="OnEnter"/>
+			<OnLeave method="OnLeave"/>
+			<OnMouseDown method="OnMouseDown"/>
+			<OnMouseUp method="OnMouseUp"/>
+			<OnSizeChanged method="OnSizeChanged"/>
+		</Scripts>
+	</Frame>
+</Ui>

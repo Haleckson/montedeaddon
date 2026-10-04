@@ -1,0 +1,63 @@
+## Title: |cffDA8CFFProfession Master |c999999FFTBC
+## Version: 7.0.18
+## Author: Kurki 
+## Interface: 20506
+## X-Min-Interface: 20505
+## Category-enUS: Professions
+## Category-deDE: Berufe
+## Category-esES: Profesiones
+## Category-esMX: Profesiones
+## Category-frFR: Métiers
+## Category-itIT: Professioni
+## Category-koKR: 전문 기술
+## Category-ptBR: Profissões
+## Category-ruRU: Профессии
+## Category-zhCN: 专业技能
+## Category-zhTW: 專業技能
+## Notes: See your professions, those of your guild and those of your friends.
+## Notes-deDE: Sieh deine Berufe, die deiner Gilde und die deiner Freunde ein.
+## Notes-esES: Consulta tus profesiones, las de tu hermandad y las de tus amigos.
+## Notes-esMX: Consulta tus profesiones, las de tu hermandad y las de tus amigos.
+## Notes-frFR: Consultez vos métiers, ceux de votre guilde et ceux de vos amis.
+## Notes-itIT: Visualizza le tue professioni, quelle della tua gilda e quelle dei tuoi amici.
+## Notes-koKR: 자신의 전문 기술, 길드원의 전문 기술, 친구의 전문 기술을 확인하세요.
+## Notes-ptBR: Veja suas profissões, as da sua guilda e as dos seus amigos.
+## Notes-ruRU: Просматривайте свои профессии, профессии вашей гильдии и ваших друзей.
+## Notes-zhCN: 查看你的专业技能、公会成员的专业技能和好友的专业技能。
+## Notes-zhTW: 查看你的專業技能、公會成員的專業技能和好友的專業技能。
+## IconTexture: Interface\AddOns\ProfessionMaster\icons\pm.png
+## SavedVariables: PM_Data, PM_Professions, PM_OwnProfessions, PM_SyncTimes, PM_Settings, PM_Logs, PM_CharacterSets, PM_BucketList, PM_ReagentWatchList, PM_Specializations, PM_Skills, PM_Recipes
+## SavedVariablesPerCharacter: PM_Frames, PM_CharacterSettings
+## OptionalDeps: LibMasterAddons, TradeBoard, Auctionizer, Auctionator, TradeSkillMaster
+## X-Embeds: LibMasterAddons
+## X-Curse-Project-ID: 574050
+
+libs\LibStub-2.lua
+libs\ChatThrottleLib-32.lua
+libs\CallbackHandler-1.0.8.lua
+libs\LibDataBroker-1.1.4.lua
+libs\LibDBIcon-1.0.56.lua
+libs\LibMasterAddons-1.1.11.lua
+ProfessionMaster.lua
+models\models.xml
+models\messages\messages.xml
+models\skills\vanilla.lua
+models\skills\bcc.lua
+models\npc-names\vanilla.lua
+models\npc-names\bcc.lua
+models\zone-names\vanilla.lua
+models\zone-names\bcc.lua
+models\recipe-sources\vanilla.lua
+models\recipe-sources\bcc.lua
+models\skill-sources\vanilla.lua
+models\skill-sources\bcc.lua
+models\quest-names\vanilla.lua
+models\quest-names\bcc.lua
+models\object-names\vanilla.lua
+models\object-names\bcc.lua
+models\vendor-prices\vanilla.lua
+models\vendor-prices\bcc.lua
+models\cooldown-spells\classic.lua
+models\cooldown-items\classic.lua
+services\services.xml
+views\views.xml

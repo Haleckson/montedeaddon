@@ -1,0 +1,24 @@
+## Interface: 16001
+## Title: Forever Chronicle
+## Notes: Your journey, discoveries and remembered places in Azeroth.
+## Notes-deDE: Deine Reise, Entdeckungen und gemerkten Orte in Azeroth.
+## Author: Kevin Pawlak
+## Version: 0.9.6
+## SavedVariables: ForeverChronicleDB, ForeverChronicleDB_v2
+## IconTexture: Interface\Icons\INV_Misc_Book_09
+## X-License: All Rights Reserved
+
+Core.lua
+Locale.lua
+NarrativeExpansion.lua
+Database.lua
+Journey.lua
+Tracker.lua
+Gathering.lua
+Memory.lua
+MapPins.lua
+Export.lua
+Tooltips.lua
+UI.lua
+Minimap.lua
+Demo.lua

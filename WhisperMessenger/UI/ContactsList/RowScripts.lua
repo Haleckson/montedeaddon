@@ -1,0 +1,254 @@
+local addonName,ns=...
+if type(ns)~="table"then
+ns={}
+end
+
+local Theme=ns.Theme or require("WhisperMessenger.UI.Theme")
+local UIHelpers=ns.UIHelpers or require("WhisperMessenger.UI.Helpers")
+local applyColorTexture=UIHelpers.applyColorTexture
+
+local ContextMenu=ns.ContactsListContextMenu or require("WhisperMessenger.UI.ContactsList.ContextMenu")
+local HoverPointer=ns.ContactsListHoverPointer or require("WhisperMessenger.UI.ContactsList.HoverPointer")
+local RowHoverOverlay=ns.ContactsListRowHoverOverlay or require("WhisperMessenger.UI.ContactsList.RowHoverOverlay")
+local isPointerInsideRowFrames=HoverPointer.isPointerInsideRowFrames
+local effectiveActionHoverCount=HoverPointer.effectiveActionHoverCount
+
+local RowScripts={}
+
+
+
+local _actionButtons
+local function getActionButtons()
+if _actionButtons then
+return _actionButtons
+end
+_actionButtons=ns.ContactsListActionButtons
+if not _actionButtons and type(require)=="function"then
+local ok,mod=pcall(require,"WhisperMessenger.UI.ContactsList.ActionButtons")
+if ok then
+_actionButtons=mod
+end
+end
+return _actionButtons
+end
+
+local function isPointerInsideRow(row)
+return isPointerInsideRowFrames(row)
+end
+
+local function stopHoverWatchdog(row)
+if not row._wmHoverWatchdogInstalled then
+return
+end
+
+local previous=row._wmHoverWatchdogPreviousOnUpdate
+row._wmHoverWatchdogInstalled=false
+row._wmHoverWatchdogPreviousOnUpdate=nil
+row._wmHoverWatchdogElapsed=0
+if row.SetScript then
+row:SetScript("OnUpdate",previous)
+end
+end
+
+
+
+local function deferHideActions(row)
+local CTimer=_G.C_Timer
+if CTimer and CTimer.After then
+CTimer.After(0,function()
+local AB=getActionButtons()
+local pointerInside=(row._wmIsPointerInside and row._wmIsPointerInside())or isPointerInsideRow(row)
+if not pointerInside and effectiveActionHoverCount(row)==0 then
+row._wmRowHover=false
+row._wmApplyVisualState()
+if AB then
+AB.hideActions(row)
+end
+stopHoverWatchdog(row)
+end
+end)
+else
+local AB=getActionButtons()
+local pointerInside=(row._wmIsPointerInside and row._wmIsPointerInside())or isPointerInsideRow(row)
+if not pointerInside and effectiveActionHoverCount(row)==0 then
+row._wmRowHover=false
+row._wmApplyVisualState()
+if AB then
+AB.hideActions(row)
+end
+stopHoverWatchdog(row)
+end
+end
+end
+
+local function applyRowVisualState(row)
+local hovered=row._wmRowHover==true
+or(row._wmActionHoverCount or 0)>0
+or((row._wmIsPointerInside and row._wmIsPointerInside())or isPointerInsideRow(row))
+local overlayOwnsHover=RowHoverOverlay.update(row,hovered)
+if row.selected and not overlayOwnsHover then
+applyColorTexture(row.bg,Theme.COLORS.bg_contact_selected)
+elseif hovered and not overlayOwnsHover then
+applyColorTexture(row.bg,Theme.COLORS.bg_contact_hover)
+elseif row.item and row.item.pinned then
+applyColorTexture(row.bg,Theme.COLORS.bg_contact_pinned)
+else
+applyColorTexture(row.bg,{0,0,0,0})
+end
+end
+
+local function installHoverWatchdog(row)
+if row._wmHoverWatchdogInstalled or not row.SetScript then
+return
+end
+row._wmHoverWatchdogInstalled=true
+row._wmHoverWatchdogPreviousOnUpdate=row.GetScript and row:GetScript("OnUpdate")or nil
+row._wmHoverWatchdogElapsed=0
+
+row:SetScript("OnUpdate",function(self,elapsed)
+local previous=self._wmHoverWatchdogPreviousOnUpdate
+if previous then
+previous(self,elapsed)
+end
+
+self._wmHoverWatchdogElapsed=(self._wmHoverWatchdogElapsed or 0)+(elapsed or 0)
+if self._wmHoverWatchdogElapsed<0.05 then
+return
+end
+self._wmHoverWatchdogElapsed=0
+
+local actionHoverCount=effectiveActionHoverCount(self)
+local hadHoverState=self._wmRowHover or actionHoverCount>0
+if not hadHoverState then
+stopHoverWatchdog(self)
+return
+end
+
+local pointerInside=(self._wmIsPointerInside and self._wmIsPointerInside())or isPointerInsideRow(self)
+if pointerInside then
+return
+end
+
+self._wmRowHover=false
+self._wmActionHoverCount=0
+if self._wmApplyVisualState then
+self._wmApplyVisualState()
+else
+applyRowVisualState(self)
+end
+
+local AB=getActionButtons()
+if AB then
+AB.hideActions(self)
+end
+stopHoverWatchdog(self)
+end)
+end
+
+
+
+
+function RowScripts.bindHover(row)
+stopHoverWatchdog(row)
+row._wmRowHover=false
+row._wmActionHoverCount=0
+
+if not row._wmHoverBound then
+row._wmHoverBound=true
+row._wmIsPointerInside=function()
+return isPointerInsideRow(row)
+end
+row._wmApplyVisualState=function()
+applyRowVisualState(row)
+end
+
+if row.SetScript then
+row:SetScript("OnEnter",function()
+installHoverWatchdog(row)
+row._wmRowHover=true
+row._wmApplyVisualState()
+local AB=getActionButtons()
+if AB then
+AB.showActions(row)
+end
+end)
+
+row:SetScript("OnLeave",function()
+row._wmRowHover=false
+row._wmApplyVisualState()
+deferHideActions(row)
+end)
+end
+end
+
+row._wmApplyVisualState()
+end
+
+
+
+
+
+function RowScripts.bindClick(row,_item,options)
+row._wmRowOptions=options
+if row.RegisterForClicks then
+row:RegisterForClicks("LeftButtonUp","RightButtonUp")
+end
+
+if not row._wmClickBound and row.SetScript then
+row._wmClickBound=true
+row:SetScript("OnClick",function(self,button)
+if row.item==nil then
+return
+end
+
+local rowOptions=row._wmRowOptions
+if button=="RightButton"then
+local onMarkUnread=rowOptions and rowOptions.onMarkUnread
+if ContextMenu.Open(row.item,self or row,onMarkUnread,rowOptions and rowOptions.onUpdatePrefs)then
+return
+end
+end
+
+if rowOptions and rowOptions.onSelect then
+rowOptions.onSelect(row.item)
+end
+end)
+end
+end
+
+
+
+
+
+
+function RowScripts.bindDrag(row,item,options)
+row._wmRowOptions=options
+
+if not row._wmDragBound and row.SetScript then
+row._wmDragBound=true
+row:SetScript("OnDragStart",function()
+local rowOptions=row._wmRowOptions
+if row.item and row.item.pinned and rowOptions and rowOptions.onDragStart then
+rowOptions.onDragStart(row,row.rowIndex)
+end
+end)
+row:SetScript("OnDragStop",function()
+local rowOptions=row._wmRowOptions
+if row.item and row.item.pinned and rowOptions and rowOptions.onDragStop then
+rowOptions.onDragStop(row,row.rowIndex)
+end
+end)
+end
+
+if row.RegisterForDrag then
+if item.pinned then
+row:RegisterForDrag("LeftButton")
+else
+
+row:RegisterForDrag()
+end
+end
+end
+
+ns.ContactsListRowScripts=RowScripts
+return RowScripts

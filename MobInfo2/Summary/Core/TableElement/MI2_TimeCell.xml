@@ -1,0 +1,18 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Script file="MI2_TimeCell.lua"/>
+  <Button
+    name="MI2_TimeCellTemplate"
+    mixin="MI2_TimeCellTemplateMixin"
+    virtual="true"
+  >
+    <Layers>
+      <Layer level="BACKGROUND">
+        <FontString parentKey="Text" inherits="GameFontNormalTiny" setAllPoints="true"/>
+      </Layer>
+    </Layers>
+    <Scripts>
+      <OnShow method="OnShow"/>
+      <OnHide method="OnHide"/>
+    </Scripts>
+  </Button>
+</Ui>

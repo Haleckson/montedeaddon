@@ -1,0 +1,5 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Script file="MI2_Source.lua"/>
+  <Script file="MI2_SourceDataProvider.lua"/>
+  <Include file="MI2_SourceKeyCell.xml"/>
+</Ui>

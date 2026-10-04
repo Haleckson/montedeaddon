@@ -1,0 +1,20 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+..\FrameXML\UI.xsd">
+	<Script file="static\Utils.lua" />
+	<Script file="static\Dialogs.lua" />
+	<Script file="static\Controls.lua" />
+	<Include file="static\Controls.xml" />
+	<Script file="static\Input.lua" />
+	<Include file="static\Input.xml" />
+	<Script file="static\Dropdown.lua" />
+	<Include file="static\Dropdown.xml" />
+	<Script file="static\ScrollFrames.lua" />
+	<Script file="static\Frames.lua" />
+	<Script file="static\Changelog.lua" />
+
+	<Script file="static\Settings.lua" />
+	<Include file="static\SettingsPanel.xml" />
+
+	<Script file="addon\AddonLauncher.lua" />
+	<Script file="addon\AddonContext.lua" />
+</Ui>

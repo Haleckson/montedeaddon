@@ -1,0 +1,22 @@
+## Interface: 120105, 120100, 50504, 20506, 16001, 11509
+## Title: Arcane Wizard: Library
+## Author: Arcane Wizard | created by diomsg
+
+## Version: v1.38
+## IconTexture: Interface\AddOns\ArcaneWizardLibrary\assets\icon.tga
+## LoadOnDemand: 0
+## DefaultState: enabled
+
+## Notes: This addon is a library that bundles recurring code segments and functionalities.
+## Notes-deDE: Dieses Addon dient als Bibliothek, in der wiederkehrende Codeteile und Funktionen zusammengefasst sind.
+## Notes-ruRU: Этот аддон служит библиотекой, объединяющей повторяющиеся фрагменты кода и функции.
+
+## X-Revision: 1
+## X-BuildDate: 2026-10-03
+## X-E-Mail: feedback@wow-addon.dev
+## X-Github: https://github.com/arcane-wizard-dev/Library
+## X-Curseforge: https://www.curseforge.com/wow/addons/arcane-wizard-library
+## X-Wago: https://addons.wago.io/addons/arcane-wizard-library
+
+ArcaneWizardLibrary.lua
+ArcaneWizardLibrary.xml

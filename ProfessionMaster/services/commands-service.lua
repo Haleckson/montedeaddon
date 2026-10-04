@@ -1,0 +1,135 @@
+--[[
+
+@author Kurki
+@copyright ©2026 Profession Master. All Rights Reserved.
+
+--]]
+
+-- create service
+local CommandsService = _G.professionMaster:CreateService("commands");
+
+--- Initialize service.
+function CommandsService:Initialize()
+    -- register slash command
+    local service = self;
+    SLASH_ProfessionMaster1 = "/pm";
+    SlashCmdList["ProfessionMaster"] = function(parameters)
+        service:HandleCommand(parameters);
+    end;
+end
+
+--- Handle command line.
+function CommandsService:HandleCommand(parameters)
+    -- check if no parameters entered
+    if (string.len(parameters) <= 0 and not self.addon.inCombat) then
+        -- show / hide the main window used last (overview or database)
+        self.addon:ToggleMainView();
+        return;
+    end
+
+    -- check if overview should be shown
+    if (string.lower(parameters) == "overview" and not self.addon.inCombat) then
+        -- show / hide overview
+        self.addon.professionsView:ToggleVisibility();
+        return;
+    end
+
+    -- check if database should be shown
+    if (string.lower(parameters) == "database" and not self.addon.inCombat) then
+        -- show / hide database
+        self.addon.databaseView:ToggleVisibility();
+        return;
+    end
+
+    -- check if help should be shown
+    if (string.lower(parameters) == "help" and not self.addon.inCombat) then
+        -- show help view
+        if (not self.helpView) then
+            self.helpView = self.addon:NewView("help");
+        end
+        self.helpView:Show();
+        return;
+    end
+
+    -- check if test command should be run
+    if (string.lower(parameters) == "test") then
+        self:GetService("own-professions"):StoreAndSendOwnProfession(171, {
+            {
+                skillId = 17187,
+                itemId = 12360,
+                added = time()
+            }
+        });
+        return;
+    end
+
+    -- check if convert should be run
+    if (string.lower(parameters) == "convert") then
+        -- convert command removed (legacy dev tool)
+        return;
+    end
+
+    -- check if reagents should be shown
+    if (string.lower(parameters) == "reagents") then
+        self:GetService("inventory"):ToggleMissingReagents();
+        return;
+    end
+
+    -- check if cooldowns view should be toggled
+    if (string.lower(parameters) == "cooldowns") then
+        self:GetService("cooldown"):ToggleCooldownView();
+        return;
+    end
+
+    -- check if minimap should be toggled
+    if (string.lower(parameters) == "minimap") then
+        self:GetService("ui"):SetMinimapIconShown(true);
+        return;
+    end
+
+    -- check if purge should be shown or executed
+    if (string.lower(parameters) == "purge" and not self.addon.inCombat) then
+        -- open purge view
+        if (not self.purgeView) then
+            self.purgeView = self.addon:NewView("purge");
+        end
+        self.purgeView:Show();
+        return;
+    end
+
+    -- check if data must be purged
+    if (string.find(parameters, "purge") == 1 and string.len(parameters) > 6) then
+        self:GetService("purge"):Purge(string.sub(parameters, 7));
+    end
+
+    -- show logs view
+    if (string.lower(parameters) == "logs" and not self.addon.inCombat) then
+        if (not self.logsView) then
+            self.logsView = self.addon:NewView("logs");
+        end
+        self.logsView:Show();
+        return;
+    end
+
+    -- show data view
+    if (string.lower(parameters) == "data" and not self.addon.inCombat) then
+        if (not self.dataView) then
+            self.dataView = self.addon:NewView("data");
+        end
+        self.dataView:Show();
+        return;
+    end
+
+    -- scan auction house prices (auction house must be open)
+    if (string.lower(parameters) == "scan") then
+        self:GetService("auction-scan"):StartScan(false);
+        return;
+    end
+
+    -- force-refresh skill cache
+    if (string.lower(parameters) == "skillrefresh") then
+        self:GetService("skills"):ForceRefreshCache();
+        return;
+    end
+
+end

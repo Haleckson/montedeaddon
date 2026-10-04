@@ -1,0 +1,295 @@
+local addonName,ns=...
+if type(ns)~="table"then
+ns={}
+end
+
+local Theme=ns.Theme or require("WhisperMessenger.UI.Theme")
+local UIHelpers=ns.UIHelpers or require("WhisperMessenger.UI.Helpers")
+local sizeValue=UIHelpers.sizeValue
+local applyColorTexture=UIHelpers.applyColorTexture
+local setTextColor=UIHelpers.setTextColor
+
+local LinkHooks=ns.ComposerLinkHooks or require("WhisperMessenger.UI.Composer.LinkHooks")
+local Localization=ns.Localization or require("WhisperMessenger.Locale.Localization")
+local PickerStyles=ns.PickerStyles or require("WhisperMessenger.UI.Shared.PickerStyles")
+local SendButtonStyle=ns.ComposerSendButtonStyle or require("WhisperMessenger.UI.Composer.SendButtonStyle")
+local ComposerSurface=ns.ComposerSurface or require("WhisperMessenger.UI.Composer.ComposerSurface")
+local ComposerLayout=ns.ComposerLayout or require("WhisperMessenger.UI.Composer.ComposerLayout")
+local ComposerLaunchers=ns.ComposerLaunchers or require("WhisperMessenger.UI.Composer.ComposerLaunchers")
+local ReplyState=ns.ComposerReplyState or require("WhisperMessenger.UI.Composer.ReplyState")
+local TextLimits=ns.TextLimits or require("WhisperMessenger.Util.TextLimits")
+
+local Composer={}
+
+
+
+
+
+function Composer.Create(factory,parent,selectedContact,onSend,onEscape,getDoubleEscapeToClose,onTyping,options)
+options=type(options)=="table"and options or{}
+local nativeChrome=options.nativeChrome==true
+local onDraftChanged=options.onDraftChanged
+local replies=ReplyState.Create(function()
+return selectedContact.conversationKey
+end,options.onReplyChanged)
+local pane=factory.CreateFrame("Frame",nil,parent)
+pane:SetScript("OnHide",function()
+PickerStyles.HideTooltip()
+end)
+local parentWidth=sizeValue(parent,"GetWidth","width",600)
+pane:SetAllPoints(parent)
+
+local paneBg=pane:CreateTexture(nil,"BACKGROUND")
+paneBg:SetAllPoints(pane)
+applyColorTexture(paneBg,Theme.COLORS.bg_composer)
+
+
+
+local composerBorder=UIHelpers.createBorderBox(pane,Theme.COLORS.divider,Theme.DIVIDER_THICKNESS,"OVERLAY")
+
+local sendDisabled=selectedContact==nil
+local button=factory.CreateFrame("Button",nil,pane)
+local paintSendButton=SendButtonStyle.Create(button)
+
+
+local input=factory.CreateFrame("EditBox",nil,pane)
+input:SetText("")
+local launchers=ComposerLaunchers.Create(factory,pane,input,{
+enabled=not sendDisabled,
+maxBytes=TextLimits.MESSAGE_MAX_BYTES,
+getQuickReplies=options.getQuickReplies,
+})
+local layoutParts={
+pane=pane,
+input=input,
+sendButton=button,
+emojiButton=launchers.emojiButton,
+emojiIcon=launchers.emojiButton.icon,
+quickReplyButton=launchers.quickReplyButton,
+}
+ComposerLayout.Apply(layoutParts,parentWidth)
+
+UIHelpers.setFontObject(input,Theme.FONTS.composer_input)
+if input.SetTextColor then
+input:SetTextColor(Theme.COLORS.text_primary[1],Theme.COLORS.text_primary[2],Theme.COLORS.text_primary[3],Theme.COLORS.text_primary[4]or 1)
+end
+if input.SetTextInsets then
+input:SetTextInsets(8,8,4,4)
+end
+if input.SetAutoFocus then
+input:SetAutoFocus(false)
+end
+if input.SetAltArrowKeyMode then
+input:SetAltArrowKeyMode(false)
+end
+if input.SetHyperlinksEnabled then
+input:SetHyperlinksEnabled(true)
+end
+
+
+
+
+if input.SetMaxBytes then
+input:SetMaxBytes(TextLimits.INPUT_MAX_BYTES)
+end
+local surface=nativeChrome and ComposerSurface.CreateNative(input,composerBorder,paneBg)or ComposerSurface.Create(pane,input,composerBorder)
+surface.apply()
+
+
+
+
+local placeholder=input:CreateFontString(nil,"OVERLAY")
+UIHelpers.setFontObject(placeholder,Theme.FONTS.composer_input)
+placeholder:SetPoint("LEFT",input,"LEFT",8,0)
+placeholder:SetText(Localization.Text("Enter to send"))
+setTextColor(placeholder,Theme.COLORS.text_secondary)
+placeholder:Show()
+if surface.native then
+surface.apply(placeholder)
+end
+
+LinkHooks.RegisterInput(input)
+
+local function relayoutLauncher(width)
+ComposerLayout.Apply(layoutParts,width)
+end
+
+local function currentParentWidth(fallback)
+local width=sizeValue(parent,"GetWidth","width",fallback)
+if type(width)~="number"or width<=0 then
+return fallback
+end
+return width
+end
+
+button.disabled=sendDisabled
+paintSendButton(sendDisabled,false)
+
+button:SetScript("OnEnter",function(self)
+paintSendButton(sendDisabled,true)
+
+PickerStyles.ShowTooltipText(self,Localization.Text("Send"))
+end)
+button:SetScript("OnLeave",function()
+paintSendButton(sendDisabled,false)
+PickerStyles.HideTooltip()
+end)
+
+local function submitMessage()
+if sendDisabled then
+return
+end
+
+local text=input.GetText and input:GetText()or input.text
+if text==nil or text==""then
+return
+end
+
+local accepted=onSend({
+conversationKey=selectedContact.conversationKey,
+target=selectedContact.displayName,
+displayName=selectedContact.displayName,
+channel=selectedContact.channel,
+bnetAccountID=selectedContact.bnetAccountID,
+conversationID=selectedContact.conversationID,
+guid=selectedContact.guid,
+gameAccountName=selectedContact.gameAccountName,
+text=text,
+replyTo=replies.current(),
+})
+
+if accepted~=false then
+replies.clear()
+input:SetText("")
+if onDraftChanged then
+onDraftChanged(selectedContact.conversationKey,"")
+end
+end
+end
+
+local function syncPlaceholder(text)
+if text==nil or text==""then
+placeholder:Show()
+else
+placeholder:Hide()
+end
+end
+
+
+
+local loadingDraft=false
+
+input:SetScript("OnTextChanged",function()
+local text=input.GetText and input:GetText()or input.text or""
+syncPlaceholder(text)
+if onDraftChanged and not loadingDraft and selectedContact.conversationKey~=nil then
+onDraftChanged(selectedContact.conversationKey,text)
+end
+if onTyping then
+onTyping(selectedContact,loadingDraft and""or text)
+end
+end)
+
+local function loadDraft(text)
+loadingDraft=true
+input:SetText(text or"")
+loadingDraft=false
+syncPlaceholder(text)
+replies.sync()
+end
+
+input:SetScript("OnEnterPressed",function()
+submitMessage()
+end)
+button:SetScript("OnClick",function()
+submitMessage()
+end)
+input:SetScript("OnEscapePressed",function()
+if replies.current()~=nil then
+replies.clear()
+return
+end
+if getDoubleEscapeToClose and getDoubleEscapeToClose()then
+if input.ClearFocus then
+input:ClearFocus()
+end
+return
+end
+if onEscape then
+onEscape()
+return
+end
+if input.ClearFocus then
+input:ClearFocus()
+end
+end)
+
+return{
+frame=pane,
+input=input,
+sheen=surface.sheen,
+paneBg=paneBg,
+border=composerBorder,
+sendButton=button,
+emojiButton=launchers.emojiButton,
+emojiPicker=launchers.emojiPicker,
+quickReplyButton=launchers.quickReplyButton,
+quickReplyPicker=launchers.quickReplyPicker,
+placeholder=placeholder,
+loadDraft=loadDraft,
+setReply=function(conversationKey,replyTo)
+replies.set(conversationKey,replyTo)
+if input.SetFocus then
+input:SetFocus()
+end
+end,
+clearReply=replies.clear,
+forgetReply=function(conversationKey)
+replies.set(conversationKey,nil)
+end,
+setLanguage=function()
+placeholder:SetText(Localization.Text("Enter to send"))
+end,
+setEnabled=function(enabled)
+sendDisabled=not enabled
+button.disabled=not enabled
+launchers.setEnabled(enabled)
+PickerStyles.HideTooltip()
+paintSendButton(sendDisabled,false)
+end,
+refreshTheme=function()
+if surface.native then
+surface.apply(placeholder)
+else
+applyColorTexture(paneBg,Theme.COLORS.bg_composer)
+surface.apply()
+if input.SetTextColor then
+input:SetTextColor(
+Theme.COLORS.text_primary[1],
+Theme.COLORS.text_primary[2],
+Theme.COLORS.text_primary[3],
+Theme.COLORS.text_primary[4]or 1
+)
+end
+setTextColor(placeholder,Theme.COLORS.text_secondary)
+end
+paintSendButton(sendDisabled,false)
+launchers.refreshTheme()
+relayoutLauncher(currentParentWidth(parentWidth))
+end,
+relayout=function(parentW)
+
+
+
+
+local effectiveW=currentParentWidth(parentW)
+if type(effectiveW)~="number"or effectiveW<=0 then
+return
+end
+relayoutLauncher(effectiveW)
+end,
+}
+end
+
+ns.Composer=Composer
+return Composer

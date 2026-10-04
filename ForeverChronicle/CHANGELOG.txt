@@ -1,0 +1,722 @@
+Version 0.9.6 — Hilfe direkt im Add-on
+- Ein gut sichtbarer Fragezeichen-Button oben rechts neben den Einstellungen öffnet „Hilfe & Anleitung“.
+- Die zweisprachige Anleitung ist mit kurzen Abschnitten und hervorgehobenen Überschriften übersichtlicher aufgebaut.
+- Der Kartenfilter-Button wird in der Hilfe ausgeblendet.
+- /fc help öffnet die Anleitung im Add-on.
+- Keine Änderung an vorhandenen Chronikdaten, SavedVariables oder dem Export-/Importformat.
+
+Version 0.9.6 — In-addon help guide
+- A visible question-mark button at the top right, beside Settings, opens “Help & guide”.
+- The bilingual guide is easier to scan, with shorter sections and highlighted headings.
+- The map-filter button is hidden while the guide is open.
+- /fc help opens the guide in the add-on.
+- Existing chronicle data, SavedVariables and the export/import format are unchanged.
+
+Version 0.9.5 Beta 3 — Sicherung und Einstellungsseite überarbeitet
+- Die Export-/Importbox und ihre Schaltflächen wurden aus der Einstellungsseite entfernt. Stattdessen erklärt eine Karte wie in 0.9.4, wo die SavedVariables-Datei liegt und wie sie manuell gesichert und wiederhergestellt wird.
+- Einstellungen sind in getrennte Bereiche für Aufzeichnung sowie Anzeige und Tagebuch gegliedert. Die Tagebuchlänge, Minikartenschaltfläche und Sammlerdaten haben eigene, klar angeordnete Plätze.
+- Rahmenvorlage der ausgelagerten UI-Hilfsfunktion explizit initialisiert; verhindert, dass die Einstellungsflächen ohne Backdrop erstellt werden.
+- Keine Änderung an gespeicherten Chronikdaten oder am SavedVariables-Schema.
+
+Version 0.9.5 Beta 3 — Backup guidance and settings layout
+- Removed the export/import box and its buttons from Settings. As in 0.9.4, a card now explains where the SavedVariables file is and how to back it up and restore it manually.
+- Grouped settings into Recording and Display & Diary sections, with dedicated space for diary length, the minimap button and collector data.
+- Explicitly initialized the backdrop template in the extracted UI helper so the settings panels keep their frames.
+- No changes to saved chronicle data or the SavedVariables schema.
+
+Version 0.9.5 Beta 2 — Lua-Fehler beim Laden behoben
+- Den Aufbau des Hauptfensters in kleinere Funktionen aufgeteilt. Dadurch bleibt die UI-Initialisierung unter der Upvalue-Grenze des WoW-Lua-Clients.
+- Das Minikarten-Symbol prüft jetzt, ob der UI-Handler geladen ist. So entsteht bei einem fehlenden Handler kein zusätzlicher Lua-Fehler; das Addon weist dann auf /reload hin.
+- Keine Änderung an gespeicherten Chronikdaten oder am SavedVariables-Schema.
+
+Version 0.9.5 Beta 2 — UI load errors fixed
+- Split main-window construction into smaller functions to stay within the WoW Lua client's upvalue limit.
+- The minimap button now checks whether the UI handler is available. If it is missing, the click reports that the interface should be reloaded instead of raising another Lua error.
+- No changes to saved chronicle data or the SavedVariables schema.
+
+Version 0.9.5 — Einstellbarer Tagebuchumfang
+- „Account exportieren“ kopiert die Sicherung per WoW-Zwischenablagefunktion mit einem Klick; falls nicht verfügbar, wird der Text markiert.
+- „Wo war das?“ und die Weltkarte liegen jetzt unter einem Menüpunkt; die Karte ist als eigener Reiter erreichbar.
+- Der bisherige Navigationspunkt „Meine Welt“ entfällt. Gespeicherte Fundorte und Filter bleiben erhalten.
+- Vier Detailstufen pro Charakter: Kurz, Kompakt, Ausführlich und Sehr ausführlich.
+- Sitzungs-, Tages-, Wochen-, Monats- und Jahresansichten zeigen je nach Auswahl unterschiedlich viele Erzählpassagen und Themen.
+- Ereignisdaten bleiben vollständig erhalten; nur der daraus erzeugte Text wird gekürzt.
+- Die Auswahl wird im Account-Export mitgesichert. Bestehende Charaktere starten mit „Sehr ausführlich“.
+
+Version 0.9.5 — Adjustable diary length
+- “Export account” copies the backup to the clipboard in one click when supported; otherwise it selects the text for manual copying.
+- “Where was that?” and the world map now share one navigation entry; the map is available as a separate tab.
+- The old “My world” navigation entry is removed. Saved locations and filters are retained.
+- Four per-character detail levels: Short, Compact, Detailed and Very detailed.
+- Session, day, week, month and year views include different amounts of narrative and topics depending on the selection.
+- Recorded events remain intact; only the generated prose is shortened.
+- The setting is included in account exports. Existing characters default to “Very detailed”.
+
+Version 0.9.4 — Release
+- Bündelt die im Beta-Test entwickelten Verbesserungen für Gefährten, sichere Ereignisverarbeitung und die Minikarten-Schaltfläche.
+- Chronicle-Symbol kann in „Einstellungen & Daten“ ein- und ausgeblendet werden; `/fc` bleibt verfügbar.
+- Export-Schaltfläche erstellt und markiert die Kontosicherung; die Anleitung erklärt Kopieren und Wiederherstellen.
+- Bestehende Chronikdaten bleiben erhalten; SavedVariables-Schema und Export-/Importformat ändern sich nicht.
+
+Version 0.9.7 — Entwicklungsnotizen: Minikarten-Symbol ein-/ausblenden
+- Neue Einstellung „Chronicle-Symbol an der Minikarte anzeigen“ unter „Einstellungen & Daten“.
+- Das Symbol lässt sich sofort aus- und wieder einblenden; `/fc` bleibt zum Öffnen verfügbar.
+- Kein zusätzliches Addon und keine Änderung am SavedVariables-Schema erforderlich.
+
+Version 0.9.7 — Development notes: toggle the minimap button
+- Added a “Show the Chronicle minimap button” setting under Settings & Data.
+- The button hides or reappears immediately; `/fc` remains available to open Chronicle.
+- No companion add-on or SavedVariables schema change is required.
+
+Version 0.9.6 — Gefährten sinnvoll zugeordnet
+- Die Gefährtenliste enthält nur Spieler aus gemeinsam abgeschlossenen Quests und betretenen Dungeons; ein Gruppenbeitritt allein legt keinen Eintrag mehr an.
+- Pro Gefährten werden Name und der eigene Charakter angezeigt, mit dem das gemeinsame Erlebnis aufgezeichnet wurde.
+- Die aktuelle Gruppe wird unmittelbar vor Quest- und Dungeon-Ereignissen eingelesen, damit der Chronikeintrag keine veraltete Gruppenliste verwendet.
+- Bestehende Chronikdaten und SavedVariables-Schema bleiben erhalten.
+
+Version 0.9.6 — Companions tied to shared activity
+- The companions list now includes players only from quests completed together and dungeon entries; joining a group alone no longer creates an entry.
+- Each companion shows their name and which of your characters shared the recorded activity.
+- The live group is refreshed immediately before quest and dungeon events to avoid recording a stale roster.
+- Existing chronicle data is preserved; the SavedVariables schema is unchanged.
+
+Vorab-Entwicklungsnotizen — Schutz geprüfter Spieldaten
+- Prüft API-Rückgaben und Ereignisargumente vor Vergleichen, Textverarbeitung, Umwandlung und Speicherung.
+- Überspringt geschützte Werte bei Charakteren, Kartenpositionen, Quests, Items, Händlern, Trainern und Zauberereignissen.
+- Speichert aus Loot-Chat und Zauberereignissen nur erkannte Gegenstands- und Sammelinformationen, keine Rohtexte.
+- Entfernt redundante Gruppenschnappschüsse aus Dungeon- und Bossereignissen; die optionale Begleiterchronik bleibt erhalten.
+- Keine Änderung am SavedVariables-Schema.
+
+Version 0.9.4 — Geschützte Ereigniswerte
+- Fängt geschützte Werte in Zauberwirkungsereignissen ab, bevor sie als Text verarbeitet werden.
+- Fehlerprotokollierung wandelt geschützte Ereignis- oder Fehlermeldungen nicht mehr in Zeichenketten um.
+- Keine Änderung am SavedVariables-Schema oder an bestehenden Chronikdaten.
+
+Version 0.9.3 — Geschützte Aura-Daten
+- Entfernt den direkten Scan von Spieler-Auren, der im Forever-Client beim Aufruf geschützter Aura-Daten einen Lua-Fehler auslösen konnte.
+- Essens- und Trink-Auren werden vorerst nicht mehr automatisch in der Chronik erfasst.
+- Keine Änderung am SavedVariables-Schema oder an bestehenden Chronikdaten.
+
+Version 0.9.2 — Finale geprüfte Version
+- Umlaute und ß werden für Suche, Gruppierung und Sortierung konsistent gefaltet.
+- Keine Änderung an SavedVariables oder Export-/Importformat.
+
+Version 0.9.2-beta.14 — Export/Import-Audit
+- Ortsangaben werden beim Export genau einmal maskiert, sodass Sonderzeichen wie % und | nach dem Import erhalten bleiben.
+- Feste Spaltenpositionen für Ortsangaben verhindern Verschiebungen, wenn optionale Werte in Händler-, Lehrer-, Begleiter-, Sitzungs-, Ereignis- oder Beobachtungssätzen fehlen.
+- Rundwegtests für Händler-Item-Links und Ortsangaben mit leeren Feldern und Sonderzeichen bestanden.
+
+Version 0.9.2-beta.13 — Bündel als eigenständiges Symbol
+- Gruppen erhalten eine sichtbare dunkle Goldplakette mit hellem Rand und großem Plus; verwendete Flächen sind direkte WoW-Farbtexturen statt potenziell unsichtbarer Client-Icons.
+- Einzelpins behalten den bisherigen kleinen Goldpunkt.
+
+Version 0.9.2-beta.12 — Blizzard-Kartengrafik wiederhergestellt
+- Den Eingriff in die Zuschneide-Einstellung des Blizzard-Kartencontainers entfernt; er konnte die Kartengrafik vollständig ausblenden.
+- Sichtprüfung beschränkt sich auf die eigenen Chronicle-Pins, sofort nach jedem Refresh und während des Zoomens.
+
+Version 0.9.2-beta.11 — Zoom-Clipping ohne Flackern
+- Kartenausschnitt clippt Chronicle-Pins; zusätzlich wird direkt nach jedem Pin-Refresh ausgeschnitten, bevor Marker sichtbar bleiben können.
+- NPC-Bündel fassen einen größeren sichtbaren Bereich zusammen; Bündel-Symbol wieder in Gold.
+
+Version 0.9.2-beta.10 — Kartenzoom und sichtbare Bündel
+- Aus dem sichtbaren Kartenausschnitt herausgezoomte Chronicle-Pins werden beim Verschieben/Zoomen ausgeblendet; gespeicherte Positionen bleiben unverändert.
+- Bündel erhalten einen deutlich gefüllten blauen Mittelpunkt mit Plus und blauem Rand statt nur eines zweiten Rings.
+
+Version 0.9.2-beta.9 — Bündel klar erkennbar
+- Kartenbündel zeigen einen zweiten hellblauen Ring und ein kleines Plus statt einer Zahl.
+- Die Anzahl und Namen stehen weiterhin im Tooltip; Klick öffnet weiter die genaue Zielauswahl.
+
+Version 0.9.2-beta.8 — Auswählbare Karten-Gruppen
+- Nahe NPC-, Händler- und Lehrer-Markierungen werden auf der Karte gebündelt; der Tooltip zeigt die enthaltenen Namen.
+- Klick auf das Bündel öffnet eine scrollbare Liste. Klick auf einen Namen setzt dessen genaue Position als WoW-Wegpunkt mit Minikarten-Zielpfeil.
+- Bei aktivierter Bündelung gilt dieselbe Auswahl auch für andere Markierungen. Gespeicherte Positionen werden nicht verändert.
+
+Version 0.9.2-beta.7 — Händler-Icon und Tooltip-Position
+- Echte Gegenstands-Icons nutzen bevorzugt die im Forever-Client verfügbare C_Item-Schnittstelle, mit weiteren WoW-Fallbacks.
+- Gegenstands-Tooltip folgt links oberhalb des Mauszeigers und bleibt beim Scrollen nicht an einer alten Zeile hängen.
+
+Version 0.9.2-beta.6 — Händlerwaren als echte Items
+- Gespeicherte Waren mit Item-ID zeigen beim Überfahren ihren WoW-Gegenstands-Tooltip und ihr Item-Icon.
+- Umschalt-Klick fügt den Item-Link in den geöffneten Chat ein; normaler Klick sucht weiterhin nach dem Gegenstand.
+- Händler-Item-Links bleiben auch nach Export/Import erhalten. Waren ohne vom Client gelieferte Item-ID bleiben namentlich sichtbar.
+
+0.9.2-beta.1
+- Händler unter „Wo war das?“ alphabetisch sortiert.
+- Klick auf einen Händler öffnet sein gespeichertes Sortiment, nach Warengruppen und Namen sortiert.
+- Klick auf eine Ware sucht Händler, bei denen sie beobachtet wurde.
+- Preise sind in dieser Testversion noch nicht enthalten.
+
+0.9.1
+- Expanded the numbered diary library from 818 to 1,584 unique formulations per language, a 94% increase.
+- Extended every numbered narrative entry family so all 1,584 German and English lines are reachable; no exact duplicate lines remain.
+- Added a per-character, SavedVariables-backed shuffle deck for each narrative family; every option is used before that family repeats.
+- Preserved existing records and saved variant selections; corrected source lines may display differently for entries that use those variants. The SavedVariables schema is unchanged.
+- Corrected German period-ending language and several placeholder/order errors in localized text.
+
+0.9.0-beta.30
+- Expanded low-variation narrative families and removed exact duplicate numbered lines.
+- Matched German and English locale keys and placeholders.
+- Kept chronological monthly/yearly recap generation.
+
+FOREVER CHRONICLE CHANGELOG
+========================================
+
+0.9.0-beta.29
+- Build monthly and yearly story bodies from the chronologically ordered event passages instead of fixed category summaries.
+- Prioritize quests, levels, discoveries, dungeons, rares, notes and other milestones when long-period chapters need condensing; omit repetitive routine observations.
+- Add three localized first-person introduction and closing variants for month and year recaps.
+
+0.9.0-beta.28
+- Make a Chronicle search result available through Blizzard's native user waypoint, so its minimap tracking arrow points to the nearest saved spot in the current zone.
+- Keep every saved location visible as Chronicle pins on the world map; use the first remembered location when none are in the current zone.
+- Move the map-filter control to the map pane's lower-left corner and restyle it with a Classic quickslot and bronze border.
+
+0.9.0-beta.27
+- Keep Rare creatures as a dedicated, searchable map layer with their own icon and recorded sightings.
+- Record dungeon and raid entrances at the character's last known outdoor coordinates; logging in inside an instance does not invent an entrance.
+- Add a separate, exclusive per-character filter for instance entrances, distinct from dungeon interior memories.
+- Include entrance discoveries in search, import/export, and demo data.
+
+0.9.0-beta.26
+- Replace square item and atlas textures on the map with compact gold-dot markers, removing the bright white icon tiles that obscured the parchment map.
+- Remove the redundant All Items filter; use Chronicle search for a specific item, with optional Uncommon/Rare/Epic map layers retained.
+- Keep exclusive per-character map filters and the enemy memory layer.
+
+0.9.0-beta.25
+- Make map filters exclusive: one category can be active at a time, with a separate show/hide toggle and optional nearby-pin grouping.
+- Add a dedicated enemy layer. Normal hostile species are remembered once per zone when the client supplies their actual unit position; defeats remain in the diary.
+- Preserve per-character filter choice and keep item-quality selections mutually exclusive.
+
+0.9.0-beta.24
+- Anchor marker buttons in the same local coordinate space as the visible map overlay, fixing the offset pile of pins seen in beta.23.
+- Align the overlay exactly to the scrolling map art and reduce marker size to limit visual clutter.
+
+0.9.0-beta.23
+- Put map-pin buttons in the map scroll container's overlay layer while anchoring them to the moving map-art child; fixes invisible pins that still showed a Chronicle tooltip on hover.
+- Keep the larger native category/item icons and restore their visible draw order above map art.
+
+0.9.0-beta.22
+- Fix the UNIT_AURA nil-self error so food and drink tracking no longer throws Lua errors.
+- Render map symbols through the button's normal texture layer, enlarge the visible icon, and raise it above Classic map art while preserving the recorded pin position.
+- Keep the map's tooltip and click target, item-specific textures, and category-colored border.
+
+0.9.0-beta.21
+- Restore the Forever Classic scroll child as the map-pin coordinate surface; do not let newer GetCanvas accessors redirect pins to the viewport.
+- Remove pin-scale division from normalized map offsets so recorded 0–100 coordinates land on the same map art that the player sees.
+- Keep the restored Classic icon frame and every saved map location unchanged.
+
+0.9.0-beta.20
+- Restore the familiar Classic map-pin frame: dark button backing, distinct in-game category icons, and a category-colored ring.
+- Draw item pins with the saved item icon; resource, quest, NPC, rare, merchant and trainer pins use their own recognizable icons.
+- Remove the custom atlas from the normal map-pin rendering path to avoid invisible/cropped symbols.
+- Keep coordinates, search spotlights, category filters, clustering and SavedVariables unchanged.
+
+0.9.0-beta.19
+- Convert the custom marker atlas to an uncompressed 32-bit TGA for WoW texture compatibility.
+- Resolve singular item and quest spotlight kinds to their dedicated category symbols; slightly enlarge the pin target.
+- Record separate named battleground and arena visits, plus resurrection events after a recorded death.
+- Show dungeon/raid/battleground/arena visit totals and per-name visits, deaths and resurrections in character statistics.
+- Preserve SavedVariables schema and existing diary data.
+
+0.9.0-beta.18
+- Add level-up milestones to daily, monthly and yearly story recaps.
+- Double recap phrase choices from 23 to 46 in German and English; preserve each saved entry's selected wording.
+- Add a per-character Statistics view for recorded quests, exploration, combat, gathering, items, merchants, trainers and deaths.
+- Record observed health increases during combat and detectable food/drink aura periods, and include them in the diary and statistics.
+- Clarify that recovery is an observed health change, while meals and drinks depend on a recognizable client aura.
+- No SavedVariables schema change.
+
+0.9.0-beta.17
+- Correct map atlas coordinate ordering so Chronicle marker symbols render from the intended sprite cells.
+- Keep selected-result pins visible independently of persistent map filters; preserve item-quality marker variants.
+- No SavedVariables schema change.
+
+0.9.0-beta.16
+- Add 20 additional German and English phrase forms for every singular and plural daily/monthly/yearly recap category (23 total each).
+- Persist each entry's selected variant; retain the existing saved-data schema.
+
+0.9.0-beta.15
+- Add three stable, repeat-aware German and English phrasings for each fact in day, month and year recaps.
+- Preserve recorded names and counts without inventing events; no SavedVariables schema change.
+
+0.9.0-beta.14
+- Rewrite day entries as a short narrative with connected paragraphs for travel and quests, encounters, and quieter moments.
+- Condense repeated events while retaining selected recorded names; full event-by-event detail remains in the journey view.
+- Preserve month/year recaps and the existing SavedVariables schema.
+
+0.9.0-beta.13
+- Rewrite monthly and yearly diary entries as concise narrative recaps with selected recorded highlights instead of repeating every session event.
+- Keep individual journeys and day entries available for the full event-by-event story.
+- Remove raw coordinates from merchant prose; coordinates remain stored for map pins and searches.
+- Refine the opening and closing language of month and year chapters in German and English.
+
+0.9.0-beta.12
+- Restore automatic creature-defeat entries without the blocked combat-log event: monitor health changes only on the player's current hostile target.
+- Record a defeat once when the target's health was observed falling while the player was in combat and the target then dies.
+- Store the attribution method with the event; in a group, health loss can come from another group member, so individual damage credit is not guaranteed.
+- Keep the combat-log event unregistered and leave schema-10 SavedVariables unchanged.
+
+0.9.0-beta.11
+- Fix the startup protected-action block reported by the Forever client: stop registering `COMBAT_LOG_EVENT_UNFILTERED`.
+- Remove blocked/forbidden-action chat diagnostics, which could taint Blizzard's chat frame while reporting a protected action.
+- Automatic creature-defeat logging is temporarily unavailable; quest, discovery, gathering, item, merchant, trainer and other diary tracking remain enabled.
+- Preserve schema-10 SavedVariables, existing character histories and the restored 0.7 visual style.
+
+0.9.0-beta.9
+- Defer Chronicle-window redraws while the player is in combat. Combat-log discoveries and kills are still saved immediately; the visible diary refreshes once combat ends.
+- This targets the beta.5 combat-tracking change that began logging creature defeats from the live combat log, while avoiding UI rebuilds in combat.
+- Preserve schema-10 SavedVariables and the restored 0.7 visual style.
+
+0.9.0-beta.8
+- Restore the original 0.7 Classic frame: Blizzard dialog border and header, tracking-border portrait, tooltip-style content panel, and dark wood-and-brass list styling.
+- Remove the custom drawn frame edges and parchment-colored diary rows that replaced the 0.7 appearance.
+- Keep the current character diary, discovery history, search, map filters, map symbols, and schema-10 SavedVariables intact.
+
+0.9.0-beta.7
+- Replace identical dark square map backplates with an original transparent Forever Chronicle icon atlas: resource, quest, rare, NPC, dungeon, memory, cloth/item, merchant, trainer, zone and quality-specific item symbols.
+- Restore one-click map opening and navigation to a saved result's zone when the player clicks a remembered item or location.
+- Record each newly discovered named subzone within a zone, in addition to first continent and zone discoveries; these records remain character-specific and appear in diary search/story.
+- Restyle the chronicle frame with a dark enamel surface and restrained brass edging to match the supplied reference; remove the parchment image treatment.
+- Keep SavedVariables schema 10 unchanged. No history reset or migration is introduced.
+
+0.9.0-beta.6
+- Record first-ever continent arrivals separately from first-time zone discoveries for each character.
+- Give continent and zone discoveries their own high-impact narrative passages in German and English.
+- Expand the major story libraries to 24 variants for continents, zones, quest acceptance/completion and rare encounters, plus 20 battle passages.
+- Expand session openings/closings and the libraries for levels, dungeons, gathering, items, merchants, NPCs, trainers, companions, defeats and personal notes to 20 variants; shared quests have 14.
+- Keep repeated gathering, NPC, item and kill passages in their event order; only adjacent events of the same kind at the same place are combined.
+- Preserve existing SavedVariables schema 10; no history migration or reset is introduced.
+
+0.9.0-beta.5
+- Rebuild the diary content pane with the in-game parchment look from the reference.
+- Add one-click time scales for individual journeys, days, weeks, months and years.
+- Generate long-range chapters from the character's saved sessions without copying or rewriting source events.
+- Record named creatures the player or group recently damaged and that then died; summarize battle names and counts in the diary.
+- Expand German and English diary phrasing, including named merchants and the wares/categories they offered.
+
+0.9.0-beta.4
+- Reduce diary glare with muted parchment and softer sepia text.
+- Give narrative text the full card width and use compact, predictable row heights.
+- Use smaller classic UI text with slightly more line spacing for calmer reading.
+
+0.9.0-beta.3
+- Replace the unreadable legacy diary texture with a solid parchment panel and stronger text contrast.
+- Increase diary narrative font size and spacing for easier reading.
+
+0.9.0-beta.2
+- Start a fresh SavedVariables namespace; key character profiles by stable WoW GUIDs.
+- Quarantine malformed data, checkpoint schema upgrades, roll back interrupted migrations, and block unsafe downgrades.
+- Stop silently trimming long-term event, discovery, and session history; warn at the former limits instead.
+- Paginate the chronicle view and search resource atlas candidates only within the current map.
+- Add a preflight guide covering Forever SavedVariables loading, test gates, and known feature limits.
+
+0.9.0-beta.1
+- Fresh chronicle storage: existing 0.8 SavedVariables remain untouched and are not automatically imported.
+- Character profiles use the stable WoW GUID as their storage key, so renames and realm-label changes do not split a character's history.
+- Updated database schema and added explicit backup/restore guidance; regular WoW SavedVariables write timing is documented.
+
+0.8.0-beta.8
+- Erz-, Kräuter-, Angel- und Schatzpins verwenden erkennbare WoW-Objekticons
+  statt ähnlicher Symbole für die dazugehörigen Fertigkeiten.
+- Kartenzeichen erhalten eine runde dunkle Medaille, ein größeres Icon und eine
+  Kategorie-/Qualitätseinfassung: Ressourcenarten sowie Ungewöhnlich/Selten/Episch
+  sind dadurch schon beim Überfliegen der Karte leichter zu unterscheiden.
+- Seltenheitsname und passende Farbe erscheinen auch im Tooltip eines Gegenstandes.
+- Einstellungen erhalten getrennte, eingefasste Flächen für Sicherung und
+  Aufzeichnungsoptionen; zu schmale Export-/Import-Schaltflächen wurden verbreitert.
+- Kartenzeichen und Einstellungsseite anhand des Live-Screenshots nachgebessert.
+
+0.8.0-beta.7
+- Classic-inspirierte Farbwelt für Chronik, Suche, Kategorien und Tagebuch ergänzt.
+- Minikartenbuch erhält einen passenden bronzenen Aktionsrahmen.
+- Ressourcensymbole, Seltenheitsfarben und unabhängige Kartenebenen automatisiert geprüft.
+
+0.8.0-beta.6
+- Import prüft Karten-IDs und Koordinaten zentral für Atlas, Quests, Ereignisse,
+  Notizen, Händler, Lehrer, Gefährten und Beobachtungen. Fehlerhafte/teilweise
+  Koordinaten werden verworfen und können keine gültigen Fundorte überschreiben.
+- Händler- und Lehrerbesuche verwenden die Position des angesprochenen NPCs, wenn
+  Forever sie liefert; Tagebucheintrag, Händlergedächtnis und Ortsverlauf teilen
+  dieselbe exakte Position. Spielerposition bleibt sicherer Fallback.
+- Quest-, Item-, Ereignis- und Atlas-Mehrfachorte sowie Metadaten werden im
+  Export/Import-Rundlauf geprüft; wiederholter Import erzeugt keine Duplikate.
+- Erfolgreiches und unterbrochenes Sammeln, GUID-Profilkontinuität, Diagnose,
+  Charakterfilter, Seitenwechsel und temporäre Demodaten sind in der erweiterten
+  Offline-Prüfsuite abgedeckt.
+- Alte Speichergrenzen für Ereignisse und Entdeckungen werden mindestens auf
+  50.000 angehoben, damit alte Profile dieselbe Langzeitaufbewahrung erhalten.
+- Der vollständige Forever-Client-Abnahmetest bleibt vor einer stabilen 0.8.0
+  zwingend offen; siehe BETA-TEST.txt.
+
+0.8.0-beta.5
+- Neuer Befehl `/fc diagnose`: zeigt im laufenden Spiel Charakterprofil/GUID, aktuelle Kartenposition, lokale Datenzähler, aktive Kartenebenen und registrierte Addon-Fehler in einer kompakten Statusausgabe.
+- Demo an/aus und Diagnose erleichtern den Ingame-Test ohne wiederholtes Aus- und Einloggen. Ein `/reload` ist nur einmal am Ende nötig, um SavedVariables-Persistenz zu prüfen.
+- Deutsch/Englisch und der Hilfetext enthalten den Diagnosebefehl.
+
+0.8.0-beta.4
+- „Wo war das?“ und „Meine Welt“ blättern große Trefferbestände in Seiten zu 30 Einträgen durch, statt alle Treffer auf einmal zu zeichnen oder still abzuschneiden. Seite, Filter und Gebiet bleiben pro Charakter geordnet erhalten.
+- Account-Backups übernehmen jetzt jeden gespeicherten Beobachtungsort einschließlich Kontinent, Gebiet, Quelle, Zeitstempeln und exakter Einheitenposition; NPC-Rolle und Item-Symbol/Link bleiben erhalten.
+- Importierte Beobachtungsorte behalten ihre ursprünglichen Zeitstempel. Ungültige Karten-IDs und Koordinaten außerhalb der Kartenfläche werden nicht in Fundortlisten übernommen.
+- Wiederholter Import bleibt idempotent; automatisierte Rundläufe prüfen Mehrfachorte, Metadaten und die Trennung temporärer Demodaten.
+- Ingame-Abnahme auf dem Forever-Client steht weiterhin aus; siehe BETA-TEST.txt.
+
+0.8.0-beta.3
+- Ein angeklickter Chronik-Suchtreffer erhält eine exklusive Kartenansicht: Es erscheinen nur dessen gespeicherte Fundorte, auch wenn andere Kartenebenen eingeschaltet sind.
+- Das Umschalten eines Kartenfilters beendet die Suchmarkierung bewusst; gespeicherte Filter bleiben erhalten.
+- Karten-Clustering fasst nur identische Koordinaten zusammen und verschiebt keine nahegelegenen Fundorte mehr in ein Bildschirmraster.
+- Accountweite Gegenstandsfunde werden nur bei exakt gleichen Koordinaten zusammengelegt; nahe, unterschiedliche Funde bleiben getrennt.
+
+0.8.0-beta.2
+- NPC- und Rare-Beobachtungen verwenden beim Anvisieren/Mouseover die Position der beobachteten Einheit, sofern der Client sie bereitstellt; ältere Clients fallen sicher auf die Spielerposition zurück.
+- Kartenpins verwenden den offiziellen Canvas des Kartenfensters und berücksichtigen ihre lokale Skalierung bei der Koordinatenplatzierung.
+- Ingame-Test erforderlich: Ziel-NPC, Mouseover-NPC, Kartenzoom und Kartenverschiebung gegen die Spielkarte prüfen.
+
+0.8.0-beta.1
+- „Meine Welt“ erhält die Auswahl Charakter/Account → Kontinent → Gebiet → Kategorie; Auswahl und Suchtext bleiben pro Charakter erhalten.
+- Gebietskategorien sind um Angelstellen, Schätze, Händler, Lehrer sowie getrennte Ungewöhnlich-/Selten-/Episch-Filter erweitert.
+- Händler und Lehrer lassen sich mit eigenen, standardmäßig ausgeschalteten Kartensymbolen pro Charakter einblenden.
+- Gebietstreffer werden innerhalb der gewählten Kontinent-/Gebietsauswahl exakt gefiltert und nach Gebiet und Name sortiert.
+- Datenbankschema 8 ergänzt Kontinentnamen an bestehenden Kartenorten, sofern der Client sie aus der Karten-ID sicher auflösen kann; fehlende Werte bleiben unverändert.
+- Neue Ortsaufzeichnungen speichern den aufgelösten Kontinent. Quest- und Sammelortauflösung verwenden abgesicherte Karten-API-Aufrufe.
+- Die Scrollliste beginnt unterhalb der zusätzlichen Kategorieauswahl, damit keine Treffer verdeckt werden.
+- Deutsche und englische Texte für Kontinentwahl und Itemqualitäten ergänzt.
+- Ingame-Abnahme ist erforderlich; Karten- und Forever-API-Verhalten ist nicht allein durch Offline-Prüfungen bestätigt.
+
+0.7.34-beta
+- Abenteuertagebuch startet bei neuen Profilen mit einzelnen Reisen; die Tageschronik bleibt umschaltbar.
+- Sitzungsanfänge verwenden nur den gespeicherten Start- oder LOGIN-Ort; spätere Funde werden nicht als Aufbruchsort ausgegeben.
+- Tageschroniken erzeugen keine Rückkehrerzählung, wenn für den neuen Login kein Ort gespeichert wurde.
+
+0.7.33-beta
+- Charakterprofile werden per WoW-Charakter-GUID wiedererkannt, wenn sich der Name-/Realm-Schlüssel ändert; zugehörige Ressourcen- und Questzuordnungen werden mitgeführt.
+- Quest-Annahme- und Abschlussorte merken nun, welche Charaktere den jeweiligen Ort erlebt haben; die Information bleibt in Account-Exporten erhalten und wird am Karten-Pin angezeigt.
+- Kartenpositionen werden gegen API-Fehler, leere Zonennamen und Koordinaten außerhalb der gültigen Kartenfläche abgesichert; beschädigte oder alte ungültige Pins werden unterdrückt.
+- Nahe Fundorte werden präziser getrennt. Einzigartige Item-/NPC-Orte werden nicht mehr nach zwölf Einträgen verworfen; Quest-Ortslisten wachsen ebenfalls ohne stillen Verlust weiter.
+
+0.7.32-beta
+- Entfernt wiederholte Chatmeldungen beim Anzeigen gespeicherter Suchorte auf der Weltkarte. Fehlerhinweise bleiben erhalten.
+
+0.7.31-beta
+- Erzählungen nutzen deutlich größere, nach Ereignisart getrennte Formulierungspools in Deutsch und Englisch.
+- Zuletzt verwendete Satzmuster werden innerhalb jeder Ereignisart möglichst vermieden.
+- Die gewählte Formulierung wird am Ereignis gespeichert und bleibt beim erneuten Öffnen der Chronik stabil.
+
+0.7.30-beta
+- Tageschronik-Einträge verschwenden weniger Höhe: Textbreite wird aus der Listenbreite berechnet, und geschätzte Zeilen berücksichtigen einzelne Absätze sowie deutsche UTF-8-Zeichen.
+- Erzählabsätze stehen kompakter mit einfachem Zeilenumbruch statt zusätzlicher Leerzeile.
+- Umschalter für Tages- und Sitzungsansicht auf eine schmalere Zeile verdichtet.
+
+0.7.29-beta
+- Abenteuertagebuch erhält eine Tagesansicht, die alle am selben lokalen Kalendertag begonnenen Sitzungen eines Charakters zu einer Chronik verbindet.
+- Rückkehr nach einem erneuten Login wird als Teil der fortlaufenden Tagesgeschichte formuliert; die ursprünglichen Sitzungsberichte bleiben separat abrufbar.
+- Tageschroniken sind nach Datum durchsuchbar und bleiben über Export/Import rekonstruierbar; das lokale Tagesdatum neuer Sitzungen wird mitgespeichert.
+- Demo-Tagebuch zeigt jetzt zwei Sitzungen an einem Tag, damit Gruppierung und Rückkehr-Übergang direkt geprüft werden können.
+
+0.7.28-beta
+- Händlerbesuche werden auch dann aufgezeichnet, wenn die Item-Erfassung ausgeschaltet ist.
+- Händlerware wird bei verzögerten Klassik-Client-Daten erneut eingelesen; Nachscans erhöhen den Besuchszähler nicht.
+- Itemnamen und Item-Links werden nach GET_ITEM_INFO_RECEIVED in Charakter- und Händlerdaten ergänzt; Händlerangebote ohne ID bleiben such- und exportierbar.
+- „Ort merken“ bietet eine vorausgewählte, abwählbare Rückkehr-Erinnerung.
+
+0.7.27-beta
+- Questarchiv-Beschriftung in der Seitenleiste gekürzt und Textbreite auf die Schaltfläche begrenzt; die ausführliche Archivüberschrift bleibt im Hauptbereich.
+- Überlappenden SavedVariables-Hinweis aus der unteren Schnellnavigation entfernt; die Information steht weiterhin im Sicherungsbereich.
+- Ressourcenfund-Zähler korrigiert, damit die Platzhalter im Deutschen und Englischen ersetzt werden.
+
+0.7.26-beta
+- Die Weltkarte wird beim Anklicken eines gespeicherten Fundes bei Bedarf erstmals geladen und direkt auf den Fundort gesetzt.
+- Kartenhinweis korrigiert: Name und Anzahl der gesetzten Suchmarkierungen werden korrekt ausgegeben.
+- Händlerbesuche speichern NPC-ID, beobachtete Waren-Unterkategorien sowie Karte, Gebiet und Spielerposition bei der Interaktion; Tagebuch und Suche zeigen diese Angaben.
+- Mehrere Händlerpositionen und Händlerdetails bleiben beim Export/Import erhalten; Tagebuchsätze klingen lockerer.
+
+0.7.25-beta
+- Tagebuchereignisse werden nach Kategorie und erster Beobachtung chronologisch zu kurzen Absätzen gruppiert; Quest- und Level-Meilensteine bleiben an ihrer zeitlichen Stelle.
+- Deutsche und englische Tagebuchformulierungen geglättet; Beute, Händlerwaren und Ressourcen werden korrekt unterschieden.
+- Tagebuchzeilen passen ihre Höhe an Text und Fensterbreite an; Gedächtnisfilter erhalten breitere Schaltflächen für lange deutsche Bezeichnungen.
+
+0.7.24-beta
+- Added a diary-only search across narrative text, event names/details, companions, places, IDs and saved coordinates; query state is stored independently per character.
+- Added localized matching-result and no-result states, with paging applied after filtering.
+
+0.7.22-beta
+- Diary timestamps now sit in the title line instead of overlapping the story, and login-event locations anchor sessions whose start location was unavailable during loading.
+- Added clear localized endings when no final location was recorded.
+- Added a separate Adventure Diary view with one narrative entry per saved play session and 20-entry paging for long histories.
+- Diary narratives now include observed merchant and trainer visits, with German and English wording.
+- Added stable, deterministic German/English narrative variants for session openings, area travel, quests, levels, dungeons, rare encounters, gathering, notable loot, deaths, notes, companions and endings.
+- Added per-event session IDs and exact event boundaries; session links survive export/import and older backups fall back to timestamp grouping.
+- Group roster changes now create a Chronicle event with the observed companion names for the diary.
+- Added a full-session demo entry to preview the diary.
+
+0.7.21-beta
+- Disabled all persistent map layers by default and migrate untouched legacy defaults without disturbing custom selections.
+- Search-result spotlights display independently without enabling unrelated map layers.
+- Persisted the current Chronicle view, search text, selected categories and zone per character for /reload and reopening.
+- Added zone-filtered account item search using type:item zone:Durotar and localized rarity labels with official WoW quality terms.
+
+0.7.20-beta
+- Separated genuine item acquisition/vendor coordinates from inventory scans so item pins do not inherit flower or ore locations.
+- Preserved the first legacy coordinate only when the item was originally seen as loot or at a vendor.
+- Changed /fc coords to open the filtered item archive instead of printing every coordinate in chat.
+- Restricted the NPC category to non-hostile NPCs; rare hostile creatures remain in Rares and old unclassified mobs are hidden.
+- Added independent map filters for All items, Uncommon, Rare and Epic item qualities.
+
+0.7.19-beta
+- Added /fc coords <item> to open a filtered item search.
+
+0.7.18-beta
+- Clicking remembered records uses every valid saved coordinate, including all account-wide item locations.
+- Map pins for items use the item's icon when WoW has loaded it.
+- Bag and bank scans no longer create misleading new map locations for held items.
+
+0.7.17-beta
+- Raised the title lettering further within the header ornament after visual beta feedback.
+
+0.7.16-beta
+- Raised the title lettering slightly within the header ornament.
+
+0.7.15-beta
+- Centered the title in the symmetric header and moved navigation below the character name, level and class.
+
+0.7.14-beta
+- Reduced map symbol size to 14 pixels and complete marker footprint to 18 pixels.
+
+0.7.13-beta
+- Reduced map marker size and backing contrast; moved the ring behind the icon so the symbol stays readable.
+
+0.7.12-beta
+- Generalized Classic spellcast argument parsing and localized-name detection across ore, herbs, fishing and treasure/opening interactions.
+- Added known Classic spell IDs for mining, herb gathering, fishing, opening and lockpicking.
+
+0.7.11-beta
+- Gathering detection accepts localized spell names as well as numeric IDs, covering Classic-compatible event payloads and more localized herb spell names.
+- Spell completion only blocks a pending gather when it positively identifies a different gathering category.
+
+0.7.10-beta
+- Map markers use category-specific Classic icons for ore, herbs, fishing, treasure, quests, rare enemies, NPCs, dungeons and notes.
+- Gathering event spotlights retain the observed node type instead of falling back to a generic mining icon.
+
+0.7.9-beta
+- Character names replace stale Unknown/Unbekannt placeholders after login; an early placeholder profile is moved to the real character key when safe.
+- The long journey story is displayed as a wrapped Chronicle entry instead of overflowing the page header.
+- The outer title is centered against the window, and the World view no longer shows the general search field over its two dedicated search fields.
+
+0.7.8-beta
+- Reisebeschreibung und andere Untertitel stehen jetzt unter der jeweiligen
+  Überschrift und laufen nicht mehr über den Charakterbereich.
+- Suchfeld-Platzhalter verschwindet zuverlässig, sobald Text eingegeben wird.
+
+0.7.7-beta
+- Demo-Fundorte auf gültige Zonen-Karten-IDs umgestellt; Karte wird vor dem
+  Anzeigen auf den Fundort gesetzt und unbekannte Karten-IDs werden abgefangen.
+- Kartenfilterknopf aus dem Questtext in den Kartenbereich verschoben.
+- Minikarten-Erinnerungsbutton aus Richtung Questverfolgung versetzt und Symbol
+  mit klarer Buch-/Goldrahmen-Ebenenreihenfolge neu aufgebaut.
+- Erz-/Kräuter-Sammelereignis und fehlende Iteminfo-API abgesichert.
+
+0.7.6-beta
+- Charaktername sowie Klasse und Stufe in der Seitenleiste kontrastreicher gesetzt;
+  Addon-Titel exakt im Kopfzierbalken zentriert.
+- Minikartenbuch-Symbol mit korrekter Ebenenreihenfolge überarbeitet und seine
+  Standardposition von der Questverfolgung weg versetzt.
+- Kartenfilterknopf verkleinert und in den Kartenbereich verschoben, weg von
+  Questtexten; ungültige Karten-IDs werden vor dem Öffnen verworfen.
+- Iteminfo-Event ohne verfügbare GetItemInfo-API läuft jetzt fehlerfrei weiter.
+- Demodaten verwenden die UI-Karten-IDs von Durotar und dem Brachland; Karte wird
+  vor dem Anzeigen auf das Zielgebiet gesetzt.
+
+0.7.5-beta
+- Behebt einen Forever-Client-Fehler bei der Initialisierung des Gebietssuchfelds,
+  der das Chronikfenster unvollständig aufgebaut lassen konnte.
+
+0.7.4-beta
+- Temporärer Demomodus mit Beispielcharakteren, Chronik, Questarchiv, Weltfunden,
+  Gegenständen, NPCs, Rares, Berufen und mehreren Kartenmarkern.
+- /fc demo on|off (deutscher Client: /fc demo an|aus) schaltet die Demo um, ohne
+  Beispieldaten in SavedVariables zu speichern oder echte Daten zu überschreiben.
+
+0.7.3-beta
+- Gebietsexplorer mit Suche und Kategorien für Erz, Kräuter, Angelstellen, Schätze, Quests, Questverlauf, Gegenstände, Rares, NPCs, Dungeons und Notizen.
+- Gespeicherte Funde lassen sich direkt auf der Karte hervorheben; Kartenfilter sind schneller erreichbar und pro Charakter gespeichert.
+- Die Chronik-Kopfzeile bleibt lesbar; wiederholte Gebietsmeldungen erzeugen keine leeren Doppelkapitel.
+- Addon-Beschreibung im deutschen und englischen Addon-Menü aktualisiert.
+
+0.7.2-beta
+- Chronik als eigener, sichtbarer Hauptbereich ergänzt.
+- Kapitelrückblicke nennen Zeitraum und die wichtigsten Quest-, Dungeon-, Rare-, Ressourcen- und Todesereignisse.
+- Kartenfilter für Erz, Kräuter, Angelstellen und Schätze getrennt.
+- Ressourcen behalten ihre eigenen Symbole und erscheinen zonenweise gemeinsam auf der Karte.
+
+0.7.1-beta
+- Kartenfilter werden direkt beim Öffnen der Weltkarte installiert; keine Abhängigkeit vom nicht unterstützten WORLD_MAP_UPDATE.
+- Suchtreffer setzen alle gespeicherten Fundorte als hervorgehobene Markierungen auf der Weltkarte.
+- Gegenstands-, NPC-, Rare- und Gebietsmarker zeigen alle bekannten Positionen statt nur den letzten Fundort.
+- Gesammelte Ressourcen bleiben einzeln nach Symbol und Kategorie filterbar; Suchmarkierungen können gelöscht werden.
+
+0.7.0-beta
+- Die Chronik ist jetzt in zeitlich geordnete Kapitel nach Gebiet und Level gegliedert.
+- Kapitelrückblicke und erzählte Höhepunkte machen Quest-, Dungeon- und Rare-Fortschritt leichter nachvollziehbar.
+- „Wo war das?“ hat Filter für Quests, Gegenstände, Ressourcen, Rares, Notizen, NPCs, Händler, Lehrer, Gefährten und Berufe.
+- Deutsche und englische Bezeichnungen für Kapitel und Filter ergänzt.
+
+0.6.1-beta
+- Release-Fassung mit aktualisierter Upgrade-Anleitung und erweitertem Ingame-Testplan.
+- Alte doppelte Notiz-IDs werden beim Laden accountweit vereinheitlicht; Verknüpfungen
+  aus der Ereignischronik werden dabei angepasst.
+- Erinnerung und Karten-Pin lassen sich pro Notiz und charakterübergreifend steuern.
+- Deutsche Befehle akzeptieren "an/aus"; ungültige Werte verändern keine Daten.
+- Notizstatus und Änderungszeitpunkt bleiben beim Backup-Import erhalten.
+- Karten-Hauptschalter bewahrt Kategorieauswahlen beim globalen Ein-/Ausblenden.
+- Daten-, Lokalisierungs-, Export-/Import- und Paketprüfungen erfolgreich.
+- Forever-Client-Abnahme bleibt Teil des Beta-Tests; API-Verhalten kann nur im Spiel
+  endgültig bestätigt werden.
+
+0.6.2-beta
+- Unbekannte Client-Events werden beim Registrieren sicher übersprungen und protokolliert;
+  sie brechen nicht mehr das Laden der restlichen Addon-Datei ab.
+- Behebt den Forever-Client-Fehler bei WORLD_MAP_UPDATE und lässt Karten-Overlay,
+  Filterpanel und periodische Pin-Aktualisierung weiterladen.
+
+0.6.0-beta
+- SavedVariables-Datenbank mit Integritätsprüfung, Änderungsrevision und letztem
+  Speicherstatus abgesichert.
+- Fehler aus Addon-Events werden begrenzt protokolliert, ohne den Spielbetrieb zu
+  unterbrechen.
+- Accountweite Suche um Filter für Typ, Charakter, Gebiet, Kontinent und ID erweitert.
+- Suchergebnisse tragen nun Erstbeobachtung, Quelle und verfügbare Ortsdaten mit.
+- Questannahmen speichern zusätzlich Questgeber-/Annahmeort und Charakter.
+- Aktuelle Questziele werden, soweit die Forever-API sie liefert, mit Text und
+  Fortschritt im Archiv aufgezeichnet.
+- Export/Import auf Schema 6 mit QUEST_ACCEPT_LOC und QUEST_ACCEPT_CHAR erweitert.
+- Ressourcenatlas erhält einen direkten Kartenindex für schnelle Kartenaktualisierung.
+- Ressourcensymbole bleiben kategorietreu; Loot-Symbole überschreiben sie nicht mehr.
+- Accountweite Gegenstandssuche zeigt Gesamtbestand, Charaktere, Taschen, Bank und
+  letzte bekannte Fundorte in einem gemeinsamen Treffer.
+- Taschen- und Bankaktualisierungen markieren die lokale Datenbank als geändert.
+- Berufe und aktuelle Skillstufen werden pro Charakter gespeichert und accountweit
+  durchsuchbar; die Aufzeichnung kann in den Optionen deaktiviert werden.
+- Export/Import unterstützt PROFESSION-Zeilen, damit Berufsdaten beim Teilen erhalten bleiben.
+- Händler und Lehrer führen nun eine Ortschronik über mehrere Besuche; Suchtreffer zeigen
+  die Anzahl bekannter Standorte statt nur des letzten Besuchs.
+- Langzeitaufbewahrung verbessert: bis zu 50.000 Ereignisse und 5.000 Sitzungen pro
+  Charakter bleiben erhalten, damit die Chronik über Jahre wächst statt alte Kapitel
+  nach kurzer Zeit still zu verlieren.
+- Die Datenbank merkt sich zusätzlich den Zeitraum ihrer ersten und letzten
+  aufgezeichneten Ereignisse für spätere Chronik- und Exportauswertungen.
+- Die Chronikansicht gruppiert Levelaufstiege und Gebietswechsel sichtbar als
+  Kapitelüberschriften; darunter bleiben die zugehörigen Ereignisse anklickbar.
+- Exporte enthalten nun Datenbankrevision sowie den Zeitraum der gespeicherten
+  Chronik und lassen sich dadurch eindeutig versionieren.
+- Kartenpins und Gebietserinnerungen sind nun unabhängig: Eine deaktivierte
+  Erinnerung blendet den gespeicherten Marker nicht mehr automatisch aus.
+- Erinnerungen zeigen in der Gedächtnissuche nun ihre eindeutige ID für eine
+  zuverlässige Verwaltung per Slash-Command.
+- Notizen können nun mit ausdrücklicher Bestätigung archiviert werden; dadurch
+  verschwinden sie aus Suche und Karte, bleiben aber in alten Exporten nachvollziehbar.
+- Pin-Sichtbarkeit ist pro Notiz separat schaltbar; Archivstatus, Erinnerungsstatus
+  und Pin-Sichtbarkeit bleiben im Export/Import erhalten.
+- Globaler Karten-Schalter blendet alle Pins aus/ein, ohne die gespeicherten
+  Kategorie-Auswahlen zu verändern; Filteränderungen aktualisieren die Revision.
+- Beta-Testanleitung auf Erinnerungsarchiv, individuelle Pins und globale Kartenfilter
+  erweitert.
+
+0.5.1-beta
+- Deutsche WoW-Clients erhalten eine vollständig deutsche Oberfläche; alle anderen
+  Clients verwenden die englische Oberfläche.
+- Händler-, Lehrer-, Debug- und Sitzungszusammenfassungen von letzten sichtbaren
+  Resttexten befreit und in die Sprachdatei verschoben.
+- Karten-, Gegenstands- und Seltene-Gegner-Bezeichnungen im deutschen Client
+  vereinheitlicht.
+- Questarchiv, Ressourcenatlas und lokale Export-Tags bleiben mit Schema 5 kompatibel.
+
+0.3.1-beta
+- Minimap-Button außerhalb des Minimap-Kreises stabilisiert.
+- Button-Rahmen korrekt zentriert und Symbol besser lesbar gemacht.
+- Dialogoberfläche mit Blizzard-Classic-Header und wärmerer Gold-/Braun-Palette verfeinert.
+- Navigation, Zeilen und Auswahlzustände stärker an Questlog/Dialoge des Classic-Stils angepasst.
+
+0.4.0-beta
+- Persönlichen Ressourcenatlas für selbst gefundene Erze, Kräuter, Angelstellen und Schätze ergänzt.
+- Mehrere eigene Weltkarten-Pins mit Symbolen, Kategorie-Tooltips und gespeicherten Filtern ergänzt.
+- Erinnerungen, Rares, NPCs, Items, Dungeons und Gebiete als separat schaltbare Kartenkategorien integriert.
+- Ressourcen um Kontinent-, Gebiet- und Untergebietsinformationen sowie Loot-Verknüpfungen erweitert.
+- Export/Import auf Schema 4 mit ATLAS-, ATLAS_LOOT- und ATLAS_CHAR-Datensätzen erweitert.
+- Minimap-Button auf UIParent verlagert und weiter nach außen gesetzt, damit er nicht in der Kartenmaske liegt.
+
+0.5.0-beta
+- Accountweites Questarchiv für jede erledigte Quest ergänzt.
+- Questnamen werden je erkannter Client-Sprache gespeichert; englische Namen werden
+  aus englischen Beobachtungen oder Importen mit demselben Quest-ID-Datensatz zusammengeführt.
+- Questarchiv speichert Kontinent, Gebiet, Untergebiet, Abgabe-Koordinaten, Zeitstempel,
+  Abschlussanzahl und alle Charaktere, die die Quest abgeschlossen haben.
+- Quest-Suche und Weltkarten-Pins greifen nun accountweit auf erledigte Quests zu.
+- Export/Import auf Schema 5 mit QUEST-, QUEST_NAME-, QUEST_LOC- und QUEST_CHAR-Zeilen erweitert.
+
+0.3.0-beta
+- Produktvision auf vier klare Bereiche verdichtet: Meine Reise, Wo war das?,
+  Meine Welt und Gefährten.
+- Automatische Rückblicke für die laufende und die zuletzt beendete Reise ergänzt.
+- Ortsnotizen erinnern nun beim Zurückkehren in das gespeicherte Gebiet.
+- Händlergedächtnis speichert Händler, Fundort und beobachtetes Sortiment.
+- Lehrergedächtnis speichert Lehrer, Fundort und angebotene Ausbildung.
+- Gefährten-Chronik für Gruppenmitglieder und gemeinsam besuchte Dungeons ergänzt.
+- Technische Sammlerdaten, Export und Aufzeichnungsoptionen unter das Zahnrad verschoben.
+- Exportformat auf Schema 3 erweitert; bestehende Schema-1/2-Daten bleiben importierbar.
+- Hauptfenster weiter am klassischen Blizzard-Stil ausgerichtet.
+
+0.2.0-beta
+- Oberfläche vollständig im klassischen Original-WoW-Stil neu aufgebaut.
+- Kategorien für Übersicht, Chronik, Gedächtnis, Welt, Entdeckungen,
+  Charaktere sowie Sicherung hinzugefügt.
+- Accountweite Schnellsuche mit /fc find <Name> ergänzt.
+- Item- und NPC-Tooltips um Taschen-, Bank-, Händler- und Fundortwissen erweitert.
+- Accountweite Charakter- und Ortsübersichten ergänzt.
+- Vollständigen Accountexport und nicht-destruktiven Import hinzugefügt.
+- Aufzeichnungsoptionen in das Addon-Fenster integriert.
+- NPC- und Taschenscans gedrosselt, um die Belastung klein zu halten.
+- Deutsche und englische Texte erweitert.
+- Autor- und Release-Metadaten für eine Veröffentlichung bereinigt.
+
+0.1.0-beta
+- Erste spielbare Collector-Version für die WoW-Forever-Beta.
+- Charakterchronik, Sitzungen, Quests, Stufen, Gebiete, Dungeons, Rares,
+  Todesfälle, NPCs, Items, Händler, Taschen und Bank hinzugefügt.
+- Accountweite Suche, Notizen, Kartenpunkte, Entdeckungen und Export ergänzt.
+
+0.7.3-beta
+- Gebietsexplorer mit Suche und Kategorien für Erz, Kräuter, Quests, beobachtete Quest-Reihenfolge, Gegenstände, Rares, NPCs, Dungeons, Angelstellen, Schätze und Notizen.
+- Fundpunkte lassen sich aus dem Gebietsexplorer auf der Karte hervorheben.
+- Kartenfiltereinstellungen werden pro Charakter gespeichert und behalten beim ersten Start die bisherige Auswahl.
+- Kartenfilter haben einen gut sichtbaren Symbolknopf auf der Weltkarte sowie einen Schnellzugang in Forever Chronicle.
+- Chronik-Kopfzeile gekürzt und doppelte Gebietskapitel zusammengefasst.
+- Addon-Beschreibung im deutschen und englischen Addon-Menü aktualisiert.
+
+
+Version 0.9.2-beta.2
+- Wo war das?: Kontinent-, Gebiets- und Warengruppenfilter für beobachtete Händler; Ortsfilter auch für Lehrer.
+- Fraktionsfilter nach der Fraktion des Charakters, der den Händler oder Lehrer besucht hat (keine garantierte Zugänglichkeit).
+- Ortsangaben in der Trefferliste; Suchtreffer für Waren und Lehrerdienste zeigen bereits vorhandene Detailangaben.
+- Filterwahl bleibt pro Charakter gespeichert. Keine Änderungen an gespeicherten Händlerdaten; Preise weiterhin offen.
+
+
+Version 0.9.2-beta.3
+- Bestätigte Boss-Siege in Dungeons und Raids werden anhand von ENCOUNTER_END (Erfolg) oder BOSS_KILL erfasst.
+- Begegnungs-ID, Name, Instanz, Instanz-ID, Schwierigkeitsgrad, Gruppe, Zeitpunkt und Charakter bleiben im Ereignis; pro Instanz stehen Siege und letzter Sieg.
+- Beide Clientmeldungen für denselben Sieg werden zusammengeführt. Normale Kills und Niederlagen gelten nicht als Boss-Sieg.
+- Tagebuch und Statistik zeigen die Siege. Ältere Ereignisse werden nicht rückwirkend geraten.
+
+
+Version 0.9.2-beta.4 — Qualitätsrunde
+- Export und Import bewahren Bossstatistiken und Bossereignisse mit Instanz, Schwierigkeit und Gruppe; wiederholter Import erhöht Siegzähler nicht.
+- Ereignismetadaten für Instanzen, Stufen, Gebiete, Items und Fundknoten sowie der Kontinent des Ereignisortes bleiben erhalten.
+- Händlerfilter werden nur in Händler-/Lehreransichten angezeigt; die Warengruppe blendet Lehrer nicht aus.
+- Boss-Siege bleiben in dichten Monats-/Jahresrückblicken wichtige Ereignisse.
+- Versionsangaben in .toc, Core und Installationsanleitung sind konsistent.
+
+
+Version 0.9.2-beta.5 — Qualitätsprüfung des Bestands
+- Tages-, Sitzungs- und Periodentexte bewahren ihre einmal gewählten Varianten; Export/Import übernimmt Varianten und Phrase-Decks.
+- Export/Import bewahrt Profilstatistik, Filter/Ansicht, Karteneinstellungen, letzte Position, Entdeckungsindizes und globale Einstellungen. Neue Exporte erhalten Sonderzeichen in Notizen verlustfrei; alte Backups bleiben einlesbar.
+- Fundorte aus bloßen Taschenbeobachtungen werden nicht als Beuteort gezeigt. Verborgene/archivierte Notizen fehlen in Ortslisten. Ältere echte Funde bleiben anhand belegter Daten sichtbar.
+- Ortstexte ohne Unterzone, Lehrer-/Händlersuche und Kartenöffnung bei mehreren Fundorten korrigiert. NPC-Aufzeichnungsschalter beeinflusst Gegenstandserfassung nicht mehr.
+- Ungültige Einzelwerte in SavedVariables werden gesichert, ohne gültige Einträge desselben Profils zu blockieren.

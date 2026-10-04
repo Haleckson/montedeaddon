@@ -1,0 +1,18 @@
+Forever Chronicle - Custom License
+Copyright (c) 2026 Kevin Pawlak. All rights reserved.
+
+Permission is granted to download and use this addon free of charge with
+World of Warcraft for personal, non-commercial gameplay.
+
+The source code is intentionally visible as required by Blizzard's World of
+Warcraft User Interface Add-On Development Policy. Visibility does not grant
+permission to sell, relicense, rebrand, republish, redistribute, or create a
+public derivative release without prior written permission from Kevin Pawlak.
+
+Private modifications for personal use are allowed. Contributions may be
+submitted to the project owner, but are not accepted into an official release
+unless explicitly approved.
+
+This addon is provided "as is", without warranty of any kind. World of
+Warcraft and Blizzard Entertainment are trademarks of their respective owner.
+This project is not affiliated with or endorsed by Blizzard Entertainment.

@@ -1,0 +1,168 @@
+local addonName,ns=...
+if type(ns)~="table"then
+ns={}
+end
+
+local Theme=ns.Theme or require("WhisperMessenger.UI.Theme")
+local UIHelpers=ns.UIHelpers or require("WhisperMessenger.UI.Helpers")
+local Localization=ns.Localization or require("WhisperMessenger.Locale.Localization")
+local DeliveryStatus=ns.ChatBubbleDeliveryStatus or require("WhisperMessenger.UI.ChatBubble.DeliveryStatus")
+local setFontObject=UIHelpers.setFontObject
+local setTextColor=UIHelpers.setTextColor
+
+local SenderLabel={}
+
+local function defaultOpenPlayerMenu(message,anchor)
+local PM=ns.ChatBubblePlayerMenu
+if type(PM)~="table"or type(PM.Open)~="function"then
+return false
+end
+return PM.Open(message,anchor)
+end
+
+local function playerMenuOnMouseUp(self,button)
+if button~="RightButton"then
+return
+end
+local opener=self._wmPlayerMenuOpener
+if type(opener)=="function"then
+opener(self._wmPlayerMenuMessage,self)
+end
+end
+
+local function attachPlayerMenuHandler(frame,message,opener)
+if type(frame.EnableMouse)~="function"or type(frame.SetScript)~="function"then
+return
+end
+frame._wmPlayerMenuMessage=message
+frame._wmPlayerMenuOpener=opener
+frame:EnableMouse(true)
+frame:SetScript("OnMouseUp",playerMenuOnMouseUp)
+end
+
+
+
+
+
+local function ensureFontString(frame,cacheKey)
+local fs=frame[cacheKey]
+if not fs then
+fs=frame:CreateFontString(nil,"OVERLAY")
+frame[cacheKey]=fs
+end
+fs:ClearAllPoints()
+if fs.Show then
+fs:Show()
+end
+return fs
+end
+
+local function hideCached(frame,cacheKey)
+local fs=frame[cacheKey]
+if fs and fs.Hide then
+fs:Hide()
+end
+end
+
+function SenderLabel.CreateSenderLabel(factory,contentFrame,message,paneWidth,yOffset,options)
+options=options or{}
+local frame=factory.CreateFrame("Frame",nil,contentFrame)
+frame:SetSize(paneWidth,16)
+frame:ClearAllPoints()
+
+local nameFS=ensureFontString(frame,"_wmSenderNameFS")
+setFontObject(nameFS,Theme.FONTS.message_time)
+setTextColor(nameFS,Theme.COLORS.text_secondary)
+
+local timeStr=""
+if ns.TimeFormat and ns.TimeFormat.MessageTime then
+timeStr=ns.TimeFormat.MessageTime(message.sentAt)or""
+end
+local timeFS=ensureFontString(frame,"_wmSenderTimeFS")
+setFontObject(timeFS,Theme.FONTS.message_time)
+setTextColor(timeFS,Theme.COLORS.text_timestamp)
+timeFS:SetText(timeStr)
+
+if message.direction=="out"then
+nameFS:SetText(Localization.Text("You"))
+
+
+
+
+local attachedCharname=false
+if type(message.senderName)=="string"and message.senderName~=""then
+local currentPlayerName
+if type(_G.UnitName)=="function"then
+local ok,name=pcall(_G.UnitName,"player")
+if ok and type(name)=="string"and name~=""then
+currentPlayerName=name
+end
+end
+if currentPlayerName and currentPlayerName~=message.senderName then
+local charnameFS=ensureFontString(frame,"_wmSenderCharnameFS")
+setFontObject(charnameFS,Theme.FONTS.message_time)
+setTextColor(charnameFS,Theme.TAG_GOLD)
+charnameFS:SetText("- "..message.senderName)
+charnameFS:SetPoint("RIGHT",frame,"RIGHT",-Theme.LAYOUT.MESSAGE_EDGE_INSET,0)
+nameFS:SetPoint("RIGHT",charnameFS,"LEFT",-4,0)
+attachedCharname=true
+end
+end
+if not attachedCharname then
+hideCached(frame,"_wmSenderCharnameFS")
+nameFS:SetPoint("RIGHT",frame,"RIGHT",-Theme.LAYOUT.MESSAGE_EDGE_INSET,0)
+end
+
+
+hideCached(frame,"_wmSenderTagFS")
+timeFS:SetPoint("RIGHT",nameFS,"LEFT",-Theme.LAYOUT.MESSAGE_TIMESTAMP_GAP,0)
+
+
+local hasStatus=DeliveryStatus.ApplyHeader(frame,message,timeFS,options)
+if options.showSeen and not hasStatus then
+local seenFS=ensureFontString(frame,"_wmSenderSeenFS")
+setFontObject(seenFS,Theme.FONTS.message_time)
+setTextColor(seenFS,Theme.COLORS.online or Theme.COLORS.text_secondary)
+seenFS:SetText(Localization.Text("Seen"))
+seenFS:SetPoint("RIGHT",timeFS,"LEFT",-Theme.LAYOUT.MESSAGE_TIMESTAMP_GAP,0)
+else
+hideCached(frame,"_wmSenderSeenFS")
+end
+frame:SetPoint("TOPRIGHT",contentFrame,"TOPRIGHT",0,-yOffset)
+else
+hideCached(frame,"_wmSenderSeenFS")
+DeliveryStatus.Hide(frame)
+local displayName=message.playerName or message.senderDisplayName or""
+nameFS:SetText(displayName)
+nameFS:SetPoint("LEFT",frame,"LEFT",Theme.LAYOUT.MESSAGE_EDGE_INSET,0)
+
+
+
+hideCached(frame,"_wmSenderCharnameFS")
+
+
+local channelAnchor=nameFS
+if message.channelLabel and message.channelLabel~=""then
+local tagFS=ensureFontString(frame,"_wmSenderTagFS")
+setFontObject(tagFS,Theme.FONTS.message_time)
+setTextColor(tagFS,Theme.TAG_GOLD)
+tagFS:SetText("- "..Localization.Text("via ")..Localization.Text(message.channelLabel))
+tagFS:SetPoint("LEFT",nameFS,"RIGHT",4,0)
+channelAnchor=tagFS
+else
+hideCached(frame,"_wmSenderTagFS")
+end
+
+timeFS:SetPoint("LEFT",channelAnchor,"RIGHT",Theme.LAYOUT.MESSAGE_TIMESTAMP_GAP,0)
+frame:SetPoint("TOPLEFT",contentFrame,"TOPLEFT",0,-yOffset)
+end
+
+if message.direction=="in"then
+attachPlayerMenuHandler(frame,message,options.openPlayerMenu or defaultOpenPlayerMenu)
+end
+
+return{frame=frame,height=18}
+end
+
+ns.ChatBubbleSenderLabel=SenderLabel
+return SenderLabel

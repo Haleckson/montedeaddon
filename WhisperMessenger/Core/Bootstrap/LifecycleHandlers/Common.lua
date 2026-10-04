@@ -1,0 +1,53 @@
+local addonName,ns=...
+if type(ns)~="table"then
+ns={}
+end
+
+local Localization=ns.Localization or(type(require)=="function"and require("WhisperMessenger.Locale.Localization"))or nil
+local function L(key)
+return Localization and Localization.Text(key)or key
+end
+local QueuedSends=ns.BootstrapQueuedSends or require("WhisperMessenger.Core.Bootstrap.QueuedSends")
+local Common={}
+
+Common.COMPETITIVE_NOTICE="Whispers are paused in competitive content. Messages will resume when you leave."
+
+function Common.refreshRuntimeWindow(Bootstrap)
+if Bootstrap.runtime and Bootstrap.runtime.refreshWindow then
+Bootstrap.runtime.refreshWindow()
+end
+end
+
+function Common.scheduleAfter(delay,callback)
+if type(_G.C_Timer)=="table"and type(_G.C_Timer.After)=="function"then
+_G.C_Timer.After(delay,callback)
+return true
+end
+
+return false
+end
+
+function Common.notifyCompetitiveState(Bootstrap)
+local isActive=Bootstrap._inCompetitiveContent==true or Bootstrap._inMythicContent==true or Bootstrap._inEncounter==true
+
+
+
+if Bootstrap.runtime and not Bootstrap._inMythicContent then
+if isActive then
+Bootstrap.runtime.messagingNotice=L(Common.COMPETITIVE_NOTICE)
+else
+Bootstrap.runtime.messagingNotice=nil
+end
+end
+
+if type(Bootstrap.onCompetitiveStateChanged)=="function"then
+Bootstrap.onCompetitiveStateChanged(isActive)
+end
+
+if Bootstrap.runtime then
+QueuedSends.OnLockStateChanged(Bootstrap.runtime)
+end
+end
+
+ns.BootstrapLifecycleHandlersCommon=Common
+return Common

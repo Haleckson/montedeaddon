@@ -1,0 +1,5402 @@
+--[[
+    Horizon Suite - Vista - Core
+    Cinematic square minimap with zone text, coordinates, time, instance difficulty, mail, tracking, button collector.
+    Supports full options: map size, border, typography, visibility, button drawer modes, per-addon filtering.
+]]
+
+local addon = _G.HorizonSuite
+if not addon then return end
+local L = addon.L
+addon.Vista = addon.Vista or {}
+local Vista = addon.Vista
+
+-- ============================================================================
+-- DEFAULTS / CONSTANTS
+-- ============================================================================
+
+local FONT_PATH_DEFAULT = "Fonts\\FRIZQT__.TTF"
+local ZONE_SIZE_DEFAULT   = 12
+local COORD_SIZE_DEFAULT  = 10
+local TIME_SIZE_DEFAULT   = 10
+local PERF_SIZE_DEFAULT   = 10
+
+local BORDER_COLOR_DEFAULT  = { 1, 1, 1, 0.15 }
+local ZONE_COLOR_DEFAULT    = { 1, 1, 1 }
+local COORD_COLOR_DEFAULT   = { 0.55, 0.65, 0.75 }
+local DIFF_COLOR            = { 0.55, 0.65, 0.75 }
+local DIFF_SIZE             = 10
+
+local SHADOW_A  = 0.8
+
+local MAP_SIZE_DEFAULT = 200
+local MINIMAP_BASE_SIZE = 256  -- Blizzard's minimap texture size; we scale this to vistaMapSize
+
+local BTN_GAP  = 4
+
+local FADE_DUR       = 0.20
+local COORD_THROTTLE = 0.25
+local TIME_THROTTLE  = 1.0
+local PERF_THROTTLE  = 0.5
+
+local PULSE_MIN   = 0.40
+local PULSE_MAX   = 1.00
+local PULSE_SPEED = 2.0
+
+local DEFAULT_POINT    = "TOPRIGHT"
+local DEFAULT_RELPOINT = "TOPRIGHT"
+local DEFAULT_X        = -20
+local DEFAULT_Y        = -20
+
+-- Saved difficulty overlay positions from builds before difficulty anchored to Minimap (not zone text) are invalid.
+local VISTA_DIFF_LAYOUT_VERSION = 2
+
+-- Sentinel value meaning "use the global font" for per-element font pickers
+local FONT_USE_GLOBAL = "__global__"
+local DRAWER_ICON_DEFAULT = "Interface\\MINIMAP\\TRACKING\\Recycle"
+
+-- Button modes
+local BTN_MODE_MOUSEOVER  = "mouseover"
+local BTN_MODE_RIGHTCLICK = "rightclick"
+local BTN_MODE_DRAWER     = "drawer"
+
+local function easeOut(t) return 1 - (1 - t) * (1 - t) end
+
+-- Proxy frame for taint-free Minimap manipulation
+local proxy = CreateFrame("Frame")
+
+-- ============================================================================
+-- DB HELPERS
+-- ============================================================================
+
+local function DB(key, default)
+    if addon.GetDB then return addon.GetDB(key, default) end
+    return default
+end
+
+local function SetDB(key, value)
+    if addon.SetDB then addon.SetDB(key, value) end
+end
+
+local function GetMapSize() return tonumber(DB("vistaMapSize", MAP_SIZE_DEFAULT)) or MAP_SIZE_DEFAULT end
+local function GetBorderShow()  return DB("vistaBorderShow", true) end
+local function GetBorderW()     return tonumber(DB("vistaBorderWidth", 1)) or 1 end
+-- Minimap border: DB stores full RGBA. With class colour on, use class RGB scaled by picker RGB (white = full class)
+-- and picker alpha so Vista → Border color opacity always applies.
+local function GetBorderColor()
+    local br = tonumber(DB("vistaBorderColorR", BORDER_COLOR_DEFAULT[1])) or BORDER_COLOR_DEFAULT[1]
+    local bg = tonumber(DB("vistaBorderColorG", BORDER_COLOR_DEFAULT[2])) or BORDER_COLOR_DEFAULT[2]
+    local bb = tonumber(DB("vistaBorderColorB", BORDER_COLOR_DEFAULT[3])) or BORDER_COLOR_DEFAULT[3]
+    local ba = tonumber(DB("vistaBorderColorA", BORDER_COLOR_DEFAULT[4])) or BORDER_COLOR_DEFAULT[4]
+    local cc = addon.GetVistaClassColor and addon.GetVistaClassColor()
+    if cc then
+        return cc[1] * br, cc[2] * bg, cc[3] * bb, ba
+    end
+    return br, bg, bb, ba
+end
+
+-- Resolve a per-element font path, falling back to global or the hard default.
+-- Always pipes through addon.ResolveFontPath() so LSM keys (e.g. "Game Font",
+-- "Friz Quadrata TT") are converted to actual file paths before being passed
+-- to FontString:SetFont().
+local function ResolveFont(dbKey)
+    local global = addon.GetActiveGlobalFont and addon.GetActiveGlobalFont()
+    if global then return global end
+    local v = DB(dbKey, FONT_USE_GLOBAL)
+    if v == FONT_USE_GLOBAL or v == nil or v == "" then
+        -- Fall back to the addon global font setting (also may be an LSM key)
+        v = (addon.GetDB and addon.GetDB("fontPath", nil)) or nil
+    end
+    -- If we still have nothing, use the in-game default font path directly
+    if not v or v == "" or v == FONT_USE_GLOBAL then
+        return addon.GetDefaultFontPath and addon.GetDefaultFontPath() or FONT_PATH_DEFAULT
+    end
+    -- ResolveFontPath converts LSM keys → real file paths; passes real paths through unchanged
+    if addon.ResolveFontPath then
+        local resolved = addon.ResolveFontPath(v)
+        if resolved and resolved ~= "" then return resolved end
+    end
+    -- Last resort: if it's already a path (contains slashes), use as-is
+    if v:find("\\") or v:find("/") then return v end
+    return addon.GetDefaultFontPath and addon.GetDefaultFontPath() or FONT_PATH_DEFAULT
+end
+
+-- All getter functions in one table (saves ~45 top-level locals)
+local G = {}
+do
+    local DIFF_COLOR_KEYS = {
+        mythic           = { 0.64, 0.21, 0.93 },
+        heroic           = { 1.00, 0.12, 0.12 },
+        normal           = { 0.12, 0.83, 0.12 },
+        looking_for_raid = { 0.00, 0.70, 1.00 },
+    }
+    local PANEL_BG_DEFAULT     = { 0.08, 0.08, 0.12, 0.95 }
+    local PANEL_BORDER_DEFAULT = { 0.3, 0.4, 0.6, 0.7 }
+    local MASK_SQUARE_V   = "Interface\\ChatFrame\\ChatFrameBackground"
+    local MASK_CIRCULAR_V = 186178
+    local BTN_DEFAULTS = { tracking=22, calendar=22, teleport=22, queue=22, landing=36, mail=20, craftingOrder=20, addon=26 }
+
+    -- Font / size
+    G.ZoneFont   = function() return ResolveFont("vistaZoneFontPath") end
+    G.ZoneSize   = function() return tonumber(DB("vistaZoneFontSize",  ZONE_SIZE_DEFAULT))  or ZONE_SIZE_DEFAULT end
+    G.CoordFont  = function() return ResolveFont("vistaCoordFontPath") end
+    G.CoordSize  = function() return tonumber(DB("vistaCoordFontSize", COORD_SIZE_DEFAULT)) or COORD_SIZE_DEFAULT end
+    G.TimeFont   = function() return ResolveFont("vistaTimeFontPath") end
+    G.TimeSize   = function() return tonumber(DB("vistaTimeFontSize",  TIME_SIZE_DEFAULT))  or TIME_SIZE_DEFAULT end
+    G.PerfFont   = function() return ResolveFont("vistaPerfFontPath") end
+    G.PerfSize   = function() return tonumber(DB("vistaPerfFontSize",  PERF_SIZE_DEFAULT))  or PERF_SIZE_DEFAULT end
+    G.DiffFont   = function() return ResolveFont("vistaDiffFontPath") end
+    G.DiffSize   = function() return tonumber(DB("vistaDiffFontSize",  DIFF_SIZE)) or DIFF_SIZE end
+
+    -- Visibility toggles
+    G.ShowZone      = function() return DB("vistaShowZoneText",   true)  end
+    G.ShowCoord     = function() return DB("vistaShowCoordText",  true)  end
+    G.ShowTime      = function() return DB("vistaShowTimeText",   true) end
+    G.ShowPerf      = function() return DB("vistaShowPerfText",   false) end
+    G.TimeUseLocal  = function() return DB("vistaTimeUseLocal",   true) end
+    G.TimeUse24Hour = function() return DB("vistaTime24Hour",     false) end
+    G.ZoneDisplayMode = function() return DB("vistaZoneDisplayMode", "zone") end
+
+    -- Vertical positions
+    local function vpos(key) return (DB(key,"bottom") or "bottom")=="top" and "top" or "bottom" end
+    G.ZoneVerticalPos  = function() return vpos("vistaZoneVerticalPos")  end
+    G.CoordVerticalPos = function() return vpos("vistaCoordVerticalPos") end
+    G.TimeVerticalPos  = function() return vpos("vistaTimeVerticalPos")  end
+    G.PerfVerticalPos  = function() return vpos("vistaPerfVerticalPos")  end
+    G.DiffVerticalPos  = function() return vpos("vistaDiffVerticalPos")  end
+
+    -- Anchors
+    G.ZoneAnchors  = function() if G.ZoneVerticalPos()=="top"  then return "BOTTOM","TOP"         end return "TOP","BOTTOM"         end
+    G.CoordAnchors = function() if G.CoordVerticalPos()=="top" then return "BOTTOMRIGHT","TOPRIGHT" end return "TOPRIGHT","BOTTOMRIGHT" end
+    G.TimeAnchors  = function() if G.TimeVerticalPos()=="top"  then return "BOTTOMLEFT","TOPLEFT"  end return "TOPLEFT","BOTTOMLEFT"  end
+    G.PerfAnchors  = function() if G.PerfVerticalPos()=="top"  then return "BOTTOMRIGHT","TOPRIGHT" end return "TOPRIGHT","BOTTOMRIGHT" end
+    G.DiffAnchors  = function() if G.DiffVerticalPos()=="top"  then return "BOTTOM","TOP"         end return "TOP","BOTTOM"         end
+
+    -- Saved drag offsets
+    local DEFAULT_Y_BOTTOM, DEFAULT_Y_TOP = -6, 6
+    local DEFAULT_DIFF_Y_BOTTOM, DEFAULT_DIFF_Y_TOP = -28, 28
+    G.ElemX      = function(k,d) return tonumber(DB("vistaEX_"..k, d)) or d end
+    G.ElemY      = function(k,d) return tonumber(DB("vistaEY_"..k, d)) or d end
+    G.ElemLocked = function(k)   return DB("vistaLocked_"..k, false) end
+    G.ZoneOffsetX  = function() return G.ElemX("zone",  0) end
+    G.ZoneOffsetY  = function() local c=G.ElemY("zone",nil);  if c~=nil then return c end return G.ZoneVerticalPos()=="top"  and DEFAULT_Y_TOP or DEFAULT_Y_BOTTOM end
+    G.CoordOffsetX = function() return G.ElemX("coord", 0) end
+    G.CoordOffsetY = function() local c=G.ElemY("coord",nil); if c~=nil then return c end return G.CoordVerticalPos()=="top" and DEFAULT_Y_TOP or DEFAULT_Y_BOTTOM end
+    G.TimeOffsetX  = function() return G.ElemX("time",  0) end
+    G.TimeOffsetY  = function() local c=G.ElemY("time", nil);  if c~=nil then return c end return G.TimeVerticalPos()=="top"  and DEFAULT_Y_TOP or DEFAULT_Y_BOTTOM end
+    G.PerfOffsetX  = function() return G.ElemX("perf",  0) end
+    G.PerfOffsetY  = function() local c=G.ElemY("perf", nil);  if c~=nil then return c end return G.PerfVerticalPos()=="top" and DEFAULT_Y_TOP or -22 end
+    G.DiffOffsetX  = function() return G.ElemX("diff",  0) end
+    G.DiffOffsetY  = function() local c=G.ElemY("diff", nil);  if c~=nil then return c end return G.DiffVerticalPos()=="top" and DEFAULT_DIFF_Y_TOP or DEFAULT_DIFF_Y_BOTTOM end
+
+    -- Button modes
+    G.ButtonMode          = function() return DB("vistaButtonMode",         BTN_MODE_RIGHTCLICK) end
+    G.ButtonHandleButtons = function() return DB("vistaHandleAddonButtons", true) end
+    G.ButtonDrawerLocked  = function() return DB("vistaDrawerButtonLocked", false) end
+    G.DrawerIcon           = function()
+        local v = DB("vistaDrawerIcon", DRAWER_ICON_DEFAULT)
+        if type(v) == "number" then return v end
+        if type(v) == "string" then
+            v = v:gsub("^%s+", ""):gsub("%s+$", "")
+            if v == "" then return DRAWER_ICON_DEFAULT end
+            return tonumber(v) or v
+        end
+        return DRAWER_ICON_DEFAULT
+    end
+    G.ButtonWhitelist     = function() return DB("vistaButtonWhitelist",    nil) end
+    G.IsButtonManaged     = function(n) return DB("vistaButtonManaged_" .. n, true) end
+    G.ButtonSortAlpha     = function() return DB("vistaButtonSortAlpha",    false) end
+    G.CoordPrecision        = function() return tonumber(DB("vistaCoordPrecision", 1)) or 1 end
+    G.BtnLayoutCols         = function() return tonumber(DB("vistaBtnLayoutCols",  5)) or 5 end
+    G.BtnLayoutDir          = function() return DB("vistaBtnLayoutDir", "right") end
+    G.MouseoverLocked       = function() return DB("vistaMouseoverLocked", true)  end
+    G.MouseoverBarX         = function() return tonumber(DB("vistaMouseoverBarX", nil)) end
+    G.MouseoverBarY         = function() return tonumber(DB("vistaMouseoverBarY", nil)) end
+    G.MouseoverBarVisible   = function() return DB("vistaMouseoverBarVisible", false) end
+    G.MouseoverCloseDelay   = function() return tonumber(DB("vistaMouseoverCloseDelay", 0)) or 0 end
+    G.RightClickCloseDelay  = function() return tonumber(DB("vistaRightClickCloseDelay", 2.5)) or 2.5 end
+    G.DrawerCloseDelay      = function() return tonumber(DB("vistaDrawerCloseDelay", 0)) or 0 end
+    G.MailBlink             = function() return DB("vistaMailBlink", true) end
+    G.CraftingOrderBlink    = function() return DB("vistaCraftingOrderBlink", true) end
+    G.BarBgColor            = function()
+        local BAR_BG_DEFAULT = { 0.08, 0.08, 0.12, 0 }
+        return tonumber(DB("vistaBarBgR", BAR_BG_DEFAULT[1])) or BAR_BG_DEFAULT[1],
+               tonumber(DB("vistaBarBgG", BAR_BG_DEFAULT[2])) or BAR_BG_DEFAULT[2],
+               tonumber(DB("vistaBarBgB", BAR_BG_DEFAULT[3])) or BAR_BG_DEFAULT[3],
+               tonumber(DB("vistaBarBgA", BAR_BG_DEFAULT[4])) or BAR_BG_DEFAULT[4]
+    end
+    G.BarBorderShow         = function() return DB("vistaBarBorderShow", false) end
+    G.BarBorderColor        = function()
+        local BAR_BORDER_DEFAULT = { 0.3, 0.4, 0.6, 0.7 }
+        local bbr = tonumber(DB("vistaBarBorderR", BAR_BORDER_DEFAULT[1])) or BAR_BORDER_DEFAULT[1]
+        local bbg = tonumber(DB("vistaBarBorderG", BAR_BORDER_DEFAULT[2])) or BAR_BORDER_DEFAULT[2]
+        local bbb = tonumber(DB("vistaBarBorderB", BAR_BORDER_DEFAULT[3])) or BAR_BORDER_DEFAULT[3]
+        local a = tonumber(DB("vistaBarBorderA", BAR_BORDER_DEFAULT[4])) or BAR_BORDER_DEFAULT[4]
+        local cc = addon.GetVistaClassColor and addon.GetVistaClassColor()
+        if cc then
+            return cc[1] * bbr, cc[2] * bbg, cc[3] * bbb, a
+        end
+        return bbr, bbg, bbb, a
+    end
+    G.RightClickLocked      = function() return DB("vistaRightClickLocked", true) end
+    G.RightClickPanelX      = function() return tonumber(DB("vistaRightClickPanelX", nil)) end
+    G.RightClickPanelY      = function() return tonumber(DB("vistaRightClickPanelY", nil)) end
+
+    -- Shape / mask
+    G.Circular    = function() return DB("vistaCircular", false) end
+    G.MaskSquare   = MASK_SQUARE_V
+    G.MaskCircular = MASK_CIRCULAR_V
+
+    -- Per-button visibility / mouseover
+    G.ShowTracking      = function() return DB("vistaShowTracking",      true)  end
+    G.ShowCalendar      = function() return DB("vistaShowCalendar",      true)  end
+    G.ShowTeleport      = function() return DB("vistaShowTeleport",      true)  end
+    G.ShowLanding       = function() return DB("vistaShowLanding",       true)  end
+    -- Defaults mirror VISTA_DEFAULTS (all true); GetDB returns the passed default
+    -- when the key is unwritten, so a false here would override the options panel
+    -- and leave a mouseover-only button stuck permanently visible.
+    G.MouseoverTracking = function() return DB("vistaMouseoverTracking", true) end
+    G.MouseoverCalendar = function() return DB("vistaMouseoverCalendar", true) end
+    G.MouseoverTeleport = function() return DB("vistaMouseoverTeleport", true) end
+    -- Landing defaults false: Omnium Folio / expansion pulses must stay visible.
+    G.MouseoverLanding  = function() return DB("vistaMouseoverLanding",  false) end
+
+    -- Button sizes
+    G.TrackingBtnSize = function() return tonumber(DB("vistaTrackingBtnSize", BTN_DEFAULTS.tracking)) or BTN_DEFAULTS.tracking end
+    G.CalendarBtnSize = function() return tonumber(DB("vistaCalendarBtnSize", BTN_DEFAULTS.calendar)) or BTN_DEFAULTS.calendar end
+    G.TeleportBtnSize = function() return tonumber(DB("vistaTeleportBtnSize", BTN_DEFAULTS.teleport)) or BTN_DEFAULTS.teleport end
+    G.QueueBtnSize    = function() return tonumber(DB("vistaQueueBtnSize",    BTN_DEFAULTS.queue))    or BTN_DEFAULTS.queue    end
+    G.LandingBtnSize  = function() return tonumber(DB("vistaLandingBtnSize",  BTN_DEFAULTS.landing))  or BTN_DEFAULTS.landing  end
+    G.MailIconSize    = function() return tonumber(DB("vistaMailIconSize",     BTN_DEFAULTS.mail))     or BTN_DEFAULTS.mail     end
+    G.CraftingOrderIconSize = function() return tonumber(DB("vistaCraftingOrderIconSize", BTN_DEFAULTS.craftingOrder)) or BTN_DEFAULTS.craftingOrder end
+    G.AddonBtnSize    = function() return tonumber(DB("vistaAddonBtnSize",     BTN_DEFAULTS.addon))    or BTN_DEFAULTS.addon    end
+    G.ProxyBtnSizeForKey = function(k)
+        if k=="tracking" then return G.TrackingBtnSize()
+        elseif k=="calendar" then return G.CalendarBtnSize()
+        elseif k=="teleport" then return G.TeleportBtnSize()
+        elseif k=="queue"    then return G.QueueBtnSize()
+        elseif k=="landing"  then return G.LandingBtnSize()
+        else return BTN_DEFAULTS.tracking end
+    end
+
+    -- Colors (class colour when enabled: coord/time/perf labels; minimap border via GetBorderColor; bar + panel borders via BarBorderColor/PanelBorderColor. Zone name and FPS/MS numbers stay configured.)
+    local function GetVistaClassColor()
+        local cc = addon.GetVistaClassColor and addon.GetVistaClassColor()
+        if cc then return cc[1], cc[2], cc[3] end
+        return nil
+    end
+    G.ZoneColor  = function() return tonumber(DB("vistaZoneColorR",  ZONE_COLOR_DEFAULT[1]))  or ZONE_COLOR_DEFAULT[1],  tonumber(DB("vistaZoneColorG",  ZONE_COLOR_DEFAULT[2]))  or ZONE_COLOR_DEFAULT[2],  tonumber(DB("vistaZoneColorB",  ZONE_COLOR_DEFAULT[3]))  or ZONE_COLOR_DEFAULT[3]  end
+    G.CoordColor = function() local r,g,b = GetVistaClassColor(); if r then return r,g,b end return tonumber(DB("vistaCoordColorR", COORD_COLOR_DEFAULT[1])) or COORD_COLOR_DEFAULT[1], tonumber(DB("vistaCoordColorG", COORD_COLOR_DEFAULT[2])) or COORD_COLOR_DEFAULT[2], tonumber(DB("vistaCoordColorB", COORD_COLOR_DEFAULT[3])) or COORD_COLOR_DEFAULT[3] end
+    G.TimeColor  = function() local r,g,b = GetVistaClassColor(); if r then return r,g,b end return tonumber(DB("vistaTimeColorR",  COORD_COLOR_DEFAULT[1])) or COORD_COLOR_DEFAULT[1], tonumber(DB("vistaTimeColorG",  COORD_COLOR_DEFAULT[2])) or COORD_COLOR_DEFAULT[2], tonumber(DB("vistaTimeColorB",  COORD_COLOR_DEFAULT[3])) or COORD_COLOR_DEFAULT[3] end
+    G.PerfColor   = function() return tonumber(DB("vistaPerfColorR",  COORD_COLOR_DEFAULT[1])) or COORD_COLOR_DEFAULT[1], tonumber(DB("vistaPerfColorG",  COORD_COLOR_DEFAULT[2])) or COORD_COLOR_DEFAULT[2], tonumber(DB("vistaPerfColorB",  COORD_COLOR_DEFAULT[3])) or COORD_COLOR_DEFAULT[3] end
+    G.PerfNumColor = function() local r,g,b = GetVistaClassColor(); if r then return r,g,b end return tonumber(DB("vistaPerfColorR",  COORD_COLOR_DEFAULT[1])) or COORD_COLOR_DEFAULT[1], tonumber(DB("vistaPerfColorG",  COORD_COLOR_DEFAULT[2])) or COORD_COLOR_DEFAULT[2], tonumber(DB("vistaPerfColorB",  COORD_COLOR_DEFAULT[3])) or COORD_COLOR_DEFAULT[3] end
+    G.DiffColor  = function() return tonumber(DB("vistaDiffColorR",  DIFF_COLOR[1])) or DIFF_COLOR[1], tonumber(DB("vistaDiffColorG", DIFF_COLOR[2])) or DIFF_COLOR[2], tonumber(DB("vistaDiffColorB", DIFF_COLOR[3])) or DIFF_COLOR[3] end
+    G.DiffLocked = function() return DB("vistaLocked_diff", false) end
+
+    G.PanelBgColor = function()
+        return tonumber(DB("vistaPanelBgR",PANEL_BG_DEFAULT[1])) or PANEL_BG_DEFAULT[1],
+               tonumber(DB("vistaPanelBgG",PANEL_BG_DEFAULT[2])) or PANEL_BG_DEFAULT[2],
+               tonumber(DB("vistaPanelBgB",PANEL_BG_DEFAULT[3])) or PANEL_BG_DEFAULT[3],
+               tonumber(DB("vistaPanelBgA",PANEL_BG_DEFAULT[4])) or PANEL_BG_DEFAULT[4]
+    end
+    G.PanelBorderColor = function()
+        local pr = tonumber(DB("vistaPanelBorderR", PANEL_BORDER_DEFAULT[1])) or PANEL_BORDER_DEFAULT[1]
+        local pg = tonumber(DB("vistaPanelBorderG", PANEL_BORDER_DEFAULT[2])) or PANEL_BORDER_DEFAULT[2]
+        local pb = tonumber(DB("vistaPanelBorderB", PANEL_BORDER_DEFAULT[3])) or PANEL_BORDER_DEFAULT[3]
+        local a = tonumber(DB("vistaPanelBorderA", PANEL_BORDER_DEFAULT[4])) or PANEL_BORDER_DEFAULT[4]
+        local cc = addon.GetVistaClassColor and addon.GetVistaClassColor()
+        if cc then
+            return cc[1] * pr, cc[2] * pg, cc[3] * pb, a
+        end
+        return pr, pg, pb, a
+    end
+
+    -- Per-difficulty color lookup
+    local function NormalizeDiffKey(name)
+        if not name then return nil end
+        return name:lower():gsub("%s+","_"):gsub("[^%w_]","")
+    end
+    G.DiffColorForName = function(diffName)
+        if not diffName then return G.DiffColor() end
+        local key = NormalizeDiffKey(diffName)
+        local fb = { G.DiffColor() }
+        local defs = DIFF_COLOR_KEYS[key] or fb
+        return tonumber(DB("vistaDiffColor_"..key.."_R", defs[1])) or defs[1],
+               tonumber(DB("vistaDiffColor_"..key.."_G", defs[2])) or defs[2],
+               tonumber(DB("vistaDiffColor_"..key.."_B", defs[3])) or defs[3]
+    end
+end
+
+-- Getter access: use G.* directly (not local aliases) to stay under WoW's 200 main-chunk locals limit.
+
+-- ============================================================================
+-- BLIZZARD CHROME STRIP
+-- ============================================================================
+
+local KillFrame, KillFrameObj, StripBlizzardChrome, SuppressZoomButtons, HookMinimapClusterChildrenShow
+do
+    local CHROME_KILL_LIST = {
+        "MinimapBorderTop", "MiniMapWorldMapButton",
+        "MinimapCompassTexture", "MinimapBackdrop", "MinimapNorthTag",
+        "MinimapZoneTextButton", "MiniMapInstanceDifficulty",
+        "MinimapBorder",
+        "MinimapZoomIn", "MinimapZoomOut",
+        "GameTimeFrame",
+        "AddonCompartmentFrame",
+    }
+
+    KillFrame = function(name)
+        local frame = _G[name]
+        if not frame then return end
+        pcall(function()
+            frame:Hide()
+            frame:SetAlpha(0)
+            frame.Show = function() end
+        end)
+    end
+
+    KillFrameObj = function(f)
+        if not f then return end
+        pcall(function()
+            f:Hide()
+            f:SetAlpha(0)
+            f.Show = function() end
+        end)
+    end
+
+    -- Permanently suppress Blizzard zoom buttons — minimap zoom is mouse wheel only.
+    SuppressZoomButtons = function()
+        pcall(function()
+            local function suppressBtn(btn)
+                if not btn then return end
+                btn:Hide(); btn:SetAlpha(0)
+                btn.Show = function() end
+                if hooksecurefunc and not btn._vistaZoomHooked then
+                    btn._vistaZoomHooked = true
+                    hooksecurefunc(btn, "SetPoint", function(self) self:SetAlpha(0) end)
+                    hooksecurefunc(btn, "Show",     function(self) self:SetAlpha(0) end)
+                end
+            end
+            suppressBtn(MinimapZoomIn);  suppressBtn(MinimapZoomOut)
+            suppressBtn(Minimap and Minimap.ZoomIn)
+            suppressBtn(Minimap and Minimap.ZoomOut)
+        end)
+    end
+
+    HookMinimapClusterChildrenShow = function()
+        if chromeSuppressHooked then return end
+        chromeSuppressHooked = true
+        pcall(function()
+            if not MinimapCluster then return end
+            for _, child in ipairs({ MinimapCluster:GetChildren() }) do
+                if child ~= Minimap then
+                    local cName = child:GetName()
+                    if not cName or not cName:find("^HorizonSuite") then
+                        if hooksecurefunc and not child._vistaShowHooked then
+                            child._vistaShowHooked = true
+                            pcall(function()
+                                hooksecurefunc(child, "Show", function(self) self:SetAlpha(0) end)
+                            end)
+                        end
+                    end
+                end
+            end
+            if MinimapCluster.BorderTop and hooksecurefunc and not MinimapCluster.BorderTop._vistaShowHooked then
+                MinimapCluster.BorderTop._vistaShowHooked = true
+                pcall(function() hooksecurefunc(MinimapCluster.BorderTop, "Show", function(self) self:SetAlpha(0) end) end)
+            end
+            if MinimapCluster.Tracking and hooksecurefunc and not MinimapCluster.Tracking._vistaShowHooked then
+                MinimapCluster.Tracking._vistaShowHooked = true
+                pcall(function() hooksecurefunc(MinimapCluster.Tracking, "Show", function(self) self:SetAlpha(0) end) end)
+                if MinimapCluster.Tracking.Background then
+                    pcall(function() hooksecurefunc(MinimapCluster.Tracking.Background, "Show", function(self) self:SetAlpha(0) end) end)
+                end
+            end
+        end)
+    end
+
+    StripBlizzardChrome = function()
+        for _, name in ipairs(CHROME_KILL_LIST) do KillFrame(name) end
+        SuppressZoomButtons()
+        pcall(function()
+            if not MinimapCluster then return end
+            -- CraftingOrderIcon is intentionally NOT in this list: Vista keeps the
+            -- native frame alive but invisible (see SuppressBlizzardCraftingOrder)
+            -- so that our proxy can mirror its Show/Hide state and delegate clicks.
+            local subFrameNames = {
+                "BorderTop", "Tracking", "ZoneTextButton",
+                "InstanceDifficulty", "MailFrame",
+                "GuildInstanceDifficulty", "DungeonDifficulty",
+                "ZoomIn", "ZoomOut",
+            }
+            for _, key in ipairs(subFrameNames) do
+                KillFrameObj(MinimapCluster[key])
+                if MinimapCluster[key] then
+                    for _, subVal in pairs(MinimapCluster[key]) do
+                        if type(subVal) == "table" and subVal.Hide then KillFrameObj(subVal) end
+                    end
+                end
+            end
+            -- CraftingOrderIcon stays alive: SuppressBlizzardCraftingOrder hooks
+            -- its Show/Hide/SetShown to mirror state into the Vista proxy. KillFrameObj
+            -- stomps Show with a no-op, which would silently break those hooks.
+            local craftingOrderNative = MinimapCluster.CraftingOrderIcon or _G.MiniMapCraftingOrderIcon
+            for _, child in ipairs({ MinimapCluster:GetChildren() }) do
+                if child ~= Minimap and child ~= craftingOrderNative then
+                    local cName = child:GetName()
+                    if not cName or not cName:find("^HorizonSuite") then
+                        KillFrameObj(child)
+                        for _, region in ipairs({ child:GetRegions() }) do
+                            pcall(function() region:Hide(); region:SetAlpha(0) end)
+                        end
+                        for _, grandchild in ipairs({ child:GetChildren() }) do KillFrameObj(grandchild) end
+                    end
+                end
+            end
+            for _, region in ipairs({ MinimapCluster:GetRegions() }) do
+                pcall(function() region:Hide(); region:SetAlpha(0) end)
+            end
+        end)
+        pcall(function()
+            for _, region in ipairs({ Minimap:GetRegions() }) do
+                if region then pcall(function() region:SetAlpha(0); region:Hide() end) end
+            end
+        end)
+        pcall(function()
+            Minimap:SetArchBlobRingScalar(0); Minimap:SetArchBlobRingAlpha(0)
+            Minimap:SetQuestBlobRingScalar(0); Minimap:SetQuestBlobRingAlpha(0)
+        end)
+        pcall(function()
+            if MinimapZoneText then MinimapZoneText:Hide(); MinimapZoneText:SetAlpha(0) end
+        end)
+    end
+end -- end chrome do-block
+
+-- ============================================================================
+-- STATE
+-- ============================================================================
+
+local decor, circularBorderFrame
+local borderTextures = {}
+local zoneText, zoneShadow, diffText, diffShadow
+local coordText, coordShadow, timeText, timeShadow
+local perf = {}  -- { num1, num1Sh, lbl1, lbl1Sh, num2, num2Sh, lbl2, lbl2Sh } (consolidated to stay under 200 locals)
+local mailFrame, mailPulsing, craftingOrderFrame, craftingOrderPulsing
+local collectorBar, barAnchor
+local collectedButtons, drawerPanelButtons = {}, {}
+local barAlpha, hoverTarget, hoverElapsed = 0, 0, 0
+local barCloseDelayElapsed = 0  -- tracks how long we've been "waiting to close"
+local barAnchorDragging = false -- true while the anchor is being dragged
+local barFlashTimer = nil  -- C_Timer handle for the "flash visible for positioning" effect
+local coordElapsed, timeElapsed, perfElapsed = 0, 0, 0
+local hookedButtons = {}
+local setParentHook, eventFrame
+local drawerButton, drawerPanel
+local drawerOpen = false
+local rightClickPanel, rightClickVisible = nil, false
+local defaultProxies = {}
+local queueAnchor  -- dedicated draggable anchor for QueueStatusButton
+local landingPageAnchor  -- draggable anchor for ExpansionLandingPageMinimapButton (Omnium Folio)
+local mailAnchor, craftingOrderAnchor  -- draggable anchors for mail + crafting-order indicators
+local vistaLastKnownZone, autoZoomTimer
+
+-- ============================================================================
+-- DRAGGABLE ELEMENT HELPER
+-- ============================================================================
+
+-- Compute the SetPoint offset that keeps `frame` centered at its currently
+-- dragged position when re-anchored as CENTER→Minimap CENTER. Works regardless
+-- of the frame's parent — some Vista draggables are UIParent children, others
+-- are parented under Minimap (via `decor`) which inherits the module's custom
+-- minimap scale. The offset is expressed in the frame's own local scale, which
+-- is exactly what SetPoint's offset parameters expect.
+local function ComputeMinimapCenterOffset(frame)
+    local mx, my = Minimap:GetCenter()
+    local bx, by = frame:GetCenter()
+    if not (mx and my and bx and by) then return nil, nil end
+    local mmScale = Minimap:GetEffectiveScale() or 1
+    local bScale  = frame:GetEffectiveScale() or 1
+    return (bx * bScale - mx * mmScale) / bScale,
+           (by * bScale - my * mmScale) / bScale
+end
+
+-- Makes `frame` draggable. On drag-stop saves the position as an offset
+-- relative to `relFrame` using anchors from `getAnchors()`.
+-- `getAnchors` is a function returning (anchorPoint, relPoint) for the current vertical position.
+-- `lockKey` is the DB key for the lock toggle. `xKey`/`yKey` are where we persist offsets.
+local function MakeDraggable(frame, lockKey, xKey, yKey, getAnchors, relFrame)
+    frame:SetMovable(true)
+    frame:SetClampedToScreen(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function(self)
+        if DB("vistaLocked_" .. lockKey, false) then return end
+        if InCombatLockdown() then return end
+        self:StartMoving()
+    end)
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local anchorPoint, relPoint = getAnchors()
+        -- Compute offset relative to relFrame so the element keeps following it.
+        -- After StopMovingOrSizing, WoW re-anchors to BOTTOMLEFT/UIParent.
+        local sx, sy = self:GetCenter()
+        local rx, ry = relFrame:GetCenter()
+        local relW, relH = relFrame:GetSize()
+        local selfW, selfH = self:GetSize()
+        local ox, oy
+        -- Bottom position (element below minimap)
+        if anchorPoint == "TOP" and relPoint == "BOTTOM" then
+            ox = sx - rx
+            oy = (sy + selfH / 2) - (ry - relH / 2)
+        elseif anchorPoint == "TOPRIGHT" and relPoint == "BOTTOMRIGHT" then
+            ox = (sx + selfW / 2) - (rx + relW / 2)
+            oy = (sy + selfH / 2) - (ry - relH / 2)
+        elseif anchorPoint == "TOPLEFT" and relPoint == "BOTTOMLEFT" then
+            ox = (sx - selfW / 2) - (rx - relW / 2)
+            oy = (sy + selfH / 2) - (ry - relH / 2)
+        -- Top position (element above minimap)
+        elseif anchorPoint == "BOTTOM" and relPoint == "TOP" then
+            ox = sx - rx
+            oy = (sy - selfH / 2) - (ry + relH / 2)
+        elseif anchorPoint == "BOTTOMRIGHT" and relPoint == "TOPRIGHT" then
+            ox = (sx + selfW / 2) - (rx + relW / 2)
+            oy = (sy - selfH / 2) - (ry + relH / 2)
+        elseif anchorPoint == "BOTTOMLEFT" and relPoint == "TOPLEFT" then
+            ox = (sx - selfW / 2) - (rx - relW / 2)
+            oy = (sy - selfH / 2) - (ry + relH / 2)
+        else
+            ox = sx - rx
+            oy = sy - ry
+        end
+        SetDB("vistaEX_" .. xKey, ox)
+        SetDB("vistaEY_" .. yKey, oy)
+        self:ClearAllPoints()
+        self:SetPoint(anchorPoint, relFrame, relPoint, ox, oy)
+    end)
+end
+
+-- ============================================================================
+-- AUTO ZOOM
+-- ============================================================================
+
+
+local function ScheduleAutoZoom()
+    -- Cancel any in-flight timer first so re-enable after 0 works correctly.
+    if autoZoomTimer then
+        autoZoomTimer:Cancel()
+        autoZoomTimer = nil
+    end
+    local autoZoom = tonumber(DB("vistaAutoZoom", 5)) or 0
+    if autoZoom <= 0 then return end
+    autoZoomTimer = C_Timer.NewTimer(autoZoom, function()
+        autoZoomTimer = nil
+        for _ = 1, Minimap:GetZoom() or 0 do
+            if Minimap_ZoomOutClick then Minimap_ZoomOutClick()
+            elseif Minimap.ZoomOut then Minimap.ZoomOut:Click() end
+        end
+    end)
+end
+Vista.ScheduleAutoZoom = ScheduleAutoZoom
+
+-- ============================================================================
+-- MINIMAP SETUP
+-- ============================================================================
+
+local function SetupMinimap()
+    local pt    = DB("vistaPoint",    nil)
+    local rp    = DB("vistaRelPoint", nil)
+    local vx    = DB("vistaX",        nil)
+    local vy    = DB("vistaY",        nil)
+    local scale = DB("vistaScale",    1.0)
+
+    local sz = GetMapSize()
+    local mapScale = sz / MINIMAP_BASE_SIZE
+    Minimap:SetSize(MINIMAP_BASE_SIZE, MINIMAP_BASE_SIZE)
+    Minimap:SetMaskTexture(G.Circular() and G.MaskCircular or G.MaskSquare)
+
+    if pt then
+        proxy.ClearAllPoints(Minimap)
+        proxy.SetPoint(Minimap, pt, UIParent, rp or pt, vx or 0, vy or 0)
+    else
+        proxy.ClearAllPoints(Minimap)
+        proxy.SetPoint(Minimap, DEFAULT_POINT, UIParent, DEFAULT_RELPOINT, DEFAULT_X, DEFAULT_Y)
+    end
+
+    if hooksecurefunc and not Vista._setPointHooked then
+        Vista._setPointHooked = true
+        hooksecurefunc(Minimap, "SetPoint", function()
+            if not addon:IsModuleEnabled("vista") then return end
+            local dpt = DB("vistaPoint", nil)
+            if dpt then
+                proxy.ClearAllPoints(Minimap)
+                proxy.SetPoint(Minimap, dpt, UIParent, DB("vistaRelPoint", dpt) or dpt, DB("vistaX", 0) or 0, DB("vistaY", 0) or 0)
+            end
+        end)
+    end
+
+    local moduleScale = (addon.GetModuleScale and addon.GetModuleScale("vista")) or 1
+    proxy.SetScale(Minimap, (scale or 1.0) * moduleScale * mapScale)
+    Minimap:Show()
+    if Vista.ApplyClusterOpacity then Vista.ApplyClusterOpacity(true) end
+end
+
+-- ============================================================================
+-- BORDER HELPERS
+-- ============================================================================
+
+local function ApplyBorderTextures()
+    if not decor then return end
+    local show       = GetBorderShow()
+    local bw         = GetBorderW()
+    local r, g, b, a = GetBorderColor()
+    local isCircular = G.Circular()
+
+    if isCircular and circularBorderFrame then
+        -- Hide the four rectangular border lines
+        for _, tex in pairs(borderTextures) do
+            if tex then tex:Hide() end
+        end
+        -- Show/update the circular ring border
+        if show then
+            local sz = GetMapSize()
+            circularBorderFrame:SetSize(sz + bw * 2, sz + bw * 2)
+            circularBorderFrame:ClearAllPoints()
+            circularBorderFrame:SetPoint("CENTER", Minimap, "CENTER", 0, 0)
+            circularBorderFrame._tex:SetColorTexture(r, g, b, a)
+            circularBorderFrame:Show()
+        else
+            circularBorderFrame:Hide()
+        end
+        return
+    end
+
+    -- Square mode: hide circular ring, show rect borders
+    if circularBorderFrame then circularBorderFrame:Hide() end
+
+    for _, tex in pairs(borderTextures) do
+        if tex then
+            tex:SetColorTexture(r, g, b, a)
+            if show then tex:Show() else tex:Hide() end
+        end
+    end
+
+    if borderTextures.top then
+        borderTextures.top:ClearAllPoints()
+        borderTextures.top:SetHeight(bw)
+        borderTextures.top:SetPoint("TOPLEFT",  Minimap, "TOPLEFT",  0,  bw)
+        borderTextures.top:SetPoint("TOPRIGHT", Minimap, "TOPRIGHT", 0,  bw)
+    end
+    if borderTextures.bottom then
+        borderTextures.bottom:ClearAllPoints()
+        borderTextures.bottom:SetHeight(bw)
+        borderTextures.bottom:SetPoint("BOTTOMLEFT",  Minimap, "BOTTOMLEFT",  0, -bw)
+        borderTextures.bottom:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 0, -bw)
+    end
+    if borderTextures.left then
+        borderTextures.left:ClearAllPoints()
+        borderTextures.left:SetWidth(bw)
+        borderTextures.left:SetPoint("TOPLEFT",    Minimap, "TOPLEFT",    -bw,  bw)
+        borderTextures.left:SetPoint("BOTTOMLEFT", Minimap, "BOTTOMLEFT", -bw, -bw)
+    end
+    if borderTextures.right then
+        borderTextures.right:ClearAllPoints()
+        borderTextures.right:SetWidth(bw)
+        borderTextures.right:SetPoint("TOPRIGHT",    Minimap, "TOPRIGHT",    bw,  bw)
+        borderTextures.right:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", bw, -bw)
+    end
+end
+
+-- ============================================================================
+-- DECOR CREATION
+-- ============================================================================
+
+local function CreateDecor()
+    decor = CreateFrame("Frame", "HorizonSuiteVistaDecor", Minimap)
+    decor:SetAllPoints(Minimap)
+    decor:SetFrameLevel(Minimap:GetFrameLevel() + 5)
+
+    local function MakeBorderTex(name)
+        local t = decor:CreateTexture(nil, "OVERLAY")
+        borderTextures[name] = t
+        return t
+    end
+    MakeBorderTex("top"); MakeBorderTex("bottom"); MakeBorderTex("left"); MakeBorderTex("right")
+
+    -- Circular border ring is rendered as a masked color circle behind Minimap.
+    -- The inside is covered by Minimap itself, leaving a clean visible rim outside.
+    -- Parent to Minimap's parent so we're not clipped by Minimap's circular mask.
+    local minimapParent = Minimap:GetParent()
+    if minimapParent then
+        circularBorderFrame = CreateFrame("Frame", "HorizonSuiteVistaCircularBorder", minimapParent)
+        circularBorderFrame:SetFrameStrata(Minimap:GetFrameStrata())
+        circularBorderFrame:SetFrameLevel(math.max((Minimap:GetFrameLevel() or 1) - 1, 0))
+        circularBorderFrame:SetPoint("CENTER", Minimap, "CENTER", 0, 0)
+        circularBorderFrame:SetSize(GetMapSize(), GetMapSize())
+        local cbt = circularBorderFrame:CreateTexture(nil, "OVERLAY")
+        cbt:SetColorTexture(1, 1, 1, 1)
+        cbt:SetAllPoints()
+        local mask = circularBorderFrame:CreateMaskTexture(nil, "OVERLAY")
+        mask:SetTexture(G.MaskCircular, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        mask:SetAllPoints(cbt)
+        cbt:AddMaskTexture(mask)
+        circularBorderFrame._tex = cbt
+        circularBorderFrame._mask = mask
+        circularBorderFrame:Hide()
+    end
+
+    ApplyBorderTextures()
+
+    -- Draggable minimap
+    Minimap:SetMovable(true)
+    Minimap:SetClampedToScreen(true)
+    Minimap:RegisterForDrag("LeftButton")
+    Minimap:SetScript("OnDragStart", function(self)
+        local lock = DB("vistaLock", true)
+        if not lock and self:IsMovable() then
+            if not InCombatLockdown() then self:StartMoving() end
+        end
+    end)
+    Minimap:SetScript("OnDragStop", function(self)
+        if InCombatLockdown() then return end
+        self:StopMovingOrSizing()
+        if not addon.SetDB then return end
+        local p, _, rp, x, y = self:GetPoint()
+        SetDB("vistaPoint", p); SetDB("vistaRelPoint", rp)
+        SetDB("vistaX", x);     SetDB("vistaY", y)
+    end)
+
+    -- Mouse wheel zoom (Blizzard +/- are suppressed; do not rely on their :Click)
+    Minimap:EnableMouseWheel(true)
+    Minimap:SetScript("OnMouseWheel", function(_, d)
+        local cur = Minimap:GetZoom() or 0
+        local maxZ = (Minimap.GetZoomLevels and Minimap:GetZoomLevels()) or 5
+        if d > 0 then
+            Minimap:SetZoom(math.min(maxZ, cur + 1))
+        else
+            Minimap:SetZoom(math.max(0, cur - 1))
+        end
+        ScheduleAutoZoom()
+    end)
+
+    pcall(function()
+        if MinimapZoomIn then
+            MinimapZoomIn:HookScript("OnClick",  ScheduleAutoZoom)
+            MinimapZoomOut:HookScript("OnClick", ScheduleAutoZoom)
+        elseif Minimap.ZoomIn then
+            Minimap.ZoomIn:HookScript("OnClick",  ScheduleAutoZoom)
+            Minimap.ZoomOut:HookScript("OnClick", ScheduleAutoZoom)
+        end
+    end)
+
+    -- ---- Zone text (in a draggable container) ----
+    local zoneContainer = CreateFrame("Frame", nil, decor)
+    zoneContainer:SetSize(GetMapSize(), 20)
+    local zAp, zRp = G.ZoneAnchors()
+    zoneContainer:SetPoint(zAp, Minimap, zRp, G.ZoneOffsetX(), G.ZoneOffsetY())
+    zoneContainer:SetFrameLevel(decor:GetFrameLevel() + 1)
+    MakeDraggable(zoneContainer, "zone", "zone", "zone", G.ZoneAnchors, Minimap)
+
+    -- Primary line (zone name, or subzone in subzone-only mode)
+    zoneShadow = zoneContainer:CreateFontString(nil, "BORDER")
+    zoneShadow:SetFont(G.ZoneFont(), G.ZoneSize(), "OUTLINE")
+    zoneShadow:SetTextColor(0, 0, 0, SHADOW_A)
+    zoneShadow:SetJustifyH("CENTER")
+    zoneShadow:SetPoint("TOPLEFT", zoneContainer, "TOPLEFT")
+    zoneShadow:SetPoint("TOPRIGHT", zoneContainer, "TOPRIGHT")
+
+    zoneText = zoneContainer:CreateFontString(nil, "OVERLAY")
+    zoneText:SetFont(G.ZoneFont(), G.ZoneSize(), "OUTLINE")
+    zoneText:SetTextColor(unpack(ZONE_COLOR_DEFAULT))
+    zoneText:SetJustifyH("CENTER")
+    zoneText:SetPoint("TOPLEFT", zoneContainer, "TOPLEFT")
+    zoneText:SetPoint("TOPRIGHT", zoneContainer, "TOPRIGHT")
+
+    -- Secondary line (subzone, only shown in "both" mode)
+    local subZoneShadow = zoneContainer:CreateFontString(nil, "BORDER")
+    subZoneShadow:SetFont(G.ZoneFont(), G.ZoneSize(), "OUTLINE")
+    subZoneShadow:SetTextColor(0, 0, 0, SHADOW_A)
+    subZoneShadow:SetJustifyH("CENTER")
+    subZoneShadow:SetPoint("TOPLEFT", zoneText, "BOTTOMLEFT", 0, -2)
+    subZoneShadow:SetPoint("TOPRIGHT", zoneText, "BOTTOMRIGHT", 0, -2)
+
+    local subZoneText = zoneContainer:CreateFontString(nil, "OVERLAY")
+    subZoneText:SetFont(G.ZoneFont(), G.ZoneSize(), "OUTLINE")
+    subZoneText:SetTextColor(G.ZoneColor())
+    subZoneText:SetJustifyH("CENTER")
+    subZoneText:SetPoint("TOPLEFT", zoneText, "BOTTOMLEFT", 0, -2)
+    subZoneText:SetPoint("TOPRIGHT", zoneText, "BOTTOMRIGHT", 0, -2)
+
+    zoneContainer._subZoneText   = subZoneText
+    zoneContainer._subZoneShadow = subZoneShadow
+
+    -- ---- Difficulty text (in a draggable container) ----
+    local diffContainer = CreateFrame("Frame", nil, decor)
+    diffContainer:SetSize(GetMapSize(), 20)
+    local dAp, dRp = G.DiffAnchors()
+    diffContainer:SetPoint(dAp, Minimap, dRp, G.DiffOffsetX(), G.DiffOffsetY())
+    diffContainer:SetFrameLevel(decor:GetFrameLevel() + 1)
+    MakeDraggable(diffContainer, "diff", "diff", "diff", G.DiffAnchors, Minimap)
+
+    diffShadow = diffContainer:CreateFontString(nil, "BORDER")
+    diffShadow:SetFont(G.DiffFont(), G.DiffSize(), "OUTLINE")
+    diffShadow:SetTextColor(0, 0, 0, SHADOW_A)
+    diffShadow:SetJustifyH("CENTER")
+    diffShadow:SetAllPoints()
+
+    diffText = diffContainer:CreateFontString(nil, "OVERLAY")
+    diffText:SetFont(G.DiffFont(), G.DiffSize(), "OUTLINE")
+    diffText:SetTextColor(G.DiffColor())
+    diffText:SetJustifyH("CENTER")
+    diffText:SetAllPoints()
+    diffText:SetWidth(GetMapSize())
+    diffShadow:SetAllPoints(diffText)
+
+    decor._diffContainer = diffContainer
+
+    -- ---- Coord text (in a draggable container) ----
+    local coordContainer = CreateFrame("Frame", nil, decor)
+    coordContainer:SetSize(120, 16)
+    local cAp, cRp = G.CoordAnchors()
+    coordContainer:SetPoint(cAp, Minimap, cRp, G.CoordOffsetX(), G.CoordOffsetY())
+    coordContainer:SetFrameLevel(decor:GetFrameLevel() + 1)
+    MakeDraggable(coordContainer, "coord", "coord", "coord", G.CoordAnchors, Minimap)
+
+    coordShadow = coordContainer:CreateFontString(nil, "BORDER")
+    coordShadow:SetFont(G.CoordFont(), G.CoordSize(), "OUTLINE")
+    coordShadow:SetTextColor(0, 0, 0, SHADOW_A)
+    coordShadow:SetJustifyH("RIGHT")
+    coordShadow:SetAllPoints()
+
+    coordText = coordContainer:CreateFontString(nil, "OVERLAY")
+    coordText:SetFont(G.CoordFont(), G.CoordSize(), "OUTLINE")
+    coordText:SetTextColor(unpack(COORD_COLOR_DEFAULT))
+    coordText:SetJustifyH("RIGHT")
+    coordText:SetAllPoints()
+
+    -- ---- Time text (in a draggable container) ----
+    -- Use Button (not Frame) so it handles both click (open time manager) and drag (reposition), same as zone/coord
+    local TIME_PAD = 4
+    local timeContainer = CreateFrame("Button", nil, decor)
+    timeContainer:SetSize(60, 16)
+    local tAp, tRp = G.TimeAnchors()
+    timeContainer:SetPoint(tAp, Minimap, tRp, G.TimeOffsetX(), G.TimeOffsetY())
+    timeContainer:SetFrameLevel(decor:GetFrameLevel() + 1)
+    MakeDraggable(timeContainer, "time", "time", "time", G.TimeAnchors, Minimap)
+
+    timeShadow = timeContainer:CreateFontString(nil, "BORDER")
+    timeShadow:SetFont(G.TimeFont(), G.TimeSize(), "OUTLINE")
+    timeShadow:SetTextColor(0, 0, 0, SHADOW_A)
+    timeShadow:SetJustifyH("LEFT")
+    timeShadow:SetPoint("TOPLEFT", timeContainer, "TOPLEFT", TIME_PAD, 0)
+    timeShadow:SetPoint("BOTTOMRIGHT", timeContainer, "BOTTOMRIGHT", -TIME_PAD, 0)
+
+    timeText = timeContainer:CreateFontString(nil, "OVERLAY")
+    timeText:SetFont(G.TimeFont(), G.TimeSize(), "OUTLINE")
+    timeText:SetTextColor(unpack(COORD_COLOR_DEFAULT))
+    timeText:SetJustifyH("LEFT")
+    timeText:SetPoint("TOPLEFT", timeContainer, "TOPLEFT", TIME_PAD, 0)
+    timeText:SetPoint("BOTTOMRIGHT", timeContainer, "BOTTOMRIGHT", -TIME_PAD, 0)
+
+    -- Resize container to fit text width each time text changes
+    local function ResizeTimeContainer()
+        local w = timeText:GetStringWidth()
+        if w and w > 0 then
+            timeContainer:SetWidth(w + TIME_PAD * 2)
+        end
+    end
+    -- Hook into UpdateTimeText via a timer-based resize
+    local timeResizeElapsed = 0
+    timeContainer:SetScript("OnUpdate", function(_, elapsed)
+        timeResizeElapsed = timeResizeElapsed + elapsed
+        if timeResizeElapsed < 0.5 then return end
+        timeResizeElapsed = 0
+        ResizeTimeContainer()
+    end)
+
+    -- Click opens time manager (same frame handles drag via MakeDraggable)
+    timeContainer:RegisterForClicks("LeftButtonUp")
+    timeContainer:SetScript("OnClick", function()
+        pcall(function()
+            if TimeManagerFrame then
+                if TimeManagerFrame:IsShown() then TimeManagerFrame:Hide() else TimeManagerFrame:Show() end
+            elseif _G["ToggleTimeManager"] then
+                ToggleTimeManager()
+            else
+                local btn = TimeManagerClockButton
+                if btn then
+                    btn.Show = nil; btn:Show()
+                    local s = btn:GetScript("OnClick")
+                    if s then s(btn, "LeftButton") else btn:Click("LeftButton") end
+                    btn:Hide(); btn.Show = function() end
+                end
+            end
+        end)
+    end)
+    timeContainer:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+        GameTooltip:SetText("Open Stopwatch")
+        GameTooltip:Show()
+    end)
+    timeContainer:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    -- ---- Performance text (FPS / latency, in a draggable container) ----
+    -- Segments: FPS digits, " FPS | ", MS digits, " MS" — right-anchored with PERF_SEG_GAP.
+    -- Numeric colours use addon.TIMER_URGENCY_COLORS; labels use G.PerfNumColor().
+    local perfContainer = CreateFrame("Button", nil, decor)
+    perfContainer:SetSize(120, 16)
+    local pAp, pRp = G.PerfAnchors()
+    perfContainer:SetPoint(pAp, Minimap, pRp, G.PerfOffsetX(), G.PerfOffsetY())
+    perfContainer:SetFrameLevel(decor:GetFrameLevel() + 1)
+    MakeDraggable(perfContainer, "perf", "perf", "perf", G.PerfAnchors, Minimap)
+    if perfContainer.SetMouseMotionEnabled then
+        perfContainer:SetMouseMotionEnabled(true)
+    end
+    if perfContainer.SetMouseClickEnabled then
+        perfContainer:SetMouseClickEnabled(true)
+    end
+    perfContainer:RegisterForClicks("LeftButtonUp")
+
+    local PERF_SEG_GAP = 6
+    local function makePerfSeg(parent, relTo, relPoint, offsetX, offsetY)
+        offsetX = offsetX or 0
+        offsetY = offsetY or 0
+        local sh = parent:CreateFontString(nil, "BORDER")
+        sh:SetFont(G.PerfFont(), G.PerfSize(), "OUTLINE")
+        sh:SetTextColor(0, 0, 0, SHADOW_A)
+        sh:SetJustifyH("RIGHT")
+        sh:SetPoint("RIGHT", relTo, relPoint, offsetX, offsetY)
+        local tx = parent:CreateFontString(nil, "OVERLAY")
+        tx:SetFont(G.PerfFont(), G.PerfSize(), "OUTLINE")
+        tx:SetJustifyH("RIGHT")
+        tx:SetPoint("RIGHT", relTo, relPoint, offsetX, offsetY)
+        return tx, sh
+    end
+    perf.lbl2, perf.lbl2Sh = makePerfSeg(perfContainer, perfContainer, "RIGHT", 0, 0)
+    perf.num2, perf.num2Sh = makePerfSeg(perfContainer, perf.lbl2, "LEFT", -PERF_SEG_GAP, 0)
+    perf.lbl1, perf.lbl1Sh = makePerfSeg(perfContainer, perf.num2, "LEFT", -PERF_SEG_GAP, 0)
+    perf.num1, perf.num1Sh = makePerfSeg(perfContainer, perf.lbl1, "LEFT", -PERF_SEG_GAP, 0)
+    perf.num1:SetText("0"); perf.num1Sh:SetText("0")
+    perf.lbl1:SetText(" FPS | "); perf.lbl1Sh:SetText(" FPS | ")
+    perf.num2:SetText("0"); perf.num2Sh:SetText("0")
+    perf.lbl2:SetText(" MS");    perf.lbl2Sh:SetText(" MS")
+
+    -- FontStrings sit above the Button; if they keep mouse motion, only pixels that miss
+    -- the glyphs reach the parent — often only the MS side. Turn mouse off on text so the
+    -- full Button rect receives hover.
+    for _, fs in ipairs({
+        perf.num1, perf.num1Sh, perf.lbl1, perf.lbl1Sh,
+        perf.num2, perf.num2Sh, perf.lbl2, perf.lbl2Sh,
+    }) do
+        if fs then
+            pcall(function()
+                if fs.EnableMouse then fs:EnableMouse(false) end
+            end)
+            pcall(function()
+                if fs.SetMouseMotionEnabled then fs:SetMouseMotionEnabled(false) end
+            end)
+            pcall(function()
+                if fs.SetMouseClickEnabled then fs:SetMouseClickEnabled(false) end
+            end)
+        end
+    end
+
+    -- store containers for ApplyOptions
+    decor._zoneContainer  = zoneContainer
+    decor._coordContainer = coordContainer
+    decor._timeContainer  = timeContainer
+    decor._perfContainer  = perfContainer
+    if Vista.ResizePerfContainer then
+        Vista.ResizePerfContainer()
+    end
+
+    -- Apply initial visibility
+    local showZone  = G.ShowZone()
+    local showCoord = G.ShowCoord()
+    local showTime  = G.ShowTime()
+    local showPerf  = G.ShowPerf()
+    zoneText:SetShown(showZone);   zoneShadow:SetShown(showZone);   zoneContainer:SetShown(showZone)
+    coordText:SetShown(showCoord); coordShadow:SetShown(showCoord); coordContainer:SetShown(showCoord)
+    timeText:SetShown(showTime);   timeShadow:SetShown(showTime);   timeContainer:SetShown(showTime)
+    perf.num1:SetShown(showPerf); perf.num1Sh:SetShown(showPerf)
+    perf.lbl1:SetShown(showPerf); perf.lbl1Sh:SetShown(showPerf)
+    perf.num2:SetShown(showPerf); perf.num2Sh:SetShown(showPerf)
+    perf.lbl2:SetShown(showPerf); perf.lbl2Sh:SetShown(showPerf)
+    perfContainer:SetShown(showPerf)
+end
+
+-- ============================================================================
+-- TEXT UPDATES
+-- ============================================================================
+
+
+local function UpdateZoneText()
+    if not zoneText then return end
+    local mode = G.ZoneDisplayMode()
+    local zone = GetZoneText() or ""
+    local sub  = GetSubZoneText and GetSubZoneText() or ""
+    if zone ~= "" then vistaLastKnownZone = zone end
+
+    -- Interior zones: WoW sets zone=building, sub=parent — detect and swap
+    local isInterior = vistaLastKnownZone and sub ~= "" and sub == vistaLastKnownZone
+    local displayZone = isInterior and sub or zone
+    local displaySub  = (isInterior and zone ~= "" and zone ~= displayZone) and zone or sub
+    local hasSub = displaySub ~= "" and displaySub ~= displayZone
+
+    local container = decor and decor._zoneContainer
+    local subText   = container and container._subZoneText
+    local subShadow = container and container._subZoneShadow
+
+    if mode == "subzone" then
+        local text = hasSub and displaySub or displayZone
+        zoneText:SetText(text); zoneShadow:SetText(text)
+        if subText then subText:SetText(""); subShadow:SetText("") end
+        if container then container:SetHeight(zoneText:GetStringHeight() + 2) end
+    elseif mode == "both" then
+        zoneText:SetText(displayZone); zoneShadow:SetText(displayZone)
+        if subText then
+            if hasSub then
+                subText:SetText(displaySub);  subShadow:SetText(displaySub)
+                subText:Show();  subShadow:Show()
+            else
+                subText:SetText(""); subShadow:SetText("")
+                subText:Hide();  subShadow:Hide()
+            end
+        end
+        if container then
+            local h = zoneText:GetStringHeight() + 2
+            if hasSub and subText then h = h + subText:GetStringHeight() + 4 end
+            container:SetHeight(h)
+        end
+    else  -- "zone"
+        zoneText:SetText(displayZone); zoneShadow:SetText(displayZone)
+        if subText then subText:SetText(""); subShadow:SetText("") end
+        if container then container:SetHeight(zoneText:GetStringHeight() + 2) end
+    end
+end
+
+local function UpdateDifficultyText()
+    if not diffText then return end
+    local _, instanceType, difficultyID = GetInstanceInfo()
+    if instanceType == "none" or difficultyID == 0 then
+        diffText:SetText(""); diffShadow:SetText(""); return
+    end
+    local diffName = GetDifficultyInfo(difficultyID)
+    if not diffName or diffName == "" then
+        diffText:SetText(""); diffShadow:SetText(""); return
+    end
+    if C_ChallengeMode and C_ChallengeMode.GetActiveKeystoneInfo then
+        local keystoneLevel = C_ChallengeMode.GetActiveKeystoneInfo()
+        if keystoneLevel and keystoneLevel > 0 then diffName = diffName .. " +" .. keystoneLevel end
+    end
+    local r, g, b = G.DiffColorForName(diffName)
+    diffText:SetTextColor(r, g, b)
+    diffShadow:SetTextColor(0, 0, 0, SHADOW_A)
+    diffText:SetText(diffName); diffShadow:SetText(diffName)
+end
+
+local function UpdateCoords(_, elapsed)
+    if not coordText or not G.ShowCoord() then return end
+    coordElapsed = coordElapsed + elapsed
+    if coordElapsed < COORD_THROTTLE then return end
+    coordElapsed = 0
+    if C_Map and C_Map.GetBestMapForUnit then
+        local mapID = C_Map.GetBestMapForUnit("player")
+        if mapID and C_Map.GetPlayerMapPosition then
+            local pos = C_Map.GetPlayerMapPosition(mapID, "player")
+            if pos then
+                local x, y = pos:GetXY()
+                local prec = G.CoordPrecision()
+                local fmt = prec == 0 and "%.0f, %.0f" or (prec == 2 and "%.2f, %.2f" or "%.1f, %.1f")
+                local str = format(fmt, x * 100, y * 100)
+                coordText:SetText(str); coordShadow:SetText(str)
+                return
+            end
+        end
+    end
+    coordText:SetText("--"); coordShadow:SetText("--")
+end
+
+local function UpdateTimeText(_, elapsed)
+    if not timeText or not G.ShowTime() then return end
+    timeElapsed = timeElapsed + elapsed
+    if timeElapsed < TIME_THROTTLE then return end
+    timeElapsed = 0
+    local str
+    if G.TimeUseLocal() then
+        local t = date("*t")
+        if not t then return end
+        local hours, minutes = t.hour, t.min
+        local use24 = G.TimeUse24Hour()
+        if use24 then
+            str = format("%02d:%02d", hours, minutes)
+        else
+            local period = hours >= 12 and "PM" or "AM"
+            hours = hours % 12
+            if hours == 0 then hours = 12 end
+            str = format("%d:%02d %s", hours, minutes, period)
+        end
+    else
+        local hours, minutes = GetGameTime()
+        if hours == nil then return end
+        local use24 = G.TimeUse24Hour()
+        if use24 then
+            str = format("%02d:%02d", hours, minutes)
+        else
+            local period = hours >= 12 and "PM" or "AM"
+            hours = hours % 12
+            if hours == 0 then hours = 12 end
+            str = format("%d:%02d %s", hours, minutes, period)
+        end
+    end
+    timeText:SetText(str); timeShadow:SetText(str)
+end
+
+-- UpdatePerfText lives in a do-block to avoid exceeding WoW's 200 chunk locals limit.
+local UpdatePerfText
+do
+    -- Last bar values for re-applying urgency colours after options / ApplyColors (matches CreateDecor PERF_SEG_GAP * 3).
+    local lastPerfFps, lastPerfMs = 0, 0
+    local PERF_SEG_GAP_FALLBACK = 18
+
+    local function PerfUrgencyRgb(bucket)
+        local pal = addon.TIMER_URGENCY_COLORS
+        local c = pal and pal[bucket]
+        if c then return c[1], c[2], c[3] end
+        return G.PerfColor()
+    end
+
+    local function FpsUrgencyBucket(fps)
+        if fps >= 60 then return "plenty" end
+        if fps >= 30 then return "low" end
+        return "critical"
+    end
+
+    local function LatencyUrgencyBucket(ms)
+        if ms <= 100 then return "plenty" end
+        if ms <= 200 then return "low" end
+        return "critical"
+    end
+
+    --- Apply green/yellow/red to FPS and latency digits from last sampled bar values.
+    function Vista.ApplyPerfNumericColors()
+        if not perf.num1 or not perf.num2 then return end
+        local r1, g1, b1 = PerfUrgencyRgb(FpsUrgencyBucket(lastPerfFps))
+        local r2, g2, b2 = PerfUrgencyRgb(LatencyUrgencyBucket(lastPerfMs))
+        perf.num1:SetTextColor(r1, g1, b1)
+        perf.num2:SetTextColor(r2, g2, b2)
+    end
+
+    --- Widen perf row hit box so hover matches visible right-anchored text (outline extends past GetStringWidth).
+    function Vista.ResizePerfContainer()
+        local c = decor and decor._perfContainer
+        if not c or not perf.num1 then return end
+        local padX = 24
+        local w
+        local minL, maxR = math.huge, -math.huge
+        for _, fs in ipairs({ perf.num1, perf.lbl1, perf.num2, perf.lbl2 }) do
+            if fs and fs:IsShown() then
+                local l, _, rw = fs:GetRect()
+                if l and rw and rw >= 0 then
+                    minL = math.min(minL, l)
+                    maxR = math.max(maxR, l + rw)
+                end
+            end
+        end
+        if minL ~= math.huge and maxR > minL then
+            w = math.ceil((maxR - minL) + padX)
+        else
+            w = math.ceil(
+                (perf.num1:GetStringWidth() or 0) + (perf.lbl1:GetStringWidth() or 0)
+                    + (perf.num2:GetStringWidth() or 0) + (perf.lbl2:GetStringWidth() or 0)
+                    + PERF_SEG_GAP_FALLBACK + 32
+            )
+        end
+        if w < 88 then w = 88 end
+        c:SetWidth(w)
+        local fh = select(2, perf.num1:GetFont())
+        fh = (type(fh) == "number" and fh) or G.PerfSize() or 10
+        c:SetHeight(math.max(16, math.ceil(fh + 6)))
+    end
+
+    UpdatePerfText = function(_, elapsed)
+        if not perf.num1 or not G.ShowPerf() then return end
+        perfElapsed = perfElapsed + elapsed
+        if perfElapsed < PERF_THROTTLE then return end
+        perfElapsed = 0
+        local fps = 0
+        if GetFramerate then fps = math.floor(GetFramerate()) end
+        local ms = 0
+        if GetNetStats then
+            local _, _, lagHome, lagWorld = GetNetStats()
+            ms = lagWorld or lagHome or 0
+        end
+        lastPerfFps = fps
+        lastPerfMs = ms
+        local fpsStr = tostring(fps)
+        local msStr = tostring(ms)
+        perf.num1:SetText(fpsStr); perf.num1Sh:SetText(fpsStr)
+        perf.num2:SetText(msStr);  perf.num2Sh:SetText(msStr)
+        Vista.ApplyPerfNumericColors()
+        Vista.ResizePerfContainer()
+    end
+end
+
+-- ============================================================================
+-- MINIMAP OVERLAY DEFAULT LAYOUT (when vistaEX_*/vistaEY_* not saved)
+-- Mail TOPLEFT, calendar BOTTOMLEFT, tracking TOPRIGHT, queue bottom-right (CENTER offsets).
+-- Zoom: mouse wheel only (Blizzard +/- suppressed).
+-- ============================================================================
+
+local VISTA_MINIMAP_CORNER_INSET = 4
+
+-- ============================================================================
+-- MAIL INDICATOR
+-- ============================================================================
+
+local MAIL_ANCHOR_PAD = 8  -- padding around the mail icon for easier grab
+
+local function RefreshMailAnchor()
+    if not mailAnchor then return end
+    local locked = DB("vistaLocked_proxy_mail", true)
+    local hasMail = HasNewMail()
+
+    if hasMail then
+        mailAnchor:SetAlpha(1)
+        mailAnchor._border:Hide()
+        mailAnchor:Show()
+    elseif not locked then
+        mailAnchor:SetAlpha(1)
+        mailAnchor._border:Show()
+        mailAnchor:Show()
+    else
+        mailAnchor:SetAlpha(0)
+        mailAnchor._border:Hide()
+        mailAnchor:Hide()
+    end
+end
+
+local function CreateMailIndicator()
+    -- Create mail anchor first (draggable position handle)
+    local mailSz = G.MailIconSize()
+    local anchorSz = mailSz + MAIL_ANCHOR_PAD * 2
+
+    mailAnchor = CreateFrame("Frame", "HorizonSuiteVistaMailAnchor", decor)
+    mailAnchor:SetSize(anchorSz, anchorSz)
+    mailAnchor:SetFrameLevel(decor:GetFrameLevel() + 2)
+    mailAnchor:SetClampedToScreen(true)
+    mailAnchor:SetMovable(true)
+    mailAnchor:EnableMouse(true)
+
+    -- Position: restore saved or default TOPLEFT (calendar proxy defaults BOTTOMLEFT)
+    local savedX = tonumber(DB("vistaEX_proxy_mail", nil))
+    local savedY = tonumber(DB("vistaEY_proxy_mail", nil))
+    if savedX and savedY then
+        mailAnchor:SetPoint("CENTER", Minimap, "CENTER", savedX, savedY)
+    else
+        local inset = VISTA_MINIMAP_CORNER_INSET
+        mailAnchor:SetPoint("TOPLEFT", Minimap, "TOPLEFT", inset, -inset)
+    end
+
+    -- Drag-handle placeholder shown when unlocked and no mail — semi-transparent
+    -- mailbox icon so the slot is recognisable while repositioning. Mirrors the
+    -- queue anchor's LFG-eye pattern.
+    local border = mailAnchor:CreateTexture(nil, "OVERLAY")
+    border:SetSize(mailSz, mailSz)
+    border:SetPoint("CENTER", mailAnchor, "CENTER", 0, 0)
+    border:SetTexture("Interface\\MINIMAP\\TRACKING\\Mailbox")
+    border:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    border:SetAlpha(0.5)
+    border:Hide()
+    mailAnchor._border = border
+
+    -- Drag support
+    mailAnchor:RegisterForDrag("LeftButton")
+    mailAnchor:SetScript("OnDragStart", function(self)
+        if DB("vistaLocked_proxy_mail", true) then return end
+        if InCombatLockdown() then return end
+        self:StartMoving()
+    end)
+    mailAnchor:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local ox, oy = ComputeMinimapCenterOffset(self)
+        if not ox then return end
+        SetDB("vistaEX_proxy_mail", ox)
+        SetDB("vistaEY_proxy_mail", oy)
+        self:ClearAllPoints()
+        self:SetPoint("CENTER", Minimap, "CENTER", ox, oy)
+    end)
+
+    -- Mail frame as child of anchor
+    mailFrame = CreateFrame("Frame", nil, mailAnchor)
+    mailFrame:SetSize(mailSz, mailSz)
+    mailFrame:SetPoint("CENTER", mailAnchor, "CENTER")
+    mailFrame:SetFrameLevel(mailAnchor:GetFrameLevel() + 1)
+    mailFrame:Hide()
+
+    local icon = mailFrame:CreateTexture(nil, "ARTWORK")
+    icon:SetTexture("Interface\\MINIMAP\\TRACKING\\Mailbox")
+    icon:SetAllPoints(); icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    mailFrame.icon = icon
+
+    mailFrame:EnableMouse(true)
+    mailFrame:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+        local sender1, sender2, sender3 = GetLatestThreeSenders()
+        if sender1 or sender2 or sender3 then
+            GameTooltip:SetText(HAVE_MAIL_FROM or "Unread mail from:")
+            if sender1 then GameTooltip:AddLine(sender1, 1, 1, 1) end
+            if sender2 then GameTooltip:AddLine(sender2, 1, 1, 1) end
+            if sender3 then GameTooltip:AddLine(sender3, 1, 1, 1) end
+        else
+            GameTooltip:SetText(HAVE_MAIL or "You have mail")
+        end
+        GameTooltip:Show()
+    end)
+    mailFrame:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    local pulseTime = 0
+    mailFrame:SetScript("OnUpdate", function(self, elapsed)
+        if not mailPulsing or not G.MailBlink() then self.icon:SetAlpha(1); return end
+        pulseTime = pulseTime + elapsed
+        local t = (math.sin(pulseTime * PULSE_SPEED * math.pi * 2) + 1) / 2
+        self.icon:SetAlpha(PULSE_MIN + (PULSE_MAX - PULSE_MIN) * t)
+    end)
+
+    RefreshMailAnchor()
+end
+
+local function UpdateMailIndicator()
+    if not mailFrame then return end
+    local hasMail = HasNewMail()
+    if hasMail then mailFrame:Show(); mailPulsing = true
+    else mailFrame:Hide(); mailPulsing = false end
+    RefreshMailAnchor()
+end
+
+local function SuppressBlizzardMail()
+    pcall(function()
+        if MiniMapMailFrame then
+            MiniMapMailFrame:Hide(); MiniMapMailFrame:SetAlpha(0)
+            MiniMapMailFrame.Show = function() end
+        end
+    end)
+    pcall(function()
+        if MinimapCluster and MinimapCluster.IndicatorFrame then
+            local ind = MinimapCluster.IndicatorFrame
+            if ind.MailFrame then
+                ind.MailFrame:Hide(); ind.MailFrame:SetAlpha(0)
+                ind.MailFrame.Show = function() end
+            end
+            ind:Hide(); ind:SetAlpha(0); ind.Show = function() end
+        end
+    end)
+    pcall(function()
+        if MiniMapMailIcon then
+            MiniMapMailIcon:Hide(); MiniMapMailIcon:SetAlpha(0)
+            MiniMapMailIcon.Show = function() end
+        end
+    end)
+end
+
+-- ============================================================================
+-- CRAFTING ORDER INDICATOR
+-- ============================================================================
+-- Mirrors the mail indicator pattern. Blizzard owns when `MinimapCluster.CraftingOrderIcon`
+-- (or the global `MiniMapCraftingOrderIcon`) becomes visible — we keep the native frame
+-- alive but alpha-0, hook its Show/Hide, and drive this proxy's visibility accordingly.
+
+local function GetNativeCraftingOrderIcon()
+    if MinimapCluster and MinimapCluster.CraftingOrderIcon then return MinimapCluster.CraftingOrderIcon end
+    return _G.MiniMapCraftingOrderIcon
+end
+
+-- Map Enum.Profession → representative profession spell ID. Built lazily on first
+-- use because Enum may not be fully populated at file-load time. The spell-name
+-- fallback works regardless of whether the character has trained the profession,
+-- which the C_TradeSkillUI path doesn't.
+local PROFESSION_SPELL_BY_ID
+local function BuildProfessionSpellMap()
+    if PROFESSION_SPELL_BY_ID then return end
+    if not Enum or not Enum.Profession then return end
+    local byName = {
+        Alchemy        = 2259,  Blacksmithing = 2018,  Cooking      = 2550,
+        Enchanting     = 7411,  Engineering   = 4036,  Fishing      = 7620,
+        Herbalism      = 2366,  Inscription   = 45357, Jewelcrafting = 25229,
+        Leatherworking = 2108,  Mining        = 2575,  Skinning     = 8613,
+        Tailoring      = 3908,
+    }
+    local map = {}
+    for name, spellID in pairs(byName) do
+        local enumVal = Enum.Profession[name]
+        if enumVal then map[enumVal] = spellID end
+    end
+    PROFESSION_SPELL_BY_ID = map
+end
+
+-- Resolve a personal-orders entry to a localised profession name.
+-- Entries from C_CraftingOrders.GetPersonalOrdersInfo carry a `professionID`
+-- (Enum.Profession). We try C_TradeSkillUI first (best for trained professions
+-- because it picks up expansion-specific names), then fall back to a spell-name
+-- lookup that works for any character — incoming orders can be for professions
+-- the recipient doesn't practice themselves.
+local function GetProfessionDisplayName(info)
+    if type(info) ~= "table" then return nil end
+    local professionID = tonumber(info.professionID) or tonumber(info.profession)
+    local skillLineID  = tonumber(info.skillLineID)
+
+    if not skillLineID and professionID and C_TradeSkillUI
+        and C_TradeSkillUI.GetProfessionChildSkillLineID then
+        local ok, sid = pcall(C_TradeSkillUI.GetProfessionChildSkillLineID, professionID)
+        if ok then skillLineID = tonumber(sid) end
+    end
+
+    if skillLineID and skillLineID ~= 0 and C_TradeSkillUI
+        and C_TradeSkillUI.GetProfessionInfoBySkillLineID then
+        local ok, profInfo = pcall(C_TradeSkillUI.GetProfessionInfoBySkillLineID, skillLineID)
+        if ok and type(profInfo) == "table" then
+            local name = profInfo.parentProfessionName or profInfo.professionName
+            if name and name ~= "" then return name end
+        end
+    end
+
+    if professionID and C_Spell then
+        BuildProfessionSpellMap()
+        local spellID = PROFESSION_SPELL_BY_ID and PROFESSION_SPELL_BY_ID[professionID]
+        if spellID then
+            if C_Spell.GetSpellName then
+                local ok, name = pcall(C_Spell.GetSpellName, spellID)
+                if ok and type(name) == "string" and name ~= "" then return name end
+            end
+            if C_Spell.GetSpellInfo then
+                local ok, spellInfo = pcall(C_Spell.GetSpellInfo, spellID)
+                if ok and type(spellInfo) == "table"
+                    and spellInfo.name and spellInfo.name ~= "" then
+                    return spellInfo.name
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+local function RefreshCraftingOrderAnchor()
+    if not craftingOrderAnchor then return end
+    local locked = DB("vistaLocked_proxy_craftingOrder", true)
+    local hasOrder = Vista._craftingOrderVisible and true or false
+
+    craftingOrderAnchor:SetAlpha(1)
+    if hasOrder then
+        -- Live indicator: full opacity (OnUpdate may pulse it if the blink option is on).
+        craftingOrderAnchor._placeholder = false
+        craftingOrderPulsing = true
+        craftingOrderAnchor.icon:Show()
+        craftingOrderAnchor.icon:SetAlpha(1)
+        craftingOrderAnchor:Show()
+    elseif not locked then
+        -- Drag-handle placeholder: half opacity, no pulse.
+        craftingOrderAnchor._placeholder = true
+        craftingOrderPulsing = false
+        craftingOrderAnchor.icon:Show()
+        craftingOrderAnchor.icon:SetAlpha(0.5)
+        craftingOrderAnchor:Show()
+    else
+        -- Locked with no pending order: hide entirely.
+        craftingOrderAnchor._placeholder = false
+        craftingOrderPulsing = false
+        craftingOrderAnchor:Hide()
+    end
+end
+
+local UpdateCraftingOrderIndicator  -- forward declaration for SuppressBlizzardCraftingOrder
+
+local function CreateCraftingOrderIndicator()
+    local coSz = G.CraftingOrderIconSize()
+    local anchorSz = coSz + MAIL_ANCHOR_PAD * 2
+
+    -- Single Button handles click, drag, tooltip, and hosts the icon texture —
+    -- no separate child frame. Splitting them put the Button on top of the
+    -- anchor and broke drag tracking because StartMoving was called on a
+    -- different frame than the one receiving OnDragStart.
+    craftingOrderAnchor = CreateFrame("Button", "HorizonSuiteVistaCraftingOrderAnchor", decor)
+    craftingOrderAnchor:SetSize(anchorSz, anchorSz)
+    craftingOrderAnchor:SetFrameLevel(decor:GetFrameLevel() + 2)
+    craftingOrderAnchor:SetClampedToScreen(true)
+    craftingOrderAnchor:SetMovable(true)
+    craftingOrderAnchor:EnableMouse(true)
+
+    -- Position: restore saved, else default below the mail indicator in the top-left corner.
+    local savedX = tonumber(DB("vistaEX_proxy_craftingOrder", nil))
+    local savedY = tonumber(DB("vistaEY_proxy_craftingOrder", nil))
+    if savedX and savedY then
+        craftingOrderAnchor:SetPoint("CENTER", Minimap, "CENTER", savedX, savedY)
+    else
+        local inset = VISTA_MINIMAP_CORNER_INSET
+        local mailStack = G.MailIconSize() + MAIL_ANCHOR_PAD * 2 + 2
+        craftingOrderAnchor:SetPoint("TOPLEFT", Minimap, "TOPLEFT", inset, -(inset + mailStack))
+    end
+
+    -- Icon texture sits on the anchor itself. Alpha is driven by state:
+    --   pending order → 1.0 (and optionally pulses)
+    --   no order, unlocked → 0.5 (drag placeholder)
+    --   no order, locked → anchor is hidden so the texture doesn't matter
+    local icon = craftingOrderAnchor:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(coSz, coSz)
+    icon:SetPoint("CENTER", craftingOrderAnchor, "CENTER", 0, 0)
+    icon:SetTexture("Interface\\AddOns\\HorizonSuite\\media\\CraftingOrder_minimap.tga")
+    craftingOrderAnchor.icon = icon
+
+    craftingOrderAnchor:RegisterForDrag("LeftButton")
+    craftingOrderAnchor:SetScript("OnDragStart", function(self)
+        if DB("vistaLocked_proxy_craftingOrder", true) then return end
+        if InCombatLockdown() then return end
+        self:StartMoving()
+    end)
+    craftingOrderAnchor:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local ox, oy = ComputeMinimapCenterOffset(self)
+        if not ox then return end
+        SetDB("vistaEX_proxy_craftingOrder", ox)
+        SetDB("vistaEY_proxy_craftingOrder", oy)
+        self:ClearAllPoints()
+        self:SetPoint("CENTER", Minimap, "CENTER", ox, oy)
+    end)
+
+    craftingOrderAnchor:RegisterForClicks("AnyUp")
+    craftingOrderAnchor:SetScript("OnClick", function(_, btn)
+        -- `:Click()` on the native frame opens the professions UI, which touches
+        -- protected state — don't dispatch it in combat or taint bleeds across.
+        if InCombatLockdown() then
+            if UIErrorsFrame and ERR_NOT_IN_COMBAT then
+                UIErrorsFrame:AddMessage(ERR_NOT_IN_COMBAT, 1, 0.1, 0.1)
+            end
+            return
+        end
+        pcall(function()
+            local native = GetNativeCraftingOrderIcon()
+            if native and native.Click then native:Click(btn) end
+        end)
+    end)
+
+    craftingOrderAnchor:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+        GameTooltip:SetText(L["VISTA_CRAFTING_ORDER_TOOLTIP"])
+        local total = 0
+        local rows = {}
+        if C_CraftingOrders and C_CraftingOrders.GetPersonalOrdersInfo then
+            local ok, infos = pcall(C_CraftingOrders.GetPersonalOrdersInfo)
+            if ok and type(infos) == "table" then
+                for _, info in ipairs(infos) do
+                    if type(info) == "table" then
+                        local count = tonumber(info.numPersonalOrders) or tonumber(info.numOrders) or 0
+                        total = total + count
+                        if count > 0 then
+                            rows[#rows + 1] = { name = GetProfessionDisplayName(info), count = count }
+                        end
+                    end
+                end
+            end
+        end
+        if total > 0 then
+            local fmt = L["VISTA_CRAFTING_ORDER_PENDING_COUNT"]
+            GameTooltip:AddLine(fmt:format(total), 1, 1, 1)
+            local rowFmt = L["VISTA_CRAFTING_ORDER_PROFESSION_LINE"]
+            for _, row in ipairs(rows) do
+                local name = row.name or (UNKNOWN or "Unknown")
+                GameTooltip:AddLine(rowFmt:format(name, row.count), 0.85, 0.85, 0.85)
+            end
+        end
+        GameTooltip:Show()
+    end)
+    craftingOrderAnchor:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    local pulseTime = 0
+    craftingOrderAnchor:SetScript("OnUpdate", function(self, elapsed)
+        if not craftingOrderPulsing or not G.CraftingOrderBlink() then
+            self.icon:SetAlpha(self._placeholder and 0.5 or 1)
+            return
+        end
+        pulseTime = pulseTime + elapsed
+        local t = (math.sin(pulseTime * PULSE_SPEED * math.pi * 2) + 1) / 2
+        self.icon:SetAlpha(PULSE_MIN + (PULSE_MAX - PULSE_MIN) * t)
+    end)
+
+    -- craftingOrderFrame no longer exists as a separate frame; keep the local
+    -- pointing at the anchor so ApplyOptions_Buttons' size-refresh path works.
+    craftingOrderFrame = craftingOrderAnchor
+
+    RefreshCraftingOrderAnchor()
+end
+
+UpdateCraftingOrderIndicator = function()
+    -- All visibility/alpha/pulse state is driven from RefreshCraftingOrderAnchor
+    -- now that anchor and icon live on a single frame.
+    RefreshCraftingOrderAnchor()
+end
+
+-- Returns the total count of pending personal crafting orders across professions,
+-- or nil if the API is unavailable / errored.
+local function GetPendingPersonalOrderCount()
+    if not C_CraftingOrders or not C_CraftingOrders.GetPersonalOrdersInfo then return nil end
+    local ok, infos = pcall(C_CraftingOrders.GetPersonalOrdersInfo)
+    if not ok or type(infos) ~= "table" then return nil end
+    local total = 0
+    for _, info in ipairs(infos) do
+        if type(info) == "table" then
+            total = total + (tonumber(info.numPersonalOrders) or tonumber(info.numOrders) or 0)
+        end
+    end
+    return total
+end
+
+-- Event-driven safety net for cases where the Show/Hide/SetShown hooks miss a
+-- transition (e.g. Blizzard handled the event before we installed the hook, or
+-- SetShown short-circuited because the native was already at the target state).
+-- Runs after a 0-frame delay so Blizzard's own event handler updates IsShown()
+-- first, then we mirror that state into the proxy. Prefers the API count over
+-- IsShown() because the native frame's XML default is shown=true even on
+-- characters with zero pending orders, which would otherwise flash the proxy
+-- on after PLAYER_ENTERING_WORLD.
+local function SyncCraftingOrderFromNative()
+    local native = GetNativeCraftingOrderIcon()
+    if not native then return end
+    local count = GetPendingPersonalOrderCount()
+    local shown
+    if count ~= nil then
+        shown = count > 0
+    else
+        shown = native:IsShown() and true or false
+    end
+    if Vista._craftingOrderVisible ~= shown then
+        Vista._craftingOrderVisible = shown
+        UpdateCraftingOrderIndicator()
+    end
+end
+
+local function SuppressBlizzardCraftingOrder()
+    local native = GetNativeCraftingOrderIcon()
+    if not native then return end
+    if not native._vistaCraftingOrderHooked then
+        native._vistaCraftingOrderHooked = true
+        -- Start hidden: the native frame's XML default is `shown=true`, so `IsShown()`
+        -- reads true until Blizzard's event-driven logic hides it. Seeding from that
+        -- initial state would flash the proxy on for every reload. Wait for Blizzard's
+        -- explicit Show call instead — a pending order will always fire Show.
+        Vista._craftingOrderVisible = false
+        pcall(function() native:EnableMouse(false) end)
+        pcall(function() native:SetAlpha(0) end)
+        if hooksecurefunc then
+            pcall(function()
+                hooksecurefunc(native, "Show", function(self)
+                    self:SetAlpha(0)
+                    -- Blizzard's event handler may call Show() unconditionally on
+                    -- CRAFTINGORDERS_UPDATE_* fires; trust the API count over the
+                    -- bare Show call to avoid flashing the proxy on for 0 orders.
+                    local count = GetPendingPersonalOrderCount()
+                    Vista._craftingOrderVisible = (count == nil) or (count > 0)
+                    UpdateCraftingOrderIndicator()
+                end)
+                hooksecurefunc(native, "Hide", function(_)
+                    Vista._craftingOrderVisible = false
+                    UpdateCraftingOrderIndicator()
+                end)
+                hooksecurefunc(native, "SetShown", function(_, shown)
+                    if shown then
+                        local count = GetPendingPersonalOrderCount()
+                        Vista._craftingOrderVisible = (count == nil) or (count > 0)
+                    else
+                        Vista._craftingOrderVisible = false
+                    end
+                    UpdateCraftingOrderIndicator()
+                end)
+            end)
+        end
+    else
+        -- Already hooked — just reassert alpha in case something reset it.
+        pcall(function() native:SetAlpha(0) end)
+    end
+end
+
+-- ============================================================================
+-- TELEPORT PROXY MENU
+-- Built lazily; every secure-row operation (create / position / show / hide /
+-- SetAttribute) happens strictly out of combat. The menu is an out-of-combat
+-- feature — fine, since the teleports it lists cannot be used in combat anyway.
+-- Headers, the favourite star, the cooldown sweep, and the pager are all
+-- non-secure decoration, so they never taint.
+-- ============================================================================
+local TELEPORT_ROW_H   = 22
+local TELEPORT_HDR_H   = 16
+local TELEPORT_PAD     = 6
+local TELEPORT_ICON_W  = 16
+local TELEPORT_STAR_W  = 14
+local TELEPORT_PAGER_H = 22
+local TELEPORT_MIN_W   = 150
+local TELEPORT_FALLBACK_ICON = 134400
+local TELEPORT_FAVOURITE_ICON = "Interface\\Common\\FavoritesIcon"
+local TELEPORT_FONT_SIZE       = 12
+local TELEPORT_PAGER_FONT_SIZE = 11
+
+-- Resolve the addon's default/global font so the menu's text matches the rest of
+-- Vista (every Vista text element defaults to this same font). Mirrors the
+-- global/default branch of the file-scope ResolveFont().
+local function MenuFontPath()
+    local global = addon.GetActiveGlobalFont and addon.GetActiveGlobalFont()
+    if global then return global end
+    local v = addon.GetDB and addon.GetDB("fontPath", nil)
+    if v and v ~= "" and addon.ResolveFontPath then
+        local r = addon.ResolveFontPath(v)
+        if r and r ~= "" then return r end
+    end
+    return (addon.GetDefaultFontPath and addon.GetDefaultFontPath()) or "Fonts\\FRIZQT__.TTF"
+end
+
+-- Anchor a row/star tooltip to the outer edge of the teleport menu, flanking it
+-- left or right by the menu's screen side so it never covers the list (mirrors
+-- Focus's addon.focus.AnchorTooltip). Vertically aligns to the hovered owner.
+local function AnchorTeleportTooltip(tooltip, owner, menu)
+    if not tooltip or not tooltip.SetOwner or not owner then return end
+    if menu and menu.GetLeft and menu:GetLeft() then
+        local cx = menu.GetCenter and menu:GetCenter()
+        local uiw = (UIParent and UIParent.GetWidth and UIParent:GetWidth()) or 0
+        local menuOnRight = cx and uiw > 0 and cx > uiw * 0.5
+        local yOffset = 0
+        local ownerTop, menuTop = owner.GetTop and owner:GetTop(), menu:GetTop()
+        if ownerTop and menuTop then yOffset = ownerTop - menuTop end
+        tooltip:SetOwner(owner, "ANCHOR_NONE")
+        tooltip:ClearAllPoints()
+        if menuOnRight then
+            tooltip:SetPoint("TOPRIGHT", menu, "TOPLEFT", -4, yOffset)
+        else
+            tooltip:SetPoint("TOPLEFT", menu, "TOPRIGHT", 4, yOffset)
+        end
+        return
+    end
+    -- Fallback when the menu isn't positioned yet: flank the owner by screen side.
+    local ocx = owner.GetCenter and owner:GetCenter()
+    local uiw = (UIParent and UIParent.GetWidth and UIParent:GetWidth()) or 0
+    local ownerOnRight = ocx and uiw > 0 and ocx > uiw * 0.5
+    tooltip:SetOwner(owner, ownerOnRight and "ANCHOR_LEFT" or "ANCHOR_RIGHT")
+end
+
+-- Split entries into pages by accumulated rendered height, counting each section
+-- header (every section change, including the first row on a page) as well as the
+-- rows themselves — so a page with many headers holds fewer rows, and toggling a
+-- group only shifts the pages its own rows occupy. Returns an array of page start
+-- indices (page p covers entries[pages[p]] .. entries[pages[p+1]-1]).
+local function BuildTeleportPages(entries)
+    local screenH = (UIParent and UIParent:GetHeight()) or 768
+    local budget = math.min(screenH * 0.7, 520) - TELEPORT_PAD * 2 - TELEPORT_PAGER_H
+    local pages = {}
+    local n = #entries
+    local i = 1
+    while i <= n do
+        pages[#pages + 1] = i
+        local used, lastSection = 0, nil
+        while i <= n do
+            local e = entries[i]
+            local add = TELEPORT_ROW_H
+            if e.section ~= lastSection then add = add + TELEPORT_HDR_H end
+            -- Always place at least one row per page, even if it overflows the budget.
+            if used > 0 and used + add > budget then break end
+            used = used + add
+            lastSection = e.section
+            i = i + 1
+        end
+    end
+    return pages
+end
+
+-- Hide GameTooltip only if one of our rows/stars currently owns it.
+local function HideTeleportTooltip(menu)
+    if not GameTooltip then return end
+    local owner = GameTooltip:GetOwner()
+    if not owner or not menu._rows then return end
+    for i = 1, #menu._rows do
+        local r = menu._rows[i]
+        if r and (owner == r or owner == r._star) then GameTooltip:Hide() return end
+    end
+end
+
+local function SkinTeleportStar(row)
+    local e = row._entry
+    if not e then return end
+    if addon.GetDB("vistaTeleportEnableFavorites", true) and addon.Vista.IsTeleportFavorite then
+        local fav = addon.Vista.IsTeleportFavorite(e.kind, e.id)
+        row._star._tex:SetDesaturated(not fav)
+        row._star._tex:SetAlpha(fav and 1 or 0.4)
+        row._star:Show()
+    else
+        row._star:Hide()
+    end
+end
+
+local LayoutTeleportMenu  -- forward declaration (star/pager handlers reference it)
+
+-- Create one secure row plus its non-secure decoration (out of combat only).
+local function CreateTeleportRow(menu, idx)
+    local row = CreateFrame("Button", "HorizonSuiteVistaTeleportRow" .. idx, menu, "SecureActionButtonTemplate")
+    row:SetHeight(TELEPORT_ROW_H)
+    -- Left button casts (both edges so the ActionButtonUseKeyDown cvar can pick which
+    -- fires — the cast is bound to type1 only). Right button up is registered so
+    -- PostClick can toggle the favourite without ever casting.
+    row:RegisterForClicks("LeftButtonDown", "LeftButtonUp", "RightButtonUp")
+    row._icon = row:CreateTexture(nil, "ARTWORK")
+    row._icon:SetSize(TELEPORT_ICON_W, TELEPORT_ICON_W)
+    row._icon:SetPoint("LEFT", row, "LEFT", TELEPORT_PAD, 0)
+    row._icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    row._label = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row._label:SetPoint("LEFT", row._icon, "RIGHT", TELEPORT_PAD, 0)
+    row._label:SetJustifyH("LEFT")
+    row._label:SetFont(MenuFontPath(), TELEPORT_FONT_SIZE, "")
+    row._hl = row:CreateTexture(nil, "HIGHLIGHT")
+    row._hl:SetAllPoints()
+    row._hl:SetColorTexture(1, 1, 1, 0.1)
+    -- Cooldown sweep: non-secure decoration parented to the secure row (display only).
+    row._cd = CreateFrame("Cooldown", nil, row, "CooldownFrameTemplate")
+    row._cd:SetAllPoints(row._icon)
+    row._cd:SetDrawSwipe(true)
+    row._cd:SetSwipeColor(0, 0, 0, 0.6)
+    row._cd:SetDrawEdge(true)
+    row._cd:SetHideCountdownNumbers(false)
+    -- Favourite star: non-secure (no secure template) so clicking it never casts.
+    row._star = CreateFrame("Button", nil, row)
+    row._star:SetSize(TELEPORT_STAR_W, TELEPORT_STAR_W)
+    row._star:SetPoint("RIGHT", row, "RIGHT", -TELEPORT_PAD, 0)
+    row._star:SetFrameLevel(row:GetFrameLevel() + 2)
+    row._star._tex = row._star:CreateTexture(nil, "OVERLAY")
+    row._star._tex:SetAllPoints()
+    row._star._tex:SetTexture(TELEPORT_FAVOURITE_ICON)
+    row._star:SetScript("OnClick", function(s)
+        local e = s:GetParent()._entry
+        if not e or not addon.Vista.ToggleTeleportFavorite then return end
+        addon.Vista.ToggleTeleportFavorite(e.kind, e.id)
+        SkinTeleportStar(s:GetParent())
+        -- Re-sort so the (un)pinned entry moves; out of combat only.
+        if not InCombatLockdown() then LayoutTeleportMenu(menu) end
+    end)
+    row._star:SetScript("OnEnter", function(s)
+        if not GameTooltip then return end
+        AnchorTeleportTooltip(GameTooltip, s, menu)
+        GameTooltip:SetText(L["VISTA_TELEPORT_FAVOURITE_TIP"], 1, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    row._star:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    row:SetScript("OnEnter", function(self)
+        local e = self._entry
+        if not e or not GameTooltip then return end
+        AnchorTeleportTooltip(GameTooltip, self, menu)
+        pcall(function()
+            if e.kind == "spell" then
+                GameTooltip:SetSpellByID(e.id)
+            elseif e.kind == "toy" then
+                GameTooltip:SetToyByItemID(e.id)
+            else
+                GameTooltip:SetItemByID(e.id)
+            end
+        end)
+        GameTooltip:Show()
+    end)
+    row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    row:SetScript("PostClick", function(self, button)
+        local e = self._entry
+        if not e then return end
+        -- Right-click toggles favourite (no cast — the secure action is type1/left only).
+        if button == "RightButton" then
+            if addon.Vista.ToggleTeleportFavorite then
+                addon.Vista.ToggleTeleportFavorite(e.kind, e.id)
+                SkinTeleportStar(self)
+                if not InCombatLockdown() then LayoutTeleportMenu(menu) end
+            end
+            return
+        end
+        if not InCombatLockdown() and addon.Vista.RecordTeleportUse then
+            addon.Vista.RecordTeleportUse(e.kind, e.id)
+        end
+        if GameTooltip then GameTooltip:Hide() end
+        if not InCombatLockdown() then menu:Hide() end
+    end)
+    return row
+end
+
+local function EnsureTeleportMenu()
+    local menu = Vista._teleportMenu
+    if menu then return menu end
+    if InCombatLockdown() then return nil end
+    menu = CreateFrame("Frame", "HorizonSuiteVistaTeleportMenu", UIParent, "BackdropTemplate")
+    menu:SetFrameStrata("TOOLTIP")
+    menu:SetClampedToScreen(true)
+    menu:SetBackdrop({
+        bgFile   = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 12,
+        insets   = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    menu:SetBackdropColor(0.06, 0.06, 0.1, 0.95)
+    menu:SetBackdropBorderColor(0.3, 0.4, 0.6, 0.8)
+    menu:EnableMouse(true)
+    menu:Hide()
+    menu._rows = {}
+    menu._headers = {}
+    menu._page = 1
+    menu:SetScript("OnLeave", function(s)
+        C_Timer.After(0.3, function()
+            if not s or not s:IsShown() or s:IsMouseOver() then return end
+            if InCombatLockdown() then return end  -- can't hide a frame parenting secure rows in combat
+            s:Hide()
+        end)
+    end)
+    menu:SetScript("OnHide", function(s) HideTeleportTooltip(s) end)
+    -- After combat ends, close the menu if the cursor isn't on it (couldn't hide during combat).
+    menu:RegisterEvent("PLAYER_REGEN_ENABLED")
+    menu:SetScript("OnEvent", function(s, ev)
+        if ev == "PLAYER_REGEN_ENABLED" and s:IsShown() and not s:IsMouseOver() then
+            s:Hide()
+        end
+    end)
+    Vista._teleportMenu = menu
+    return menu
+end
+
+-- Full (re)layout of the menu. Caller guarantees this runs out of combat.
+function LayoutTeleportMenu(menu)
+    local entries = (addon.Vista.GetTeleportMenuEntries and addon.Vista.GetTeleportMenuEntries()) or {}
+    local total = #entries
+    local maxW = TELEPORT_MIN_W
+
+    -- Empty state
+    if total == 0 then
+        for i = 1, #menu._rows do if menu._rows[i] then menu._rows[i]:Hide() end end
+        for i = 1, #menu._headers do if menu._headers[i] then menu._headers[i]:Hide() end end
+        if menu._pager then menu._pager:Hide() end
+        local er = menu._emptyRow
+        if not er then
+            er = menu:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+            er:SetJustifyH("LEFT")
+            er:SetFont(MenuFontPath(), TELEPORT_FONT_SIZE, "")
+            menu._emptyRow = er
+        end
+        er:ClearAllPoints()
+        er:SetPoint("TOPLEFT", menu, "TOPLEFT", TELEPORT_PAD, -TELEPORT_PAD)
+        local emptyMsg
+        if addon.Vista.AllTeleportGroupsHidden and addon.Vista.AllTeleportGroupsHidden() then
+            emptyMsg = L["VISTA_TELEPORT_ALL_GROUPS_HIDDEN"]
+        else
+            emptyMsg = L["VISTA_TELEPORT_NONE_UNLOCKED"]
+        end
+        er:SetText(emptyMsg)
+        er:Show()
+        local w = (er:GetStringWidth() or 0) + TELEPORT_PAD * 2
+        if w > maxW then maxW = w end
+        menu:SetSize(maxW + TELEPORT_PAD * 2, TELEPORT_PAD * 2 + TELEPORT_ROW_H)
+        return
+    end
+    if menu._emptyRow then menu._emptyRow:Hide() end
+
+    local pages = BuildTeleportPages(entries)
+    local maxPage = #pages
+    if menu._page > maxPage then menu._page = maxPage end
+    if menu._page < 1 then menu._page = 1 end
+    local page = menu._page
+    local startI = pages[page]
+    local endI = (pages[page + 1] or (total + 1)) - 1
+
+    local y = TELEPORT_PAD
+    local hdrIdx, secureIdx = 0, 0
+    local lastSection
+
+    for i = startI, endI do
+        local entry = entries[i]
+        if entry.section ~= lastSection then
+            lastSection = entry.section
+            hdrIdx = hdrIdx + 1
+            local hdr = menu._headers[hdrIdx]
+            if not hdr then
+                hdr = menu:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                hdr:SetJustifyH("LEFT")
+                hdr:SetFont(MenuFontPath(), TELEPORT_FONT_SIZE, "")
+                menu._headers[hdrIdx] = hdr
+            end
+            hdr:ClearAllPoints()
+            hdr:SetPoint("TOPLEFT", menu, "TOPLEFT", TELEPORT_PAD, -y)
+            hdr:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -TELEPORT_PAD, -y)
+            hdr:SetText(entry.section or "")
+            hdr:SetTextColor(0.85, 0.78, 0.45)
+            hdr:Show()
+            local hw = (hdr:GetStringWidth() or 0) + TELEPORT_PAD * 2
+            if hw > maxW then maxW = hw end
+            y = y + TELEPORT_HDR_H
+        end
+
+        secureIdx = secureIdx + 1
+        local row = menu._rows[secureIdx]
+        if not row then
+            row = CreateTeleportRow(menu, secureIdx)
+            menu._rows[secureIdx] = row
+        end
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", menu, "TOPLEFT", TELEPORT_PAD, -y)
+        row:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -TELEPORT_PAD, -y)
+        row._entry = entry
+        row._icon:SetTexture(entry.icon or TELEPORT_FALLBACK_ICON)
+        row._label:SetText(entry.name or "")
+        row._label:SetTextColor(1, 1, 1)
+        SkinTeleportStar(row)
+
+        -- Secure attributes — caller guarantees this runs out of combat. The cast is
+        -- bound to type1 (left button) so right-click stays free for the favourite
+        -- toggle; clear the generic "type" so the right button can't fall back to it.
+        row:SetAttribute("type", nil)
+        if entry.kind == "toy" then
+            row:SetAttribute("type1", "toy");  row:SetAttribute("toy", entry.id)
+            row:SetAttribute("item", nil);      row:SetAttribute("spell", nil)
+        elseif entry.kind == "item" then
+            -- Pass the item name; the "item" attribute resolves names via the item API.
+            row:SetAttribute("type1", "item"); row:SetAttribute("item", entry.name)
+            row:SetAttribute("toy", nil);       row:SetAttribute("spell", nil)
+        elseif entry.kind == "spell" then
+            row:SetAttribute("type1", "spell"); row:SetAttribute("spell", entry.id)
+            row:SetAttribute("toy", nil);        row:SetAttribute("item", nil)
+        end
+
+        -- Cooldown sweep — DISPLAY ONLY. Values are read out of combat and fed
+        -- straight to SetCooldown; never compared/stored (secret-value safe).
+        if row._cd then
+            if addon.GetDB("vistaTeleportShowCooldowns", true) then
+                local cdStart, cdDur = 0, 0
+                if entry.kind == "spell" then
+                    local info = C_Spell and C_Spell.GetSpellCooldown and C_Spell.GetSpellCooldown(entry.id)
+                    if info then cdStart, cdDur = info.startTime or 0, info.duration or 0 end
+                elseif C_Item and C_Item.GetItemCooldown then
+                    cdStart, cdDur = C_Item.GetItemCooldown(entry.id)
+                end
+                row._cd:SetCooldown(cdStart or 0, cdDur or 0)
+                row._cd:Show()
+            else
+                row._cd:SetCooldown(0, 0)
+                row._cd:Hide()
+            end
+        end
+
+        row:Show()
+        local w = (row._label:GetStringWidth() or 0) + TELEPORT_ICON_W + TELEPORT_STAR_W + TELEPORT_PAD * 4
+        if w > maxW then maxW = w end
+        y = y + TELEPORT_ROW_H
+    end
+
+    -- Hide leftover rows + headers from a previous (larger) layout.
+    for i = secureIdx + 1, #menu._rows do if menu._rows[i] then menu._rows[i]:Hide() end end
+    for i = hdrIdx + 1, #menu._headers do if menu._headers[i] then menu._headers[i]:Hide() end end
+
+    -- Pager (only when the unlocked list exceeds one page).
+    if maxPage > 1 then
+        local pager = menu._pager
+        if not pager then
+            pager = CreateFrame("Frame", nil, menu)
+            pager:SetHeight(TELEPORT_PAGER_H)
+            pager._prev = CreateFrame("Button", nil, pager, "UIPanelButtonTemplate")
+            pager._prev:SetSize(52, TELEPORT_PAGER_H - 4)
+            pager._prev:SetPoint("LEFT", pager, "LEFT", TELEPORT_PAD, 0)
+            pager._prev:SetText(L["VISTA_TELEPORT_PREV"])
+            pager._prev:SetScript("OnClick", function()
+                if InCombatLockdown() then return end
+                menu._page = math.max(1, (menu._page or 1) - 1)
+                LayoutTeleportMenu(menu)
+            end)
+            pager._next = CreateFrame("Button", nil, pager, "UIPanelButtonTemplate")
+            pager._next:SetSize(52, TELEPORT_PAGER_H - 4)
+            pager._next:SetPoint("RIGHT", pager, "RIGHT", -TELEPORT_PAD, 0)
+            pager._next:SetText(L["VISTA_TELEPORT_NEXT"])
+            pager._next:SetScript("OnClick", function()
+                if InCombatLockdown() then return end
+                menu._page = (menu._page or 1) + 1
+                LayoutTeleportMenu(menu)
+            end)
+            pager._label = pager:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+            pager._label:SetPoint("CENTER", pager, "CENTER", 0, 0)
+            pager._label:SetFont(MenuFontPath(), TELEPORT_PAGER_FONT_SIZE, "")
+            menu._pager = pager
+        end
+        pager:ClearAllPoints()
+        pager:SetPoint("TOPLEFT", menu, "TOPLEFT", 0, -y)
+        pager:SetPoint("TOPRIGHT", menu, "TOPRIGHT", 0, -y)
+        pager._label:SetText(page .. " / " .. maxPage)
+        if page <= 1 then pager._prev:Disable() else pager._prev:Enable() end
+        if page >= maxPage then pager._next:Disable() else pager._next:Enable() end
+        pager:Show()
+        y = y + TELEPORT_PAGER_H
+    elseif menu._pager then
+        menu._pager:Hide()
+    end
+
+    menu:SetSize(maxW + TELEPORT_PAD * 2, y + TELEPORT_PAD)
+end
+
+-- ============================================================================
+-- DEFAULT BUTTON PROXIES  (tracking, calendar, teleport)
+-- Expansion landing / Omnium Folio uses CreateLandingPageAnchor (native button).
+-- ============================================================================
+
+local SuppressDefaultBlizzardButtons, CreateDefaultButtonProxies, RefreshDefaultButtonProxiesFromDB
+do
+local DEFAULT_BTN_DEFS = {
+    {
+        key     = "tracking",
+        names   = { "MiniMapTracking", "MinimapTrackingFrame", "MiniMapTrackingButton" },
+        anchor  = "TOPRIGHT",
+        xOff    = -VISTA_MINIMAP_CORNER_INSET, yOff = -VISTA_MINIMAP_CORNER_INSET,
+        tooltip = "Tracking",
+        getIcon = function()
+            -- Walk MiniMapTracking regions for the current tracking icon texture
+            if MiniMapTracking then
+                for _, r in ipairs({ MiniMapTracking:GetRegions() }) do
+                    if r and r:IsObjectType("Texture") then
+                        local t = r:GetTexture()
+                        if t and type(t) == "string" and t ~= ""
+                            and not t:lower():find("highlight")
+                            and not t:lower():find("pushed")
+                            and not t:lower():find("border") then
+                            return t
+                        end
+                    end
+                end
+            end
+            return "Interface\\MINIMAP\\TRACKING\\None"
+        end,
+        onClick = function(self, btn)
+            -- Build a tracking menu using C_Minimap API directly.
+            -- This is independent of any Blizzard frame that StripBlizzardChrome may kill.
+            pcall(function()
+                if not C_Minimap or not C_Minimap.GetNumTrackingTypes then return end
+                -- Create/reuse a simple dropdown menu frame
+                if not Vista._trackingMenu then
+                    local menu = CreateFrame("Frame", "HorizonSuiteTrackingMenu", UIParent, "BackdropTemplate")
+                    menu:SetFrameStrata("TOOLTIP")
+                    menu:SetClampedToScreen(true)
+                    menu:SetBackdrop({
+                        bgFile   = "Interface\\ChatFrame\\ChatFrameBackground",
+                        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                        edgeSize = 12,
+                        insets   = { left = 3, right = 3, top = 3, bottom = 3 },
+                    })
+                    menu:SetBackdropColor(0.06, 0.06, 0.1, 0.95)
+                    menu:SetBackdropBorderColor(0.3, 0.4, 0.6, 0.8)
+                    menu:EnableMouse(true)
+                    menu:Hide()
+                    menu._rows = {}
+                    menu:SetScript("OnLeave", function(s)
+                        C_Timer.After(0.2, function()
+                            if s and not s:IsMouseOver() then s:Hide() end
+                        end)
+                    end)
+                    Vista._trackingMenu = menu
+                end
+                local menu = Vista._trackingMenu
+                if menu:IsShown() then menu:Hide(); return end
+
+                -- Clear old rows
+                for _, row in ipairs(menu._rows) do row:Hide() end
+
+                local numTypes = C_Minimap.GetNumTrackingTypes()
+                local rowIdx = 0
+                local ROW_H = 20
+                local PAD = 6
+                local maxW = 120
+
+                for i = 1, numTypes do
+                    local info = C_Minimap.GetTrackingInfo(i)
+                    if info then
+                        rowIdx = rowIdx + 1
+                        local row = menu._rows[rowIdx]
+                        if not row then
+                            row = CreateFrame("Button", nil, menu)
+                            row:SetHeight(ROW_H)
+                            row._icon = row:CreateTexture(nil, "ARTWORK")
+                            row._icon:SetSize(16, 16)
+                            row._icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+                            row._check = row:CreateTexture(nil, "OVERLAY")
+                            row._check:SetSize(12, 12)
+                            row._check:SetPoint("LEFT", row._icon, "RIGHT", 2, 0)
+                            row._check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+                            row._label = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                            row._label:SetPoint("LEFT", row._check, "RIGHT", 2, 0)
+                            row._label:SetJustifyH("LEFT")
+                            row._hl = row:CreateTexture(nil, "HIGHLIGHT")
+                            row._hl:SetAllPoints()
+                            row._hl:SetColorTexture(1, 1, 1, 0.1)
+                            menu._rows[rowIdx] = row
+                        end
+                        row:SetPoint("TOPLEFT", menu, "TOPLEFT", PAD, -(PAD + (rowIdx - 1) * ROW_H))
+                        row:SetPoint("RIGHT", menu, "RIGHT", -PAD, 0)
+                        row._icon:SetTexture(info.texture)
+                        row._label:SetText(info.name or "")
+                        row._check:SetShown(info.active)
+                        local w = (row._label:GetStringWidth() or 0) + 48
+                        if w > maxW then maxW = w end
+                        local trackIdx = i
+                        row:SetScript("OnClick", function()
+                            C_Minimap.SetTracking(trackIdx, not info.active)
+                            menu:Hide()
+                        end)
+                        row:Show()
+                    end
+                end
+
+                if rowIdx == 0 then return end
+                menu:SetSize(maxW + PAD * 2, PAD * 2 + rowIdx * ROW_H)
+                menu:ClearAllPoints()
+                menu:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT", 0, -2)
+                menu:Show()
+            end)
+        end,
+    },
+    {
+        key     = "calendar",
+        names   = { "GameTimeFrame" },
+        anchor  = "BOTTOMLEFT",
+        xOff    = VISTA_MINIMAP_CORNER_INSET, yOff = VISTA_MINIMAP_CORNER_INSET,
+        tooltip = "Calendar",
+        getIcon = function()
+            return nil  -- we use SetAtlas below; nil means skip SetTexture
+        end,
+        setIcon = function(iconTex)
+            -- Use a clean calendar icon without the circular minimap frame.
+            -- Try the Calendarbutton atlas first (just the page, no circle).
+            local ok = pcall(function() iconTex:SetAtlas("CalendarButton") end)
+            if ok and iconTex:GetAtlas() and iconTex:GetAtlas() ~= "" then
+                iconTex:SetTexCoord(0, 1, 0, 1)
+                return
+            end
+            -- Fallback: inventory calendar/note icon (clean, no circle)
+            iconTex:SetTexture("Interface\\Icons\\INV_Misc_Note_06")
+            iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        end,
+        onClick = function(_, btn)
+            pcall(function()
+                local target = _G["GameTimeFrame"]
+                if target then
+                    target.Show = nil; target:Show()
+                    target:Click(btn or "LeftButton")
+                    target:Hide(); target.Show = function() end
+                end
+            end)
+        end,
+    },
+    {
+        key     = "teleport",
+        names   = {},  -- no Blizzard frame to suppress; this is a Horizon-only proxy
+        anchor  = "BOTTOMRIGHT",
+        xOff    = -VISTA_MINIMAP_CORNER_INSET, yOff = VISTA_MINIMAP_CORNER_INSET,
+        tooltip = L["VISTA_TELEPORT_BUTTON_TIP"],
+        getIcon = function()
+            return 134414  -- Hearthstone icon
+        end,
+        setIcon = function(iconTex)
+            iconTex:SetTexture(134414)
+            iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        end,
+        onClick = function(self, _btn)
+            pcall(function()
+                if not addon.Vista or not addon.Vista.GetTeleportMenuEntries then return end
+                local inCombat = InCombatLockdown()
+                local menu = Vista._teleportMenu
+                if menu and menu:IsShown() then
+                    if not inCombat then menu:Hide() end  -- can't hide a frame parenting secure rows in combat
+                    return
+                end
+                if inCombat then return end  -- menu builds/positions secure rows; out of combat only
+                menu = EnsureTeleportMenu()
+                if not menu then return end
+                menu._page = 1
+                LayoutTeleportMenu(menu)
+                menu:ClearAllPoints()
+                menu:SetPoint("TOPRIGHT", self, "BOTTOMRIGHT", 0, -2)
+                menu:Show()
+            end)
+        end,
+    },
+}
+
+-- Per-key show / mouseover getters, shared by the create + refresh paths.
+-- Resolved lazily and cached: the G.* getters are assigned during setup (before
+-- either proxy path runs) and never reassigned, so one build is safe.
+local proxyVisFuncs
+local function ProxyVisFuncs()
+    if not proxyVisFuncs then
+        proxyVisFuncs = {
+            show = {
+                tracking = G.ShowTracking, calendar = G.ShowCalendar, teleport = G.ShowTeleport,
+            },
+            mouseover = {
+                tracking = G.MouseoverTracking, calendar = G.MouseoverCalendar, teleport = G.MouseoverTeleport,
+            },
+        }
+    end
+    return proxyVisFuncs
+end
+
+SuppressDefaultBlizzardButtons = function()
+    -- ExpansionLandingPageMinimapButton is NOT suppressed: Midnight Omnium Folio
+    -- (and other expansion landing overlays) require the native button for Show,
+    -- pulses, and helptips. Vista reparents it via CreateLandingPageAnchor.
+    local allNames = {
+        "MiniMapTracking", "MinimapTrackingFrame", "MiniMapTrackingButton",
+        "GarrisonLandingPageMinimapButton",
+        "TimeManagerClockButton", "GameTimeFrame", "MiniMapInstanceDifficulty",
+    }
+    for _, name in ipairs(allNames) do
+        pcall(function()
+            local f = _G[name]
+            if not f then return end
+            f:Hide(); f:SetAlpha(0); f.Show = function() end
+        end)
+    end
+end
+
+-- Update existing tracking/calendar proxies without wiping frames (avoids hook/script churn on every ApplyOptions).
+RefreshDefaultButtonProxiesFromDB = function()
+    local vis = ProxyVisFuncs()
+    for _, proxy in ipairs(defaultProxies) do
+        local key = proxy._vistaKey
+        if not key then
+            -- skip malformed entry
+        else
+        local getShow = vis.show[key] or function() return true end
+        local getMouseover = vis.mouseover[key] or function() return false end
+        local proxySize = G.ProxyBtnSizeForKey(key)
+        proxy:SetSize(proxySize, proxySize)
+        local lockKey = "proxy_" .. key
+        local savedX = tonumber(DB("vistaEX_" .. lockKey, nil))
+        local savedY = tonumber(DB("vistaEY_" .. lockKey, nil))
+        proxy:ClearAllPoints()
+        if savedX and savedY then
+            proxy:SetPoint("CENTER", Minimap, "CENTER", savedX, savedY)
+        else
+            for _, def in ipairs(DEFAULT_BTN_DEFS) do
+                if def.key == key then
+                    proxy:SetPoint(def.anchor, Minimap, def.anchor, def.xOff, def.yOff)
+                    break
+                end
+            end
+        end
+        if not getShow() then
+            proxy:Hide()
+        elseif getMouseover() then
+            proxy:Show()
+            -- Unlocked in mouseover mode → show a semi-transparent drag handle
+            -- instead of fully hiding (mirrors queue/mail/crafting-order anchors).
+            local locked = DB("vistaLocked_" .. lockKey, true)
+            proxy:SetAlpha(locked and 0 or 0.5)
+        else
+            proxy:Show()
+            proxy:SetAlpha(1)
+        end
+        end
+    end
+end
+
+CreateDefaultButtonProxies = function()
+    if not decor then return end
+
+    if #defaultProxies > 0 then
+        if #defaultProxies == #DEFAULT_BTN_DEFS then
+            RefreshDefaultButtonProxiesFromDB()
+            return
+        end
+        for _, f in ipairs(defaultProxies) do
+            pcall(function() f:Hide() end)
+        end
+        wipe(defaultProxies)
+    end
+
+    -- Per-button show/mouseover DB lookups (shared with the refresh path).
+    local vis = ProxyVisFuncs()
+
+    for _, def in ipairs(DEFAULT_BTN_DEFS) do
+        local key = def.key
+        local lockKey = "proxy_" .. key
+        local getShow      = vis.show[key]      or function() return true end
+        local getMouseover = vis.mouseover[key]  or function() return false end
+
+        -- Parent to decor so the proxy always moves with Minimap
+        local proxy = CreateFrame("Button", nil, decor)
+        local proxySize = G.ProxyBtnSizeForKey(key)
+        proxy:SetSize(proxySize, proxySize)
+        proxy._vistaKey = key
+        proxy:SetFrameStrata("HIGH")
+        proxy:SetFrameLevel(decor:GetFrameLevel() + 20)
+        proxy:SetClampedToScreen(true)
+        proxy:SetAlpha(1)  -- always full alpha; visibility controlled by Show/Hide
+
+        -- Position: saved center-offset from Minimap, else default corner
+        local savedX = tonumber(DB("vistaEX_" .. lockKey, nil))
+        local savedY = tonumber(DB("vistaEY_" .. lockKey, nil))
+        if savedX and savedY then
+            proxy:SetPoint("CENTER", Minimap, "CENTER", savedX, savedY)
+        else
+            proxy:SetPoint(def.anchor, Minimap, def.anchor, def.xOff, def.yOff)
+        end
+
+        -- Draggable
+        proxy:SetMovable(true)
+        proxy:RegisterForDrag("LeftButton")
+        proxy:SetScript("OnDragStart", function(self)
+            if DB("vistaLocked_" .. lockKey, true) then return end
+            if InCombatLockdown() then return end
+            self:StartMoving()
+        end)
+        proxy:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+            local ox, oy = ComputeMinimapCenterOffset(self)
+            if not ox then return end
+            SetDB("vistaEX_" .. lockKey, ox)
+            SetDB("vistaEY_" .. lockKey, oy)
+            self:ClearAllPoints()
+            self:SetPoint("CENTER", Minimap, "CENTER", ox, oy)
+        end)
+
+        -- Icon — use NormalTexture slot so it's always full-brightness
+        local icon = proxy:CreateTexture(nil, "ARTWORK")
+        icon:SetAllPoints()
+        icon:SetAlpha(1)
+        if def.setIcon then
+            def.setIcon(icon)
+        else
+            icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            local tex = def.getIcon()
+            if tex then icon:SetTexture(tex) end
+        end
+        proxy._icon = icon
+
+        -- Highlight
+        if key ~= "tracking" then
+            local hl = proxy:CreateTexture(nil, "HIGHLIGHT")
+            hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.25)
+        end
+
+        -- Click
+        proxy:RegisterForClicks("AnyUp")
+        proxy:SetScript("OnClick", function(self, btn)
+            pcall(function() def.onClick(self, btn) end)
+        end)
+
+        proxy:SetScript("OnEnter", function(self)
+            if getShow() and getMouseover() then self:SetAlpha(1) end
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+            GameTooltip:SetText(def.tooltip)
+            GameTooltip:Show()
+        end)
+        proxy:SetScript("OnLeave", function(self)
+            GameTooltip:Hide()
+            if getShow() and getMouseover() then
+                local locked = DB("vistaLocked_" .. lockKey, true)
+                self:SetAlpha(locked and 0 or 0.5)
+            end
+        end)
+
+        -- Tracking icon sync
+        if key == "tracking" then
+            proxy:SetScript("OnUpdate", function(self, elapsed)
+                self._syncTimer = (self._syncTimer or 0) + elapsed
+                if self._syncTimer < 0.5 then return end
+                self._syncTimer = 0
+                local t = def.getIcon()
+                if t and t ~= "" then
+                    local ok = pcall(function() self._icon:SetAtlas(t) end)
+                    if not ok then self._icon:SetTexture(t) end
+                end
+            end)
+        end
+
+        -- Apply initial show/mouseover state
+        if not getShow() then
+            proxy:Hide()
+        elseif getMouseover() then
+            proxy:Show(); proxy:SetAlpha(0)
+        else
+            proxy:Show(); proxy:SetAlpha(1)
+        end
+
+        defaultProxies[#defaultProxies + 1] = proxy
+    end
+end -- end CreateDefaultButtonProxies
+end -- end DEFAULT_BTN_DEFS do-block
+
+-- ============================================================================
+-- QUEUE BUTTON ANCHOR
+-- ============================================================================
+-- Scoped in do/end + state on Vista._queueReattach: main chunk has a 200-local limit in WoW.
+
+local CreateQueueAnchor, RefreshQueueAnchor, SyncQueueAnchorGeometry
+do
+    local QUEUE_ANCHOR_PAD = 6  -- padding around the 45px button
+    Vista._queueReattach = Vista._queueReattach or { internal = false, timer = nil }
+
+    -- Avoid scheduling full reattach on every SetPoint/Show (Blizzard can call those every frame).
+    local function QueueButtonNeedsReattach(realBtn)
+        if not realBtn or not queueAnchor then return false end
+        if DB("vistaQueueHandlingDisabled", false) then return false end
+        local okP, parent = pcall(function() return realBtn:GetParent() end)
+        if not okP or parent ~= queueAnchor then return true end
+        local okN, n = pcall(function() return realBtn:GetNumPoints() end)
+        if not okN or not n or n < 1 then return true end
+        local okPt, pt, rel, relPt, ox, oy = pcall(function() return realBtn:GetPoint(1) end)
+        if not okPt or not rel then return true end
+        if rel ~= queueAnchor then return true end
+        if pt ~= "CENTER" or relPt ~= "CENTER" then return true end
+        ox = tonumber(ox) or 0
+        oy = tonumber(oy) or 0
+        if math.abs(ox) > 0.5 or math.abs(oy) > 0.5 then return true end
+        return false
+    end
+
+    local function AttachQueueButtonToAnchor()
+        if not queueAnchor then return end
+        local realBtn = _G["QueueStatusButton"] or _G["QueueStatusMinimapButton"] or _G["MiniMapBattlefieldFrame"]
+        if not realBtn then return end
+
+        Vista._queueReattach.internal = true
+        pcall(function()
+            local btnSz = G.QueueBtnSize()
+
+            pcall(function() realBtn:SetParent(queueAnchor) end)
+            pcall(function() realBtn:ClearAllPoints() end)
+            pcall(function() realBtn:SetPoint("CENTER", queueAnchor, "CENTER", 0, 0) end)
+            pcall(function() realBtn:SetSize(btnSz, btnSz) end)
+            pcall(function() realBtn:SetFrameStrata("MEDIUM") end)
+            pcall(function() realBtn:SetFrameLevel(queueAnchor:GetFrameLevel() + 1) end)
+            pcall(function() realBtn:SetIgnoreParentAlpha(true) end)
+
+            pcall(function()
+                for _, region in ipairs({ realBtn:GetRegions() }) do
+                    if region and region:IsObjectType("Texture") then
+                        local tex = region:GetTexture()
+                        if tex and type(tex) == "string" then
+                            local lower = tex:lower()
+                            if lower:find("groupfinder") or lower:find("lfg") or lower:find("minimap") then
+                                if lower:find("ring") or lower:find("highlight") or lower:find("border") then
+                                    region:SetAlpha(0)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end)
+        Vista._queueReattach.internal = false
+        if Vista._ApplyQueueClusterAlpha then Vista._ApplyQueueClusterAlpha() end
+    end
+
+    local function ScheduleQueueButtonReattach()
+        local QR = Vista._queueReattach
+        if DB("vistaQueueHandlingDisabled", false) then return end
+        if not queueAnchor then return end
+        if QR.internal then return end
+        local realBtn = _G["QueueStatusButton"] or _G["QueueStatusMinimapButton"] or _G["MiniMapBattlefieldFrame"]
+        if realBtn and not QueueButtonNeedsReattach(realBtn) then return end
+        if QR.timer then return end
+        QR.timer = C_Timer.NewTimer(0, function()
+            QR.timer = nil
+            if not queueAnchor or DB("vistaQueueHandlingDisabled", false) then return end
+            local btn = _G["QueueStatusButton"] or _G["QueueStatusMinimapButton"] or _G["MiniMapBattlefieldFrame"]
+            if btn and QueueButtonNeedsReattach(btn) then
+                AttachQueueButtonToAnchor()
+            end
+            RefreshQueueAnchor()
+        end)
+    end
+
+    RefreshQueueAnchor = function()
+        if not queueAnchor then return end
+        if DB("vistaQueueHandlingDisabled", false) then
+            queueAnchor:SetAlpha(0)
+            queueAnchor._border:Hide()
+            queueAnchor:EnableMouse(false)
+            queueAnchor:Show()
+            return
+        end
+        local realBtn = _G["QueueStatusButton"] or _G["QueueStatusMinimapButton"] or _G["MiniMapBattlefieldFrame"]
+        local locked  = DB("vistaLocked_proxy_queue", true)
+        local queued  = realBtn and realBtn:IsShown()
+
+        if realBtn and QueueButtonNeedsReattach(realBtn) then
+            AttachQueueButtonToAnchor()
+        end
+        queueAnchor:Show()
+
+        if not locked then
+            queueAnchor:SetAlpha(1)
+            queueAnchor:EnableMouse(true)
+            queueAnchor._border:SetShown(not queued)
+        else
+            queueAnchor:SetAlpha(0)
+            queueAnchor:EnableMouse(false)
+            queueAnchor._border:Hide()
+        end
+        if Vista._ApplyQueueClusterAlpha then Vista._ApplyQueueClusterAlpha() end
+    end
+
+    CreateQueueAnchor = function()
+        if DB("vistaQueueHandlingDisabled", false) then
+            if queueAnchor then RefreshQueueAnchor() end
+            return
+        end
+        local realBtn = _G["QueueStatusButton"] or _G["QueueStatusMinimapButton"] or _G["MiniMapBattlefieldFrame"]
+        if not realBtn then return end
+
+        -- Only create once
+        if queueAnchor then
+            RefreshQueueAnchor()
+            return
+        end
+
+        local btnSz = G.QueueBtnSize()
+        local anchorSz = btnSz + QUEUE_ANCHOR_PAD * 2
+
+        queueAnchor = CreateFrame("Frame", "HorizonSuiteVistaQueueAnchor", UIParent)
+        queueAnchor:SetSize(anchorSz, anchorSz)
+        -- MEDIUM, not HIGH: this anchor sits on UIParent, and HIGH is the World Map's
+        -- layer, so the button would draw over the open map.
+        queueAnchor:SetFrameStrata("MEDIUM")
+        queueAnchor:SetClampedToScreen(true)
+        queueAnchor:SetMovable(true)
+        queueAnchor:EnableMouse(true)
+
+        -- Position: restore saved or default bottom-right (CENTER offsets from minimap center)
+        local savedX = tonumber(DB("vistaEX_proxy_queue", nil))
+        local savedY = tonumber(DB("vistaEY_proxy_queue", nil))
+        if savedX and savedY then
+            queueAnchor:SetPoint("CENTER", Minimap, "CENTER", savedX, savedY)
+        else
+            local inset = VISTA_MINIMAP_CORNER_INSET
+            local mmW = Minimap:GetWidth() or 200
+            local mmH = Minimap:GetHeight() or mmW
+            local halfW, halfH = mmW * 0.5, mmH * 0.5
+            local pad = inset + anchorSz * 0.5
+            queueAnchor:SetPoint("CENTER", Minimap, "CENTER", halfW - pad, -halfH + pad)
+        end
+
+        -- Visible placeholder when unlocked and not queued (drag handle): LFG eye, semi-transparent
+        local border = queueAnchor:CreateTexture(nil, "OVERLAY")
+        border:SetSize(btnSz, btnSz)
+        border:SetPoint("CENTER", queueAnchor, "CENTER", 0, 0)
+        border:SetAtlas("groupfinder-eye-frame")
+        border:SetAlpha(0.5)
+        border:Hide()
+        queueAnchor._border = border
+
+        -- Drag support — identical pattern to the drawer button
+        queueAnchor:RegisterForDrag("LeftButton")
+        queueAnchor:SetScript("OnDragStart", function(self)
+            if DB("vistaLocked_proxy_queue", true) then return end
+            if InCombatLockdown() then return end
+            self:StartMoving()
+        end)
+        queueAnchor:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+            local ox, oy = ComputeMinimapCenterOffset(self)
+            if not ox then return end
+            SetDB("vistaEX_proxy_queue", ox)
+            SetDB("vistaEY_proxy_queue", oy)
+            self:ClearAllPoints()
+            self:SetPoint("CENTER", Minimap, "CENTER", ox, oy)
+        end)
+
+        -- Attach the real button into the anchor now
+        AttachQueueButtonToAnchor()
+
+        -- Hook SetParent / layout / Show so Blizzard LFG updates do not leave the eye at the default cluster position.
+        if hooksecurefunc and not realBtn._vistaQueueHooked then
+            realBtn._vistaQueueHooked = true
+            hooksecurefunc(realBtn, "SetParent", function(self, parent)
+                if parent ~= queueAnchor and queueAnchor and not DB("vistaQueueHandlingDisabled", false) then
+                    ScheduleQueueButtonReattach()
+                end
+            end)
+            hooksecurefunc(realBtn, "SetPoint", function(self)
+                if Vista._queueReattach.internal then return end
+                if DB("vistaQueueHandlingDisabled", false) then return end
+                if not QueueButtonNeedsReattach(self) then return end
+                ScheduleQueueButtonReattach()
+            end)
+            hooksecurefunc(realBtn, "ClearAllPoints", function(self)
+                if Vista._queueReattach.internal then return end
+                if DB("vistaQueueHandlingDisabled", false) then return end
+                if not QueueButtonNeedsReattach(self) then return end
+                ScheduleQueueButtonReattach()
+            end)
+            hooksecurefunc(realBtn, "Show", function(self)
+                if Vista._queueReattach.internal then return end
+                if DB("vistaQueueHandlingDisabled", false) then return end
+                if not QueueButtonNeedsReattach(self) then return end
+                ScheduleQueueButtonReattach()
+            end)
+        end
+
+        RefreshQueueAnchor()
+    end
+
+    SyncQueueAnchorGeometry = function()
+        if not queueAnchor then return end
+        local qBtnSz = G.QueueBtnSize()
+        queueAnchor:SetSize(qBtnSz + QUEUE_ANCHOR_PAD * 2, qBtnSz + QUEUE_ANCHOR_PAD * 2)
+        if queueAnchor._border then
+            queueAnchor._border:ClearAllPoints()
+            queueAnchor._border:SetSize(qBtnSz, qBtnSz)
+            queueAnchor._border:SetPoint("CENTER", queueAnchor, "CENTER", 0, 0)
+        end
+        AttachQueueButtonToAnchor()
+        RefreshQueueAnchor()
+    end
+end
+
+-- ============================================================================
+-- LANDING PAGE ANCHOR (Omnium Folio / ExpansionLandingPageMinimapButton)
+-- ============================================================================
+-- Native button kept alive so Blizzard pulses, helptips, and unlock alerts work.
+-- Scoped in do/end to stay under the chunk local limit.
+
+local CreateLandingPageAnchor, RefreshLandingPageAnchor, SyncLandingPageAnchorGeometry
+do
+    local LANDING_ANCHOR_PAD = 6
+    Vista._landingReattach = Vista._landingReattach or { internal = false, timer = nil, dragging = false }
+
+    local function GetLandingPageButton()
+        return _G.ExpansionLandingPageMinimapButton
+    end
+
+    local function LandingButtonNeedsReattach(realBtn)
+        if not realBtn or not landingPageAnchor then return false end
+        if Vista._landingReattach.dragging then return false end
+        if not G.ShowLanding() then return false end
+        local okP, parent = pcall(function() return realBtn:GetParent() end)
+        if not okP or parent ~= landingPageAnchor then return true end
+        local okN, n = pcall(function() return realBtn:GetNumPoints() end)
+        if not okN or not n or n < 1 then return true end
+        local okPt, pt, rel, relPt, ox, oy = pcall(function() return realBtn:GetPoint(1) end)
+        if not okPt or not rel then return true end
+        if rel ~= landingPageAnchor then return true end
+        if pt ~= "CENTER" or relPt ~= "CENTER" then return true end
+        ox = tonumber(ox) or 0
+        oy = tonumber(oy) or 0
+        if math.abs(ox) > 0.5 or math.abs(oy) > 0.5 then return true end
+        return false
+    end
+
+    local function AttachLandingButtonToAnchor()
+        if not landingPageAnchor then return end
+        if Vista._landingReattach.dragging then return end
+        local realBtn = GetLandingPageButton()
+        if not realBtn then return end
+
+        Vista._landingReattach.internal = true
+        pcall(function()
+            local btnSz = G.LandingBtnSize()
+            pcall(function() realBtn:SetParent(landingPageAnchor) end)
+            pcall(function() realBtn:ClearAllPoints() end)
+            pcall(function() realBtn:SetPoint("CENTER", landingPageAnchor, "CENTER", 0, 0) end)
+            pcall(function() realBtn:SetSize(btnSz, btnSz) end)
+            pcall(function() realBtn:SetScale(1) end)
+            pcall(function() realBtn:SetFrameStrata("MEDIUM") end)
+            pcall(function() realBtn:SetFrameLevel(landingPageAnchor:GetFrameLevel() + 1) end)
+            pcall(function() realBtn:SetIgnoreParentAlpha(true) end)
+        end)
+        Vista._landingReattach.internal = false
+    end
+
+    local function ScheduleLandingButtonReattach()
+        local LR = Vista._landingReattach
+        if LR.dragging then return end
+        if not landingPageAnchor or not G.ShowLanding() then return end
+        if LR.internal then return end
+        local realBtn = GetLandingPageButton()
+        if realBtn and not LandingButtonNeedsReattach(realBtn) then return end
+        if LR.timer then return end
+        LR.timer = C_Timer.NewTimer(0, function()
+            LR.timer = nil
+            if LR.dragging then return end
+            if not landingPageAnchor or not G.ShowLanding() then return end
+            local btn = GetLandingPageButton()
+            if btn and LandingButtonNeedsReattach(btn) then
+                AttachLandingButtonToAnchor()
+            end
+            RefreshLandingPageAnchor()
+        end)
+    end
+
+    local function ApplyLandingMouseoverAlpha(realBtn)
+        if not realBtn or not realBtn:IsShown() then return end
+        if not G.ShowLanding() then return end
+        local ca = (Vista._opacity and Vista._opacity.alpha) or 1
+        if not G.MouseoverLanding() then
+            realBtn:SetAlpha(1 * ca)
+            return
+        end
+        local locked = DB("vistaLocked_proxy_landing", true)
+        if realBtn:IsMouseOver() or (Minimap and Minimap:IsMouseOver()) then
+            realBtn:SetAlpha(1 * ca)
+        else
+            realBtn:SetAlpha((locked and 0 or 0.5) * ca)
+        end
+    end
+
+    Vista._ApplyLandingMouseoverAlpha = function()
+        local realBtn = GetLandingPageButton()
+        ApplyLandingMouseoverAlpha(realBtn)
+    end
+
+    local function SaveLandingAnchorFromFrame(frame)
+        if not landingPageAnchor or not frame then return end
+        local ox, oy = ComputeMinimapCenterOffset(frame)
+        if not ox then return end
+        SetDB("vistaEX_proxy_landing", ox)
+        SetDB("vistaEY_proxy_landing", oy)
+        landingPageAnchor:ClearAllPoints()
+        landingPageAnchor:SetPoint("CENTER", Minimap, "CENTER", ox, oy)
+        AttachLandingButtonToAnchor()
+    end
+
+    local function BeginLandingDrag(frame)
+        if DB("vistaLocked_proxy_landing", true) then return end
+        if InCombatLockdown() then return end
+        if not frame then return end
+        -- StartMoving must run on the same frame that received OnDragStart
+        -- (child-on-anchor splits break drag tracking — see crafting-order note).
+        Vista._landingReattach.dragging = true
+        frame:StartMoving()
+    end
+
+    local function EndLandingDrag(frame)
+        if not frame then return end
+        frame:StopMovingOrSizing()
+        Vista._landingReattach.dragging = false
+        SaveLandingAnchorFromFrame(frame)
+    end
+
+    RefreshLandingPageAnchor = function()
+        if not landingPageAnchor then return end
+        local realBtn = GetLandingPageButton()
+        local locked = DB("vistaLocked_proxy_landing", true)
+
+        if not G.ShowLanding() then
+            landingPageAnchor:SetAlpha(0)
+            landingPageAnchor._border:Hide()
+            landingPageAnchor:EnableMouse(false)
+            landingPageAnchor:Show()
+            if realBtn then
+                pcall(function() realBtn:SetAlpha(0) end)
+                pcall(function() realBtn:EnableMouse(false) end)
+            end
+            return
+        end
+
+        if realBtn and LandingButtonNeedsReattach(realBtn) then
+            AttachLandingButtonToAnchor()
+        end
+        landingPageAnchor:Show()
+
+        if realBtn then
+            pcall(function() realBtn:EnableMouse(true) end)
+            pcall(function() realBtn:SetMovable(not locked) end)
+            ApplyLandingMouseoverAlpha(realBtn)
+        end
+
+        if not locked then
+            landingPageAnchor:SetAlpha(1)
+            landingPageAnchor:EnableMouse(true)
+            -- Placeholder only when Blizzard has not shown the landing button yet
+            local shown = realBtn and realBtn:IsShown()
+            landingPageAnchor._border:SetShown(not shown)
+        else
+            landingPageAnchor:SetAlpha(0)
+            landingPageAnchor:EnableMouse(false)
+            landingPageAnchor._border:Hide()
+        end
+    end
+
+    CreateLandingPageAnchor = function()
+        local realBtn = GetLandingPageButton()
+        if not realBtn then return end
+
+        if landingPageAnchor then
+            RefreshLandingPageAnchor()
+            return
+        end
+
+        local btnSz = G.LandingBtnSize()
+        local anchorSz = btnSz + LANDING_ANCHOR_PAD * 2
+
+        landingPageAnchor = CreateFrame("Frame", "HorizonSuiteVistaLandingAnchor", UIParent)
+        landingPageAnchor:SetSize(anchorSz, anchorSz)
+        -- MEDIUM, not HIGH: this anchor sits on UIParent, and HIGH is the World Map's
+        -- layer, so the button would draw over the open map.
+        landingPageAnchor:SetFrameStrata("MEDIUM")
+        landingPageAnchor:SetClampedToScreen(true)
+        landingPageAnchor:SetMovable(true)
+        landingPageAnchor:EnableMouse(true)
+
+        local savedX = tonumber(DB("vistaEX_proxy_landing", nil))
+        local savedY = tonumber(DB("vistaEY_proxy_landing", nil))
+        if savedX and savedY then
+            landingPageAnchor:SetPoint("CENTER", Minimap, "CENTER", savedX, savedY)
+        else
+            -- Default: top-left corner (tracking is top-right; calendar bottom-left)
+            local inset = VISTA_MINIMAP_CORNER_INSET
+            local mmW = Minimap:GetWidth() or 200
+            local mmH = Minimap:GetHeight() or mmW
+            local halfW, halfH = mmW * 0.5, mmH * 0.5
+            local pad = inset + anchorSz * 0.5
+            landingPageAnchor:SetPoint("CENTER", Minimap, "CENTER", -halfW + pad, halfH - pad)
+        end
+
+        local border = landingPageAnchor:CreateTexture(nil, "OVERLAY")
+        border:SetSize(btnSz, btnSz)
+        border:SetPoint("CENTER", landingPageAnchor, "CENTER", 0, 0)
+        local atlasOk = pcall(function() border:SetAtlas("midnight-landingbutton-up") end)
+        if not atlasOk then
+            pcall(function() border:SetAtlas("landingpage-minimapbutton") end)
+        end
+        border:SetAlpha(0.5)
+        border:Hide()
+        landingPageAnchor._border = border
+
+        -- Drag via the anchor when the native button is hidden (unlocked placeholder).
+        landingPageAnchor:RegisterForDrag("LeftButton")
+        landingPageAnchor:SetScript("OnDragStart", function(self)
+            BeginLandingDrag(self)
+        end)
+        landingPageAnchor:SetScript("OnDragStop", function(self)
+            EndLandingDrag(self)
+        end)
+
+        AttachLandingButtonToAnchor()
+
+        -- Native button sits above the anchor and receives all mouse input once
+        -- Omnium Folio is unlocked — drag must be registered on the button itself.
+        pcall(function()
+            realBtn:SetMovable(true)
+            realBtn:RegisterForDrag("LeftButton")
+        end)
+        if not realBtn._vistaLandingDragHooked then
+            realBtn._vistaLandingDragHooked = true
+            realBtn:HookScript("OnDragStart", function(self)
+                BeginLandingDrag(self)
+            end)
+            realBtn:HookScript("OnDragStop", function(self)
+                EndLandingDrag(self)
+            end)
+        end
+
+        if hooksecurefunc and not realBtn._vistaLandingHooked then
+            realBtn._vistaLandingHooked = true
+            hooksecurefunc(realBtn, "SetParent", function(self, parent)
+                if parent ~= landingPageAnchor and landingPageAnchor and G.ShowLanding() then
+                    ScheduleLandingButtonReattach()
+                end
+            end)
+            hooksecurefunc(realBtn, "SetPoint", function(self)
+                if Vista._landingReattach.internal then return end
+                if not G.ShowLanding() then return end
+                if not LandingButtonNeedsReattach(self) then return end
+                ScheduleLandingButtonReattach()
+            end)
+            hooksecurefunc(realBtn, "ClearAllPoints", function(self)
+                if Vista._landingReattach.internal then return end
+                if not G.ShowLanding() then return end
+                if not LandingButtonNeedsReattach(self) then return end
+                ScheduleLandingButtonReattach()
+            end)
+            hooksecurefunc(realBtn, "Show", function(self)
+                if Vista._landingReattach.internal then return end
+                if not G.ShowLanding() then
+                    -- Keep the frame "shown" for Blizzard state, but invisible/unclickable
+                    -- when the user disabled the landing button in Vista options.
+                    pcall(function() self:SetAlpha(0) end)
+                    pcall(function() self:EnableMouse(false) end)
+                    return
+                end
+                ScheduleLandingButtonReattach()
+                RefreshLandingPageAnchor()
+            end)
+            hooksecurefunc(realBtn, "Hide", function()
+                if Vista._landingReattach.internal then return end
+                RefreshLandingPageAnchor()
+            end)
+            hooksecurefunc(realBtn, "SetSize", function(self)
+                if Vista._landingReattach.internal then return end
+                if not G.ShowLanding() then return end
+                local wantSz = G.LandingBtnSize()
+                local w, h = self:GetSize()
+                if w and h and (math.abs(w - wantSz) > 0.5 or math.abs(h - wantSz) > 0.5) then
+                    Vista._landingReattach.internal = true
+                    pcall(function() self:SetSize(wantSz, wantSz) end)
+                    Vista._landingReattach.internal = false
+                end
+            end)
+            realBtn:HookScript("OnEnter", function()
+                if G.ShowLanding() and G.MouseoverLanding() then
+                    realBtn:SetAlpha(1 * ((Vista._opacity and Vista._opacity.alpha) or 1))
+                end
+            end)
+            realBtn:HookScript("OnLeave", function()
+                ApplyLandingMouseoverAlpha(realBtn)
+            end)
+        end
+
+        RefreshLandingPageAnchor()
+    end
+
+    SyncLandingPageAnchorGeometry = function()
+        if not landingPageAnchor then return end
+        local btnSz = G.LandingBtnSize()
+        landingPageAnchor:SetSize(btnSz + LANDING_ANCHOR_PAD * 2, btnSz + LANDING_ANCHOR_PAD * 2)
+        if landingPageAnchor._border then
+            landingPageAnchor._border:ClearAllPoints()
+            landingPageAnchor._border:SetSize(btnSz, btnSz)
+            landingPageAnchor._border:SetPoint("CENTER", landingPageAnchor, "CENTER", 0, 0)
+        end
+        AttachLandingButtonToAnchor()
+        RefreshLandingPageAnchor()
+    end
+end
+
+local INTERNAL_BLACKLIST, BLIZZARD_DEFAULT_BUTTONS, ClusterAndOtherAddonNamePatterns, buttonOriginalState, proxyButtonCache
+do
+    INTERNAL_BLACKLIST = {
+        ["HorizonSuiteMinimapButton"]     = true,
+        ["HorizonSuiteVistaDecor"]       = true,
+        ["HorizonSuiteVistaButtonBar"]   = true,
+        ["HorizonSuiteVistaDrawerBtn"]   = true,
+        ["HorizonSuiteVistaQueueAnchor"] = true,
+        ["HorizonSuiteVistaLandingAnchor"] = true,
+        ["HorizonSuiteVistaMailAnchor"]  = true,
+        ["HorizonSuiteVistaCraftingOrderAnchor"] = true,
+        ["MinimapBackdrop"]              = true,
+        ["MinimapCompassTexture"]        = true,
+        ["MinimapBorder"]                = true,
+        ["MinimapBorderTop"]             = true,
+        ["MinimapNorthTag"]              = true,
+        ["MinimapZoneTextButton"]        = true,
+        ["MiniMapWorldMapButton"]        = true,
+        ["MinimapZoomIn"]                = true,
+        ["MinimapZoomOut"]               = true,
+        ["MinimapCluster"]               = true,
+        ["MinimapToggleButton"]          = true,
+        ["AddonCompartmentFrame"]        = true,
+        ["AddonCompartmentFrameButton"]  = true,
+    }
+    BLIZZARD_DEFAULT_BUTTONS = {
+        ["TimeManagerClockButton"]            = true,
+        ["GameTimeFrame"]                     = true,
+        ["MiniMapTracking"]                   = true,
+        ["MinimapTrackingFrame"]              = true,
+        ["MiniMapTrackingButton"]             = true,
+        ["MiniMapTrackingIcon"]               = true,
+        ["MiniMapTrackingIconOverlay"]        = true,
+        ["GarrisonLandingPageMinimapButton"]  = true,
+        ["ExpansionLandingPageMinimapButton"] = true,
+        ["MiniMapInstanceDifficulty"]         = true,
+        ["QueueStatusMinimapButton"]          = true,
+        ["QueueStatusButton"]                 = true,
+        ["QueueStatusFrame"]                  = true,
+        ["MiniMapBattlefieldFrame"]           = true,
+        ["MiniMapMailFrame"]                  = true,
+        ["MiniMapMailIcon"]                   = true,
+        ["MiniMapMailBorder"]                 = true,
+        ["MinimapMailFrameNormal"]            = true,
+        ["MiniMapStableFrame"]               = true,
+        ["MiniMapCraftingOrderIcon"]          = true,
+        ["MiniMapVoiceChatFrame"]             = true,
+        ["MinimapPlayerArrow"]               = true,
+        ["MinimapArrow"]                     = true,
+        ["HelpOpenWebTicketButton"]          = true,
+        ["HelpOpenTicketButton"]             = true,
+        ["MinimapHelpButton"]                = true,
+        ["MiniMapLFGFrame"]                  = true,
+        ["MiniMapRecordingButton"]           = true,
+        ["EmoticonMiniMapDropDown"]           = true,
+        ["EmoticonMiniMapButton"]            = true,
+    }
+
+    ClusterAndOtherAddonNamePatterns = {
+        "^MinimapCluster%.",
+        "^Minimap%a*Pin%d*$",
+        "^Plumber",
+        "^Emoticon",
+        "^GatherMate%a*%d+$",
+        "^TomTom",
+        "^TTMinimap%a*%d+$",
+    }
+    buttonOriginalState = {}
+    proxyButtonCache    = {}
+end
+
+local HORIZON_MINIMAP_BTN_NAME = "HorizonSuiteMinimapButton"
+
+-- INTERNAL_BLACKLIST normally skips Horizon's minimap button; opt-in collects it like other addons.
+-- hideMinimapButton is an absolute hide (Axis's "Show minimap icon") — honor it regardless of vistaCollectHorizonMinimapButton.
+local function HorizonMinimapIsInternallyExcluded(cName)
+    if not cName or not INTERNAL_BLACKLIST[cName] then return false end
+    if cName == HORIZON_MINIMAP_BTN_NAME
+        and DB("vistaCollectHorizonMinimapButton", true)
+        and not DB("hideMinimapButton", false) then
+        return false
+    end
+    return true
+end
+
+local function SaveButtonState(btn)
+    if buttonOriginalState[btn] then return end
+    local parent = btn:GetParent()
+    local point, relFrame, relPoint, x, y = btn:GetPoint()
+    local ok, strata = pcall(function() return btn:GetFrameStrata() end)
+    buttonOriginalState[btn] = {
+        parent   = parent,
+        point    = point    or "CENTER",
+        relFrame = relFrame or parent,
+        relPoint = relPoint or "CENTER",
+        x        = x or 0,
+        y        = y or 0,
+        strata   = (ok and strata) or "MEDIUM",
+        originalShow = btn.Show,
+    }
+end
+
+-- Reset button brightness without hiding decorative textures.
+-- Used when buttons stay on the minimap (mouseover bar, unmanaged).
+local function ResetButtonBrightness(btn)
+    pcall(function() btn:SetAlpha(1) end)
+    -- Restore the LibDBIcon decorative ring/background textures
+    pcall(function() if btn.background then btn.background:Show() end end)
+    pcall(function() if btn.border then btn.border:Show() end end)
+    -- Ensure the icon texture itself is full brightness
+    pcall(function()
+        if btn.icon then
+            btn.icon:SetAlpha(1)
+            btn.icon:SetDesaturated(false)
+            btn.icon:SetVertexColor(1, 1, 1, 1)
+        end
+    end)
+    -- Walk all regions and reset alpha/desaturation
+    pcall(function()
+        for _, region in ipairs({ btn:GetRegions() }) do
+            if region then
+                pcall(function() region:SetDesaturated(false) end)
+                pcall(function() region:SetAlpha(1) end)
+                pcall(function() region:SetVertexColor(1, 1, 1, 1) end)
+            end
+        end
+    end)
+end
+
+local function SuppressButtonShow(btn)
+    local s = buttonOriginalState[btn]
+    if not s then return end
+    if not s.originalShow then s.originalShow = btn.Show end
+    btn.Show = function() end
+end
+
+local function RestoreButtonShow(btn)
+    local s = buttonOriginalState[btn]
+    if s and s.originalShow then
+        btn.Show = s.originalShow
+    end
+end
+
+-- Reset button for use inside a panel (drawer / right-click).
+-- Instead of placing the original LibDBIcon button (which has dark rendering issues),
+-- we create a clean proxy button that copies the icon texture and forwards events.
+
+local function HorizonMinimapProxyPixelSize()
+    if addon.MinimapButton_GetDisplayPixelSize then
+        return addon.MinimapButton_GetDisplayPixelSize()
+    end
+    return G.AddonBtnSize()
+end
+
+local function GetOrCreateProxyButton(originalBtn, parent)
+    if proxyButtonCache[originalBtn] then
+        local proxy = proxyButtonCache[originalBtn]
+        proxy:SetParent(parent)
+        local onameEarly = originalBtn.GetName and originalBtn:GetName()
+        if onameEarly == HORIZON_MINIMAP_BTN_NAME then
+            local psz = HorizonMinimapProxyPixelSize()
+            proxy:SetSize(psz, psz)
+        end
+        if onameEarly == HORIZON_MINIMAP_BTN_NAME and addon.MinimapButton_SetHorizonPatchNotesProxy then
+            addon.MinimapButton_SetHorizonPatchNotesProxy(proxy)
+            if addon.MinimapButton_UpdatePatchNotesBadge then addon.MinimapButton_UpdatePatchNotesBadge() end
+        end
+        return proxy
+    end
+
+    local proxy = CreateFrame("Button", nil, parent)
+    local onameNew = originalBtn.GetName and originalBtn:GetName()
+    local pszNew = (onameNew == HORIZON_MINIMAP_BTN_NAME) and HorizonMinimapProxyPixelSize() or G.AddonBtnSize()
+    proxy:SetSize(pszNew, pszNew)
+    proxy._vistaOriginalBtn = originalBtn
+
+    -- Create our own icon texture
+    local proxyIcon = proxy:CreateTexture(nil, "ARTWORK")
+    proxyIcon:SetAllPoints()
+    proxy._vistaIcon = proxyIcon
+
+    -- Extract icon texture from the original button
+    local function UpdateProxyIcon()
+        local tex = nil
+        -- Try .icon first (LibDBIcon standard)
+        if originalBtn.icon then
+            tex = originalBtn.icon:GetTexture()
+        end
+        -- Fallback: scan regions for a texture with content
+        if not tex then
+            pcall(function()
+                for _, region in ipairs({ originalBtn:GetRegions() }) do
+                    if region and region:IsObjectType("Texture") then
+                        local t = region:GetTexture()
+                        if t and region ~= originalBtn.background and region ~= originalBtn.border then
+                            tex = t
+                            break
+                        end
+                    end
+                end
+            end)
+        end
+        if tex then
+            proxyIcon:SetTexture(tex)
+            -- Copy texcoords if available
+            if originalBtn.icon then
+                pcall(function()
+                    proxyIcon:SetTexCoord(originalBtn.icon:GetTexCoord())
+                end)
+            end
+        else
+            proxyIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+        end
+        proxyIcon:SetDesaturated(false)
+        proxyIcon:SetAlpha(1)
+        proxyIcon:SetVertexColor(1, 1, 1, 1)
+    end
+
+    UpdateProxyIcon()
+    proxy._vistaUpdateIcon = UpdateProxyIcon
+
+    -- Forward clicks to the original button
+    proxy:SetScript("OnClick", function(self, button)
+        -- The original btn may have dataObject (LibDBIcon)
+        if originalBtn.dataObject then
+            local dObj = originalBtn.dataObject
+            if button == "LeftButton" then
+                if dObj.OnClick then dObj.OnClick(originalBtn, button) end
+            elseif button == "RightButton" then
+                if dObj.OnClick then dObj.OnClick(originalBtn, button) end
+            end
+        else
+            -- Fallback: simulate a click on the original
+            pcall(function() originalBtn:Click(button) end)
+        end
+    end)
+    proxy:RegisterForClicks("AnyUp")
+
+    -- Forward tooltip
+    proxy:SetScript("OnEnter", function(self)
+        if originalBtn.dataObject then
+            local dObj = originalBtn.dataObject
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+            if dObj.OnTooltipShow then
+                dObj.OnTooltipShow(GameTooltip)
+            elseif dObj.text then
+                GameTooltip:SetText(dObj.text)
+            end
+            GameTooltip:Show()
+        else
+            local cName = originalBtn.GetName and originalBtn:GetName()
+            -- Horizon: do not run original OnEnter on the hidden real button; anchor to visible proxy.
+            if cName == HORIZON_MINIMAP_BTN_NAME and addon.MinimapButton_ShowGameTooltip then
+                addon.MinimapButton_ShowGameTooltip(self, "ANCHOR_BOTTOMLEFT")
+            else
+                pcall(function()
+                    local script = originalBtn:GetScript("OnEnter")
+                    if script then script(originalBtn) end
+                end)
+                -- Re-anchor to visible proxy; IsShown() can be false briefly when owner was hidden.
+                if GameTooltip then
+                    GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+                    GameTooltip:Show()
+                end
+            end
+        end
+    end)
+    proxy:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+        pcall(function()
+            local script = originalBtn:GetScript("OnLeave")
+            if script then script(originalBtn) end
+        end)
+    end)
+
+    -- Highlight on hover
+    local highlight = proxy:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetAllPoints()
+    highlight:SetColorTexture(1, 1, 1, 0.15)
+
+    proxyButtonCache[originalBtn] = proxy
+    local oname = originalBtn.GetName and originalBtn:GetName()
+    if oname == HORIZON_MINIMAP_BTN_NAME and addon.MinimapButton_SetHorizonPatchNotesProxy then
+        addon.MinimapButton_SetHorizonPatchNotesProxy(proxy)
+        if addon.MinimapButton_UpdatePatchNotesBadge then addon.MinimapButton_UpdatePatchNotesBadge() end
+    end
+    return proxy
+end
+
+-- Hide all proxy buttons (used when switching modes)
+local function HideAllProxyButtons()
+    for _, proxy in pairs(proxyButtonCache) do
+        proxy:Hide()
+    end
+end
+
+local function RestoreButton(btn)
+    RestoreButtonShow(btn)
+    local s = buttonOriginalState[btn]
+    if not s then
+        pcall(function() btn:SetParent(Minimap); btn:Show() end)
+        ResetButtonBrightness(btn)
+        return
+    end
+    pcall(function()
+        btn:SetFrameStrata(s.strata or "MEDIUM")
+        btn:SetParent(s.parent or Minimap)
+        btn:ClearAllPoints()
+        btn:SetPoint(s.point, s.relFrame or (s.parent or Minimap), s.relPoint, s.x, s.y)
+        btn:Show()
+    end)
+    ResetButtonBrightness(btn)
+end
+
+local function IsButtonManagedByVista(btn)
+    local cName = btn:GetName()
+    if HorizonMinimapIsInternallyExcluded(cName) then return false end
+    if cName and BLIZZARD_DEFAULT_BUTTONS[cName] then return false end
+    if cName then
+        for _, pat in ipairs(ClusterAndOtherAddonNamePatterns) do
+            if cName:match(pat) then return false end
+        end
+    end
+    local isProtected = false
+    pcall(function() isProtected = btn:IsProtected() end)
+    if isProtected then return false end
+    if cName and not DB("vistaButtonManaged_" .. cName, true) then return false end
+    return true
+end
+
+local function IsButtonVisible(btn)
+    local cName = btn:GetName()
+    local whitelist = G.ButtonWhitelist()
+    if whitelist and type(whitelist) == "table" then
+        local hasAny = false
+        for _ in pairs(whitelist) do hasAny = true; break end
+        if hasAny and not whitelist[cName or ""] then return false end
+    end
+    return true
+end
+
+
+
+-- Scan button-like children of Minimap AND MinimapCluster for ADDON buttons only.
+-- Only includes buttons that are currently shown (active addons).
+local function ScanMinimapButtons()
+    local result = {}
+    local seen = {}
+
+
+    local function isMapPin(child)
+        if child.dataObject then return false end
+        if child.db and child.db.minimapPos then return false end
+        if not child:GetName() then
+            local ok, point, relFrame, relPoint = pcall(child.GetPoint, child, 1)
+            if ok and point == "CENTER" and relPoint == "CENTER" and relFrame == Minimap then
+                return true
+            end
+            local hasClick = false
+            pcall(function()
+                if child:HasScript("OnClick") and child:GetScript("OnClick") then hasClick = true end
+            end)
+            pcall(function()
+                if child:HasScript("OnMouseUp") and child:GetScript("OnMouseUp") then hasClick = true end
+            end)
+            if not hasClick then return true end
+        end
+        return false
+    end
+
+    local function matchesBlizzardPattern(cName)
+        if not cName then return false end
+        for _, pat in ipairs(ClusterAndOtherAddonNamePatterns) do
+            if cName:match(pat) then return true end
+        end
+        return false
+    end
+
+    local OPTION_PANEL_PATTERNS = {
+        "option", "config", "setting", "panel", "control", "dialog", "pref",
+    }
+    local function isOptionsPanelChild(child)
+        local parent = child:GetParent()
+        if not parent then return false end
+        local pName = parent:GetName()
+        if not pName then return false end
+        local lp = pName:lower()
+        for _, pat in ipairs(OPTION_PANEL_PATTERNS) do
+            if lp:find(pat, 1, true) then return true end
+        end
+        return false
+    end
+
+    local function hasClickHandler(child)
+        local found = false
+        pcall(function()
+            if child:HasScript("OnClick") and child:GetScript("OnClick") then found = true end
+        end)
+        if found then return true end
+        pcall(function()
+            if child:HasScript("OnMouseUp") and child:GetScript("OnMouseUp") then found = true end
+        end)
+        if found then return true end
+        pcall(function()
+            if child:HasScript("OnMouseDown") and child:GetScript("OnMouseDown") then found = true end
+        end)
+        if found then return true end
+        pcall(function()
+            for _, sub in ipairs({ child:GetChildren() }) do
+                pcall(function()
+                    if sub:HasScript("OnClick") and sub:GetScript("OnClick") then found = true end
+                end)
+                if not found then pcall(function()
+                    if sub:HasScript("OnMouseUp") and sub:GetScript("OnMouseUp") then found = true end
+                end) end
+                if found then return end
+            end
+        end)
+        return found
+    end
+
+    local function tryAdd(child, requireName)
+        if not child or seen[child] then return end
+        local ok, isBtn = pcall(function() return child:IsObjectType("Button") end)
+        if not ok or not isBtn then return end
+        local cName = child:GetName()
+        if requireName and not cName then return end
+        if HorizonMinimapIsInternallyExcluded(cName) then return end
+        if cName and BLIZZARD_DEFAULT_BUTTONS[cName] then return end
+        if cName and matchesBlizzardPattern(cName) then return end
+        local isProtected = false
+        pcall(function() isProtected = child:IsProtected() end)
+        if isProtected then return end
+        if isOptionsPanelChild(child) then return end
+        if isMapPin(child) then return end
+        local w, h = child:GetSize()
+        if w < 14 or w > 100 or h < 14 or h > 100 then return end
+        local ratio = (w > h) and (w / h) or (h / w)
+        if ratio > 1.5 then return end
+        if not child.dataObject and not (child.db and child.db.minimapPos) then
+            if not hasClickHandler(child) then return end
+        end
+        seen[child] = true
+        result[#result + 1] = child
+    end
+
+    -- Direct children of Minimap
+    for _, child in ipairs({ Minimap:GetChildren() }) do
+        tryAdd(child)
+    end
+
+    -- Children of MinimapCluster (many addons parent here)
+    if MinimapCluster then
+        for _, child in ipairs({ MinimapCluster:GetChildren() }) do
+            if child ~= Minimap then
+                tryAdd(child)
+                local ok, isBtn = pcall(function() return child:IsObjectType("Button") end)
+                if not (ok and isBtn) then
+                    local ok2, isFrame = pcall(function() return child:IsObjectType("Frame") end)
+                    if ok2 and isFrame then
+                        for _, sub in ipairs({ child:GetChildren() }) do
+                            tryAdd(sub)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if MinimapBackdrop then
+        for _, child in ipairs({ MinimapBackdrop:GetChildren() }) do
+            tryAdd(child)
+            local ok, isBtn = pcall(function() return child:IsObjectType("Button") end)
+            if not (ok and isBtn) then
+                local ok2, isFrame = pcall(function() return child:IsObjectType("Frame") end)
+                if ok2 and isFrame then
+                    for _, sub in ipairs({ child:GetChildren() }) do
+                        tryAdd(sub)
+                    end
+                end
+            end
+        end
+    end
+
+    for gName, gObj in pairs(_G) do
+        if type(gName) == "string" then
+            local lname = gName:lower()
+            local isLibDBIcon = lname:match("^libdbicon[%d]*_")
+            if isLibDBIcon then
+                if type(gObj) == "table" and type(gObj.IsObjectType) == "function" then
+                    pcall(function() tryAdd(gObj, true) end)
+                end
+            end
+        end
+    end
+
+    -- Blizzard's AddonCompartmentFrame children (addon drawer buttons)
+    if _G["AddonCompartmentFrame"] then
+        for _, child in ipairs({ _G["AddonCompartmentFrame"]:GetChildren() }) do
+            tryAdd(child)
+            local ok, isBtn = pcall(function() return child:IsObjectType("Button") end)
+            if not (ok and isBtn) then
+                local ok2, isFrame = pcall(function() return child:IsObjectType("Frame") end)
+                if ok2 and isFrame then
+                    for _, sub in ipairs({ child:GetChildren() }) do tryAdd(sub) end
+                end
+            end
+        end
+    end
+
+    return result
+end
+
+-- Forward declaration — defined in the HOVER / ON-UPDATE section below.
+-- Needed here because CreateCollectorBar's OnDragStop closure captures it.
+local PositionBarAnchor
+
+local function CreateCollectorBar()
+    collectorBar = CreateFrame("Frame", "HorizonSuiteVistaButtonBar", UIParent)
+    collectorBar:SetFrameStrata("HIGH")
+    collectorBar:SetClampedToScreen(true)
+    collectorBar:SetMovable(true)
+    collectorBar:SetSize(1, G.AddonBtnSize())
+    -- barAlpha starts at 0; multiply by cluster opacity
+    Vista._ApplyCollectorBarAlpha()
+
+    local savedX = G.MouseoverBarX()
+    local savedY = G.MouseoverBarY()
+    if savedX and savedY then
+        collectorBar:SetPoint("CENTER", Minimap, "CENTER", savedX, savedY)
+    else
+        collectorBar:SetPoint("TOP", Minimap, "BOTTOM", 0, -8)
+    end
+    collectorBar:Show()
+
+    -- Backdrop (background + border textures)
+    local barBgFrame = CreateFrame("Frame", nil, collectorBar)
+    barBgFrame:SetAllPoints()
+    barBgFrame:SetFrameLevel(collectorBar:GetFrameLevel())
+    local brR, brG, brB, brA = G.BarBgColor()
+    local bgTex = barBgFrame:CreateTexture(nil, "BACKGROUND", nil, -8)
+    bgTex:SetAllPoints(); bgTex:SetColorTexture(brR, brG, brB, brA)
+    collectorBar._bgTex = bgTex
+    collectorBar._bgFrame = barBgFrame
+
+    local bdrR, bdrG, bdrB, bdrA = G.BarBorderColor()
+    local bbT = barBgFrame:CreateTexture(nil, "BORDER"); bbT:SetColorTexture(bdrR, bdrG, bdrB, bdrA)
+    local bbB = barBgFrame:CreateTexture(nil, "BORDER"); bbB:SetColorTexture(bdrR, bdrG, bdrB, bdrA)
+    local bbL = barBgFrame:CreateTexture(nil, "BORDER"); bbL:SetColorTexture(bdrR, bdrG, bdrB, bdrA)
+    local bbR = barBgFrame:CreateTexture(nil, "BORDER"); bbR:SetColorTexture(bdrR, bdrG, bdrB, bdrA)
+    collectorBar._borderTextures = { bbT, bbB, bbL, bbR }
+    -- border visibility controlled by G.BarBorderShow()
+    local function applyBarBorderVis()
+        local show = G.BarBorderShow()
+        bbT:SetShown(show); bbB:SetShown(show); bbL:SetShown(show); bbR:SetShown(show)
+    end
+    applyBarBorderVis()
+    bbT:SetPoint("TOPLEFT",0,0); bbT:SetPoint("TOPRIGHT",0,0); bbT:SetHeight(1)
+    bbB:SetPoint("BOTTOMLEFT",0,0); bbB:SetPoint("BOTTOMRIGHT",0,0); bbB:SetHeight(1)
+    bbL:SetPoint("TOPLEFT",0,0); bbL:SetPoint("BOTTOMLEFT",0,0); bbL:SetWidth(1)
+    bbR:SetPoint("TOPRIGHT",0,0); bbR:SetPoint("BOTTOMRIGHT",0,0); bbR:SetWidth(1)
+    collectorBar._applyBarBorderVis = applyBarBorderVis
+
+    -- Tooltip when bar is unlocked (to help user understand it is draggable)
+    collectorBar:EnableMouse(true)
+    collectorBar:SetScript("OnEnter", function(self)
+        hoverTarget = 1; hoverElapsed = 0
+        if not G.MouseoverLocked() then
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+            GameTooltip:SetText("Minimap Buttons")
+            GameTooltip:AddLine("Drag to reposition the bar", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine("Lock position in options to hide this tip", 0.5, 0.5, 0.5)
+            GameTooltip:Show()
+        end
+    end)
+    collectorBar:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+        if Minimap:IsMouseOver() or collectorBar:IsMouseOver() then return end
+        for _, p in pairs(proxyButtonCache) do if p:IsMouseOver() then return end end
+        hoverTarget = 0; hoverElapsed = 0
+    end)
+
+    collectorBar:RegisterForDrag("LeftButton")
+    collectorBar:SetScript("OnDragStart", function(self)
+        if not G.MouseoverLocked() and not InCombatLockdown() then
+            self:StartMoving()
+        end
+    end)
+    collectorBar:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local ox, oy = ComputeMinimapCenterOffset(self)
+        if not ox then return end
+        SetDB("vistaMouseoverBarX", ox)
+        SetDB("vistaMouseoverBarY", oy)
+        self:ClearAllPoints()
+        self:SetPoint("CENTER", Minimap, "CENTER", ox, oy)
+        PositionBarAnchor()
+    end)
+
+    -- ── Drag Anchor ─────────────────────────────────────────────────────────
+    -- Icon-sized handle shown only when the bar is unlocked and visible.
+    -- Dragging it repositions collectorBar. Styled like the floating drawer button.
+    local anchorSz = G.AddonBtnSize() + 4
+    barAnchor = CreateFrame("Button", "HorizonSuiteVistaBarAnchor", UIParent)
+    barAnchor:SetSize(anchorSz, anchorSz)
+    barAnchor:SetFrameStrata("HIGH")
+    barAnchor:SetFrameLevel(collectorBar:GetFrameLevel() + 10)
+    barAnchor:SetClampedToScreen(true)
+    barAnchor:SetMovable(true)
+    barAnchor:RegisterForDrag("LeftButton")
+    barAnchor:Hide()
+
+    -- Visuals: same panel colour as the floating drawer
+    local abgR, abgG, abgB, abgA = G.PanelBgColor()
+    local ancBg = barAnchor:CreateTexture(nil, "BACKGROUND")
+    ancBg:SetAllPoints(); ancBg:SetColorTexture(abgR, abgG, abgB, abgA)
+    barAnchor._bg = ancBg
+
+    local abrR, abrG, abrB, abrA = G.PanelBorderColor()
+    local ancBorder = barAnchor:CreateTexture(nil, "OVERLAY")
+    ancBorder:SetPoint("TOPLEFT", -1, 1); ancBorder:SetPoint("BOTTOMRIGHT", 1, -1)
+    ancBorder:SetColorTexture(abrR, abrG, abrB, abrA)
+    barAnchor._border = ancBorder
+
+    -- Move icon
+    local ancIcon = barAnchor:CreateTexture(nil, "ARTWORK")
+    ancIcon:SetPoint("CENTER"); ancIcon:SetSize(14, 14)
+    ancIcon:SetTexture("Interface\\CURSOR\\UI-Cursor-Move")
+    ancIcon:SetTexCoord(0, 1, 0, 1)
+    barAnchor._icon = ancIcon
+
+    -- Tooltip
+    barAnchor:SetScript("OnEnter", function(self)
+        hoverTarget = 1; hoverElapsed = 0; barCloseDelayElapsed = 0
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+        GameTooltip:SetText("Mouseover Bar Anchor")
+        GameTooltip:AddLine("Drag to reposition the button bar", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    barAnchor:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    -- Drag: user drags the anchor; on drop, offset collectorBar so its leading
+    -- edge lands where the anchor was, then re-snap anchor to that edge.
+    barAnchor:SetScript("OnDragStart", function(self)
+        if InCombatLockdown() then return end
+        barAnchorDragging = true
+        barAlpha = 1  -- keep bar visible while dragging
+        Vista._ApplyCollectorBarAlpha()
+        self:StartMoving()
+        -- Live-follow: read anchor screen pos every frame, derive bar CENTER, move bar
+        self:SetScript("OnUpdate", function(s)
+            if not collectorBar then return end
+            local ancOffX, ancOffY = ComputeMinimapCenterOffset(s)
+            if not ancOffX then return end
+            local dir = G.BtnLayoutDir()
+            local cbW  = collectorBar:GetWidth()
+            local cbH  = collectorBar:GetHeight()
+            local ancW = s:GetWidth()
+            local ancH = s:GetHeight()
+            local gap  = BTN_GAP
+            local ox, oy
+            if     dir == "right" then ox = ancOffX + ancW/2 + gap + cbW/2; oy = ancOffY
+            elseif dir == "left"  then ox = ancOffX - ancW/2 - gap - cbW/2; oy = ancOffY
+            elseif dir == "down"  then ox = ancOffX; oy = ancOffY - ancH/2 - gap - cbH/2
+            elseif dir == "up"    then ox = ancOffX; oy = ancOffY + ancH/2 + gap + cbH/2
+            else                       ox = ancOffX + ancW/2 + gap + cbW/2; oy = ancOffY end
+            -- Move collectorBar without creating a circular anchor dependency
+            collectorBar:ClearAllPoints()
+            collectorBar:SetPoint("CENTER", Minimap, "CENTER", ox, oy)
+        end)
+    end)
+    barAnchor:SetScript("OnDragStop", function(self)
+        self:SetScript("OnUpdate", nil)  -- stop live-follow
+        self:StopMovingOrSizing()
+        barAnchorDragging = false
+        if not collectorBar then return end
+
+        -- Step 1: compute anchor's own offset from Minimap CENTER.
+        local ancOffX, ancOffY = ComputeMinimapCenterOffset(self)
+        if not ancOffX then return end
+
+        -- Step 2: shift from anchor position to collectorBar CENTER
+        -- based on expand direction (anchor sits on the leading edge)
+        local dir  = G.BtnLayoutDir()
+        local cbW  = collectorBar:GetWidth()
+        local cbH  = collectorBar:GetHeight()
+        local ancW = self:GetWidth()
+        local ancH = self:GetHeight()
+        local gap  = BTN_GAP
+        local ox, oy
+        if dir == "right" then
+            ox = ancOffX + ancW/2 + gap + cbW/2
+            oy = ancOffY
+        elseif dir == "left" then
+            ox = ancOffX - ancW/2 - gap - cbW/2
+            oy = ancOffY
+        elseif dir == "down" then
+            ox = ancOffX
+            oy = ancOffY - ancH/2 - gap - cbH/2
+        elseif dir == "up" then
+            ox = ancOffX
+            oy = ancOffY + ancH/2 + gap + cbH/2
+        else
+            ox = ancOffX + ancW/2 + gap + cbW/2
+            oy = ancOffY
+        end
+
+        SetDB("vistaMouseoverBarX", ox)
+        SetDB("vistaMouseoverBarY", oy)
+        collectorBar:ClearAllPoints()
+        collectorBar:SetPoint("CENTER", Minimap, "CENTER", ox, oy)
+        PositionBarAnchor()
+    end)
+end
+
+
+local function LayoutCollectedButtons()
+    if not collectorBar then return end
+    local n = #collectedButtons
+    local btnSz = G.AddonBtnSize()
+    local BAR_PAD = 4
+    if n == 0 then collectorBar:SetWidth(1); collectorBar:SetHeight(btnSz + BAR_PAD * 2); return end
+
+    local cols   = math.min(n, math.max(1, G.BtnLayoutCols()))
+    local dir    = G.BtnLayoutDir()
+    local vertical = (dir == "up" or dir == "down")
+    local primaryCount   = cols
+    local secondaryCount = math.ceil(n / primaryCount)
+    local gridCols = vertical and secondaryCount or primaryCount
+    local gridRows = vertical and primaryCount    or secondaryCount
+
+    local totalWidth  = gridCols * btnSz + (gridCols - 1) * BTN_GAP + BAR_PAD * 2
+    local totalHeight = gridRows * btnSz + (gridRows - 1) * BTN_GAP + BAR_PAD * 2
+    collectorBar:SetSize(totalWidth, totalHeight)
+
+    for i, originalBtn in ipairs(collectedButtons) do
+        local idx = i - 1
+        local pri = idx % primaryCount
+        local sec = math.floor(idx / primaryCount)
+        local col, row
+        if     dir == "right" then col = pri;                       row = sec
+        elseif dir == "left"  then col = (primaryCount - 1 - pri); row = sec
+        elseif dir == "down"  then col = sec;                       row = pri
+        elseif dir == "up"    then col = sec;                       row = (primaryCount - 1 - pri)
+        else                       col = pri;                       row = sec end
+
+        -- Use proxy buttons (properly sized with correct click area)
+        originalBtn:Hide()
+        local proxy = GetOrCreateProxyButton(originalBtn, collectorBar)
+        proxy:ClearAllPoints()
+        proxy:SetSize(btnSz, btnSz)
+        proxy:SetFrameLevel(collectorBar:GetFrameLevel() + 2)
+        proxy:SetPoint("TOPLEFT", collectorBar, "TOPLEFT",
+            BAR_PAD + col * (btnSz + BTN_GAP),
+            -(BAR_PAD + row * (btnSz + BTN_GAP)))
+        proxy._vistaUpdateIcon()
+        proxy:Show()
+    end
+
+    -- Re-snap anchor to leading edge now that bar dimensions are final
+    if barAnchor then PositionBarAnchor() end
+
+    collectorBar:EnableMouse(true)
+    -- Re-apply hover scripts each layout (they may have been cleared)
+    collectorBar:SetScript("OnEnter", function(self)
+        hoverTarget = 1; hoverElapsed = 0
+        if not G.MouseoverLocked() then
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+            GameTooltip:SetText("Minimap Buttons")
+            GameTooltip:AddLine("Drag to reposition the bar", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine("Lock position in options to hide this tip", 0.5, 0.5, 0.5)
+            GameTooltip:Show()
+        end
+    end)
+    collectorBar:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+        if Minimap:IsMouseOver() or collectorBar:IsMouseOver() then return end
+        for _, p in pairs(proxyButtonCache) do if p:IsMouseOver() then return end end
+        hoverTarget = 0; hoverElapsed = 0
+    end)
+
+    for _, originalBtn in ipairs(collectedButtons) do
+        local proxy = proxyButtonCache[originalBtn]
+        if proxy and not hookedButtons[proxy] then
+            hookedButtons[proxy] = true
+            proxy:HookScript("OnEnter", function() hoverTarget = 1; hoverElapsed = 0 end)
+            proxy:HookScript("OnLeave", function()
+                if Minimap:IsMouseOver() or collectorBar:IsMouseOver() then return end
+                for _, p in pairs(proxyButtonCache) do if p:IsMouseOver() then return end end
+                hoverTarget = 0; hoverElapsed = 0
+            end)
+        end
+    end
+end
+
+-- ============================================================================
+-- DRAWER BUTTON
+-- ============================================================================
+
+local function UpdateDrawerPanelLayout()
+    if not drawerPanel then return end
+    local n = #drawerPanelButtons
+    if n == 0 then drawerPanel:SetSize(1, 1); return end
+
+    local PAD = 6; local GAP = 4
+    local btnSz = G.AddonBtnSize()
+    local dir   = G.BtnLayoutDir()
+    local vertical = (dir == "up" or dir == "down")
+    local primaryCount = math.min(n, math.max(1, G.BtnLayoutCols()))
+    local secondaryCount = math.ceil(n / primaryCount)
+    local gridCols = vertical and secondaryCount or primaryCount
+    local gridRows = vertical and primaryCount    or secondaryCount
+
+    drawerPanel:SetSize(
+        gridCols * btnSz + (gridCols - 1) * GAP + PAD * 2,
+        gridRows * btnSz + (gridRows - 1) * GAP + PAD * 2)
+
+    for idx, originalBtn in ipairs(drawerPanelButtons) do
+        local i = idx - 1
+        local pri = i % primaryCount
+        local sec = math.floor(i / primaryCount)
+        local col, row
+        if dir == "right" then col = pri; row = sec
+        elseif dir == "left" then col = (primaryCount - 1 - pri); row = sec
+        elseif dir == "down" then col = sec; row = pri
+        elseif dir == "up"   then col = sec; row = (primaryCount - 1 - pri)
+        else col = pri; row = sec end
+
+        originalBtn:Hide()
+        local proxy = GetOrCreateProxyButton(originalBtn, drawerPanel)
+        proxy:ClearAllPoints()
+        proxy:SetSize(btnSz, btnSz)
+        proxy:SetFrameLevel(drawerPanel:GetFrameLevel() + 10 + idx)
+        proxy:SetPoint("TOPLEFT", drawerPanel, "TOPLEFT",
+            PAD + col * (btnSz + GAP),
+            -(PAD + row * (btnSz + GAP)))
+        proxy._vistaUpdateIcon()
+        proxy:Show()
+    end
+end
+
+local function ApplyDrawerButtonIcon()
+    if not drawerButton or not drawerButton.icon then return end
+    local ok = pcall(function()
+        drawerButton.icon:SetTexture(G.DrawerIcon())
+    end)
+    if not ok then
+        drawerButton.icon:SetTexture(DRAWER_ICON_DEFAULT)
+    end
+    drawerButton.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    local iconSize = math.max(1, (G.AddonBtnSize() or 24) - 2)
+    drawerButton.icon:SetSize(iconSize, iconSize)
+end
+
+local function ApplyDrawerButtonLockState()
+    if not drawerButton then return end
+    local locked = G.ButtonDrawerLocked()
+    drawerButton:SetMovable(not locked)
+    if drawerButton._border then
+        drawerButton._border:SetShown(not locked)
+    end
+end
+
+local function CreateDrawerButton()
+    if drawerButton then drawerButton:Show(); return end
+
+    drawerButton = CreateFrame("Button", "HorizonSuiteVistaDrawerBtn", UIParent)
+    drawerButton:SetSize(G.AddonBtnSize() + 4, G.AddonBtnSize() + 4)
+    drawerButton:SetFrameStrata("HIGH")
+    drawerButton:SetClampedToScreen(true)
+    drawerButton:SetMovable(true)
+    drawerButton:RegisterForDrag("LeftButton")  -- use WoW drag API, not manual tracking
+
+    local dbx = DB("vistaDrawerBtnX", nil)
+    local dby = DB("vistaDrawerBtnY", nil)
+    if dbx and dby then
+        -- Saved as CENTER offset relative to Minimap CENTER
+        drawerButton:SetPoint("CENTER", Minimap, "CENTER", dbx, dby)
+    else
+        drawerButton:SetPoint("BOTTOMRIGHT", Minimap, "BOTTOMRIGHT", 0, 0)
+    end
+
+    -- Visuals
+    local bg = drawerButton:CreateTexture(nil, "BACKGROUND")
+    local dbR, dbG, dbB, dbA = G.PanelBgColor()
+    bg:SetAllPoints(); bg:SetColorTexture(dbR, dbG, dbB, dbA)
+    drawerButton._bg = bg
+
+    local icon = drawerButton:CreateTexture(nil, "ARTWORK")
+    icon:SetPoint("CENTER")
+    drawerButton.icon = icon
+    ApplyDrawerButtonIcon()
+
+    local brR, brG, brB, brA = G.PanelBorderColor()
+    local border = drawerButton:CreateTexture(nil, "OVERLAY")
+    border:SetPoint("TOPLEFT", -1, 1); border:SetPoint("BOTTOMRIGHT", 1, -1)
+    border:SetColorTexture(brR, brG, brB, brA)
+    drawerButton._border = border
+    ApplyDrawerButtonLockState()
+
+    drawerButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+        GameTooltip:SetText("Minimap Buttons")
+        GameTooltip:AddLine("Click to toggle drawer", 0.7, 0.7, 0.7)
+        if not G.ButtonDrawerLocked() then
+            GameTooltip:AddLine("Drag to move", 0.7, 0.7, 0.7)
+        end
+        GameTooltip:Show()
+    end)
+    drawerButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    -- Drag via OnDragStart / OnDragStop (clean, no sticky-mouse bug)
+    drawerButton:SetScript("OnDragStart", function(self)
+        if G.ButtonDrawerLocked() then return end
+        if InCombatLockdown() then return end
+        self:StartMoving()
+    end)
+    drawerButton:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local ox, oy = ComputeMinimapCenterOffset(self)
+        if not ox then return end
+        SetDB("vistaDrawerBtnX", ox)
+        SetDB("vistaDrawerBtnY", oy)
+        self:ClearAllPoints()
+        self:SetPoint("CENTER", Minimap, "CENTER", ox, oy)
+    end)
+
+    -- Click to toggle the drawer (only fires when not dragging)
+    drawerButton:SetScript("OnClick", function(self, button)
+        if button ~= "LeftButton" then return end
+        drawerOpen = not drawerOpen
+        if drawerPanel then
+            if drawerOpen then
+                drawerPanel:Show()
+                if drawerPanel._scheduleAutoClose then drawerPanel._scheduleAutoClose() end
+            else
+                drawerPanel:Hide()
+                drawerPanel:SetScript("OnUpdate", nil)
+            end
+        end
+    end)
+
+    -- Drawer panel: separate background child frame to avoid overlapping button icons
+    drawerPanel = CreateFrame("Frame", nil, UIParent)
+    drawerPanel:SetFrameStrata("FULLSCREEN_DIALOG")
+    drawerPanel:SetFrameLevel(1)
+    drawerPanel:SetClampedToScreen(true)
+
+    -- Background is a child frame at very low level
+    local dpBgFrame = CreateFrame("Frame", nil, drawerPanel)
+    dpBgFrame:SetAllPoints()
+    dpBgFrame:SetFrameLevel(0)
+    local dpBgR, dpBgG, dpBgB, dpBgA = G.PanelBgColor()
+    local dpBg = dpBgFrame:CreateTexture(nil, "BACKGROUND", nil, -8)
+    dpBg:SetAllPoints(); dpBg:SetColorTexture(dpBgR, dpBgG, dpBgB, dpBgA)
+    local dpBrR, dpBrG, dpBrB, dpBrA = G.PanelBorderColor()
+    local dpBorderT = dpBgFrame:CreateTexture(nil, "BORDER"); dpBorderT:SetColorTexture(dpBrR, dpBrG, dpBrB, dpBrA)
+    local dpBorderB = dpBgFrame:CreateTexture(nil, "BORDER"); dpBorderB:SetColorTexture(dpBrR, dpBrG, dpBrB, dpBrA)
+    local dpBorderL = dpBgFrame:CreateTexture(nil, "BORDER"); dpBorderL:SetColorTexture(dpBrR, dpBrG, dpBrB, dpBrA)
+    local dpBorderR = dpBgFrame:CreateTexture(nil, "BORDER"); dpBorderR:SetColorTexture(dpBrR, dpBrG, dpBrB, dpBrA)
+    drawerPanel._bgTex = dpBg
+    drawerPanel._borderTextures = { dpBorderT, dpBorderB, dpBorderL, dpBorderR }
+    dpBorderT:SetPoint("TOPLEFT",0,0); dpBorderT:SetPoint("TOPRIGHT",0,0); dpBorderT:SetHeight(1)
+    dpBorderB:SetPoint("BOTTOMLEFT",0,0); dpBorderB:SetPoint("BOTTOMRIGHT",0,0); dpBorderB:SetHeight(1)
+    dpBorderL:SetPoint("TOPLEFT",0,0); dpBorderL:SetPoint("BOTTOMLEFT",0,0); dpBorderL:SetWidth(1)
+    dpBorderR:SetPoint("TOPRIGHT",0,0); dpBorderR:SetPoint("BOTTOMRIGHT",0,0); dpBorderR:SetWidth(1)
+
+    drawerPanel:SetPoint("BOTTOMLEFT", drawerButton, "TOPLEFT", 0, 4)
+    drawerPanel:Hide()
+    drawerOpen = false
+
+    -- Auto-close polling when delay > 0
+    local function ScheduleDrawerAutoClose()
+        local delay = G.DrawerCloseDelay()
+        if delay <= 0 then return end  -- 0 = never auto-close
+        local elapsed = 0
+        local function poll(_, dt)
+            elapsed = elapsed + dt
+            if not drawerPanel or not drawerOpen then return end
+            if drawerButton and drawerButton:IsMouseOver() then elapsed = 0; return end
+            if drawerPanel:IsMouseOver() then elapsed = 0; return end
+            for _, p in pairs(proxyButtonCache) do
+                if p:GetParent() == drawerPanel and p:IsMouseOver() then elapsed = 0; return end
+            end
+            if elapsed >= delay then
+                drawerPanel:Hide()
+                drawerOpen = false
+                drawerPanel:SetScript("OnUpdate", nil)
+            end
+        end
+        drawerPanel:SetScript("OnUpdate", poll)
+    end
+    drawerPanel._scheduleAutoClose = ScheduleDrawerAutoClose
+end
+
+local function DestroyDrawerButton()
+    if drawerButton then
+        drawerButton:Hide()
+        if drawerPanel then drawerPanel:Hide() end
+    end
+end
+
+-- ============================================================================
+-- RIGHT-CLICK PANEL
+-- ============================================================================
+
+local function CreateRightClickPanel()
+    if rightClickPanel then return end
+
+    rightClickPanel = CreateFrame("Frame", nil, UIParent)
+    rightClickPanel:SetFrameStrata("FULLSCREEN_DIALOG")
+    rightClickPanel:SetFrameLevel(1)
+    rightClickPanel:SetClampedToScreen(true)
+    rightClickPanel:SetMovable(true)
+    rightClickPanel:Hide()
+    rightClickVisible = false
+
+    local savedX = G.RightClickPanelX()
+    local savedY = G.RightClickPanelY()
+    if savedX and savedY then
+        rightClickPanel:SetPoint("CENTER", Minimap, "CENTER", savedX, savedY)
+    else
+        rightClickPanel:SetPoint("TOPRIGHT", Minimap, "BOTTOMRIGHT", 0, -4)
+    end
+
+    local rcBgFrame = CreateFrame("Frame", nil, rightClickPanel)
+    rcBgFrame:SetAllPoints()
+    rcBgFrame:SetFrameLevel(0)
+    local rcBgR, rcBgG, rcBgB, rcBgA = G.PanelBgColor()
+    local rcBg = rcBgFrame:CreateTexture(nil, "BACKGROUND", nil, -8)
+    rcBg:SetAllPoints(); rcBg:SetColorTexture(rcBgR, rcBgG, rcBgB, rcBgA)
+    local rcBrR, rcBrG, rcBrB, rcBrA = G.PanelBorderColor()
+    local rcBT = rcBgFrame:CreateTexture(nil, "BORDER"); rcBT:SetColorTexture(rcBrR, rcBrG, rcBrB, rcBrA)
+    local rcBB = rcBgFrame:CreateTexture(nil, "BORDER"); rcBB:SetColorTexture(rcBrR, rcBrG, rcBrB, rcBrA)
+    local rcBL = rcBgFrame:CreateTexture(nil, "BORDER"); rcBL:SetColorTexture(rcBrR, rcBrG, rcBrB, rcBrA)
+    local rcBR = rcBgFrame:CreateTexture(nil, "BORDER"); rcBR:SetColorTexture(rcBrR, rcBrG, rcBrB, rcBrA)
+    rightClickPanel._bgTex = rcBg
+    rightClickPanel._borderTextures = { rcBT, rcBB, rcBL, rcBR }
+    rcBT:SetPoint("TOPLEFT",0,0); rcBT:SetPoint("TOPRIGHT",0,0); rcBT:SetHeight(1)
+    rcBB:SetPoint("BOTTOMLEFT",0,0); rcBB:SetPoint("BOTTOMRIGHT",0,0); rcBB:SetHeight(1)
+    rcBL:SetPoint("TOPLEFT",0,0); rcBL:SetPoint("BOTTOMLEFT",0,0); rcBL:SetWidth(1)
+    rcBR:SetPoint("TOPRIGHT",0,0); rcBR:SetPoint("BOTTOMRIGHT",0,0); rcBR:SetWidth(1)
+
+    rightClickPanel:RegisterForDrag("LeftButton")
+    rightClickPanel:SetScript("OnDragStart", function(self)
+        if not G.RightClickLocked() and not InCombatLockdown() then
+            self:StartMoving()
+        end
+    end)
+    rightClickPanel:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local ox, oy = ComputeMinimapCenterOffset(self)
+        if not ox then return end
+        SetDB("vistaRightClickPanelX", ox)
+        SetDB("vistaRightClickPanelY", oy)
+        self:ClearAllPoints()
+        self:SetPoint("CENTER", Minimap, "CENTER", ox, oy)
+    end)
+
+    -- Auto-close polling: instead of OnLeave (which fires on child entry), poll every 0.1s
+    -- to check if the mouse has left both the panel and all its proxy buttons.
+    local function ScheduleRightClickAutoClose()
+        local delay = G.RightClickCloseDelay()
+        if delay <= 0 then return end  -- 0 = never auto-close
+        local elapsed = 0
+        local function poll(_, dt)
+            elapsed = elapsed + dt
+            if not rightClickPanel or not rightClickVisible then return end
+            -- Check if mouse is over the panel or any child proxy button
+            if rightClickPanel:IsMouseOver() then elapsed = 0; return end
+            for _, p in pairs(proxyButtonCache) do
+                if p:GetParent() == rightClickPanel and p:IsMouseOver() then elapsed = 0; return end
+            end
+            if elapsed >= delay then
+                rightClickPanel:Hide()
+                rightClickVisible = false
+            end
+        end
+        -- Attach poll to the panel's own OnUpdate only while it's visible
+        rightClickPanel:SetScript("OnUpdate", poll)
+    end
+    rightClickPanel._scheduleAutoClose = ScheduleRightClickAutoClose
+end
+
+local function LayoutRightClickPanel(buttons)
+    if not rightClickPanel then return end
+    local n = #buttons
+    if n == 0 then rightClickPanel:Hide(); rightClickVisible = false; return end
+
+    local PAD = 6; local GAP = 4
+    local btnSz = G.AddonBtnSize()
+    local dir      = G.BtnLayoutDir()
+    local vertical = (dir == "up" or dir == "down")
+    local primaryCount   = math.min(n, math.max(1, G.BtnLayoutCols()))
+    local secondaryCount = math.ceil(n / primaryCount)
+    local gridCols = vertical and secondaryCount or primaryCount
+    local gridRows = vertical and primaryCount    or secondaryCount
+
+    rightClickPanel:SetSize(
+        gridCols * btnSz + (gridCols - 1) * GAP + PAD * 2,
+        gridRows * btnSz + (gridRows - 1) * GAP + PAD * 2)
+
+    for idx, originalBtn in ipairs(buttons) do
+        local i = idx - 1
+        local pri = i % primaryCount
+        local sec = math.floor(i / primaryCount)
+        local col, row
+        if     dir == "right" then col = pri;                       row = sec
+        elseif dir == "left"  then col = (primaryCount - 1 - pri); row = sec
+        elseif dir == "down"  then col = sec;                       row = pri
+        elseif dir == "up"    then col = sec;                       row = (primaryCount - 1 - pri)
+        else                       col = pri;                       row = sec end
+
+        originalBtn:Hide()
+        local proxy = GetOrCreateProxyButton(originalBtn, rightClickPanel)
+        proxy:ClearAllPoints()
+        proxy:SetSize(btnSz, btnSz)
+        proxy:SetFrameLevel(rightClickPanel:GetFrameLevel() + 10 + idx)
+        proxy:SetPoint("TOPLEFT", rightClickPanel, "TOPLEFT",
+            PAD + col * (btnSz + GAP),
+            -(PAD + row * (btnSz + GAP)))
+        proxy._vistaUpdateIcon()
+        proxy:Show()
+    end
+end
+
+local function RestoreButtonToMinimap(btn)
+    RestoreButton(btn)
+end
+
+-- ============================================================================
+-- MAIN BUTTON COLLECTION DISPATCH
+-- ============================================================================
+
+-- Master registry of all buttons Vista has ever taken ownership of.
+-- This persists across CollectMinimapButtons calls so we can always restore them.
+local allManagedButtons = {}  -- [btn] = true
+
+-- The authoritative list lives on Vista._discoveredNames (persists across calls).
+-- Initialized here; populated by CollectMinimapButtons each time it runs.
+Vista._discoveredNames = Vista._discoveredNames or {}
+
+local function CollectMinimapButtons()
+    if not G.ButtonHandleButtons() then
+        HideAllProxyButtons()
+        for btn in pairs(allManagedButtons) do
+            RestoreButton(btn)
+        end
+        wipe(allManagedButtons)
+        wipe(collectedButtons)
+        wipe(drawerPanelButtons)
+        DestroyDrawerButton()
+        if rightClickPanel then rightClickPanel:Hide(); rightClickVisible = false end
+        if collectorBar then collectorBar:SetWidth(1) end
+        if addon.MinimapButton_SetVistaCollected then
+            addon.MinimapButton_SetVistaCollected(false)
+        end
+        return
+    end
+
+    -- Hide any proxy buttons from previous layout
+    HideAllProxyButtons()
+
+    -- Step 1: restore buttons currently in our panels to their natural state
+    -- so ScanMinimapButtons can find them again (they may be parented to our panel)
+    for btn in pairs(allManagedButtons) do
+        RestoreButtonShow(btn)
+        pcall(function()
+            local s = buttonOriginalState[btn]
+            if s then
+                btn:SetParent(s.parent or Minimap)
+                btn:SetPoint(s.point, s.relFrame or s.parent or Minimap, s.relPoint, s.x, s.y)
+                btn:Show()
+            end
+        end)
+    end
+
+    -- Scan for addon buttons
+    local allCandidates = ScanMinimapButtons()
+
+    wipe(allManagedButtons)
+    for _, btn in ipairs(allCandidates) do
+        SaveButtonState(btn)
+        allManagedButtons[btn] = true
+    end
+
+    -- Cache candidate names for the options filter list (only update when scan found buttons)
+    if #allCandidates > 0 then
+        local newNames = {}
+        local seen = {}
+        for _, btn in ipairs(allCandidates) do
+            local cName = btn.GetName and btn:GetName()
+            if cName and not seen[cName] then
+                seen[cName] = true
+                newNames[#newNames + 1] = cName
+            end
+        end
+        table.sort(newNames)
+        local oldCount = Vista._discoveredNames and #Vista._discoveredNames or 0
+        Vista._discoveredNames = newNames
+
+        if oldCount == 0 and #newNames > 0 and addon.OptionsPanel_RebuildCategory then
+            C_Timer.After(0, function()
+                addon.OptionsPanel_RebuildCategory("VistaButtons")
+            end)
+        end
+    end
+
+    wipe(collectedButtons)
+    wipe(drawerPanelButtons)
+
+
+    local mode = G.ButtonMode()
+
+    -- Three-way split: managed+visible → panel, managed+hidden → hide, unmanaged → untouched
+    local visible = {}
+    for _, btn in ipairs(allCandidates) do
+        if IsButtonManagedByVista(btn) then
+            if IsButtonVisible(btn) then
+                visible[#visible + 1] = btn
+            else
+                pcall(function() btn:Hide() end)
+                SuppressButtonShow(btn)
+            end
+        end
+    end
+
+    if G.ButtonSortAlpha() then
+        -- Derive a friendly sort key:
+        --   1. LibDBIcon frames ("LibDBIcon10_<AddonName>") → addon name
+        --   2. LDB dataObject.label if present
+        --   3. Raw frame name with common minimap button suffixes stripped
+        local function btnLabel(btn)
+            local name = (btn.GetName and btn:GetName()) or ""
+            local ldb = name:match("^LibDBIcon%d*_(.+)$")
+            if ldb then return ldb:lower() end
+            if btn.dataObject and type(btn.dataObject.label) == "string" and btn.dataObject.label ~= "" then
+                return btn.dataObject.label:lower()
+            end
+            local stripped = name
+            stripped = stripped:gsub("Mini[Mm]apButton$", "")
+            stripped = stripped:gsub("Mini[Mm]apIcon$", "")
+            stripped = stripped:gsub("MiniMap$", "")
+            stripped = stripped:gsub("Minimap$", "")
+            if stripped ~= "" then return stripped:lower() end
+            return name:lower()
+        end
+        table.sort(visible, function(a, b) return btnLabel(a) < btnLabel(b) end)
+    end
+
+    if mode == BTN_MODE_MOUSEOVER then
+        HideAllProxyButtons()
+        DestroyDrawerButton()
+        if rightClickPanel then rightClickPanel:Hide(); rightClickVisible = false end
+        for _, btn in ipairs(visible) do
+            collectedButtons[#collectedButtons + 1] = btn
+            btn:Hide()
+            SuppressButtonShow(btn)
+        end
+        LayoutCollectedButtons()
+
+    elseif mode == BTN_MODE_RIGHTCLICK then
+        DestroyDrawerButton()
+        if not rightClickPanel then CreateRightClickPanel() end
+        for _, btn in ipairs(visible) do
+            collectedButtons[#collectedButtons + 1] = btn
+            btn:Hide()
+            SuppressButtonShow(btn)
+        end
+        LayoutRightClickPanel(collectedButtons)
+        if collectorBar then collectorBar:SetWidth(1) end
+
+    elseif mode == BTN_MODE_DRAWER then
+        if rightClickPanel then rightClickPanel:Hide(); rightClickVisible = false end
+        CreateDrawerButton()
+        for _, btn in ipairs(visible) do
+            drawerPanelButtons[#drawerPanelButtons + 1] = btn
+            btn:Hide()
+            SuppressButtonShow(btn)
+        end
+        UpdateDrawerPanelLayout()
+        if collectorBar then collectorBar:SetWidth(1) end
+    end
+
+    local horizonInCollection = false
+    for _, b in ipairs(collectedButtons) do
+        if b.GetName and b:GetName() == HORIZON_MINIMAP_BTN_NAME then
+            horizonInCollection = true
+            break
+        end
+    end
+    if not horizonInCollection then
+        for _, b in ipairs(drawerPanelButtons) do
+            if b.GetName and b:GetName() == HORIZON_MINIMAP_BTN_NAME then
+                horizonInCollection = true
+                break
+            end
+        end
+    end
+    if addon.MinimapButton_SetVistaCollected then
+        addon.MinimapButton_SetVistaCollected(horizonInCollection)
+    end
+end
+
+-- ============================================================================
+-- HOVER / ON-UPDATE
+-- ============================================================================
+
+-- Show the drag anchor only when: mode=mouseover, unlocked, AND bar is visible (hovered or always-on)
+PositionBarAnchor = function()
+    if not barAnchor or not collectorBar then return end
+    if barAnchorDragging then return end  -- don't fight StartMoving
+    -- Attach anchor to the leading edge of the bar based on expand direction.
+    -- "First" means the side the first button grows away from.
+    local dir   = G.BtnLayoutDir()
+    local ancSz = G.AddonBtnSize() + 4
+    local gap   = BTN_GAP
+    barAnchor:ClearAllPoints()
+    if dir == "right" then
+        -- bar grows right → anchor is to the LEFT of the bar
+        barAnchor:SetPoint("RIGHT", collectorBar, "LEFT", -gap, 0)
+    elseif dir == "left" then
+        -- bar grows left → anchor is to the RIGHT of the bar
+        barAnchor:SetPoint("LEFT", collectorBar, "RIGHT", gap, 0)
+    elseif dir == "down" then
+        -- bar grows down → anchor is ABOVE the bar
+        barAnchor:SetPoint("BOTTOM", collectorBar, "TOP", 0, gap)
+    elseif dir == "up" then
+        -- bar grows up → anchor is BELOW the bar
+        barAnchor:SetPoint("TOP", collectorBar, "BOTTOM", 0, -gap)
+    else
+        barAnchor:SetPoint("RIGHT", collectorBar, "LEFT", -gap, 0)
+    end
+end
+
+local function UpdateBarAnchorVisibility()
+    if not barAnchor then return end
+    local shouldShow = (G.ButtonMode() == BTN_MODE_MOUSEOVER)
+                    and not G.MouseoverLocked()
+                    and (G.MouseoverBarVisible() or barAlpha > 0.05)
+    if shouldShow then
+        PositionBarAnchor()
+        barAnchor:Show()
+    else
+        barAnchor:Hide()
+    end
+end
+
+local function OnHoverUpdate(_, elapsed)
+    UpdateCoords(nil, elapsed)
+    UpdateTimeText(nil, elapsed)
+    UpdatePerfText(nil, elapsed)
+    if Vista._UpdateClusterOpacity then Vista._UpdateClusterOpacity(elapsed) end
+
+    -- Only animate the collector bar in mouseover mode
+    if G.ButtonMode() ~= BTN_MODE_MOUSEOVER then
+        if barAnchor then barAnchor:Hide() end
+        return
+    end
+    if not collectorBar or #collectedButtons == 0 then
+        if barAnchor then barAnchor:Hide() end
+        return
+    end
+
+    -- "Always visible" override (for positioning)
+    if G.MouseoverBarVisible() then
+        barAlpha  = 1
+        hoverTarget = 1
+        hoverElapsed = 0
+        barCloseDelayElapsed = 0
+        Vista._ApplyCollectorBarAlpha()
+        UpdateBarAnchorVisibility()
+        return
+    end
+
+    -- If hover target just switched to 0 (cursor left), apply close delay
+    if hoverTarget == 0 and barAlpha > 0 then
+        local delay = G.MouseoverCloseDelay()
+        if delay > 0 then
+            barCloseDelayElapsed = barCloseDelayElapsed + elapsed
+            if barCloseDelayElapsed < delay then
+                -- hold at current alpha until delay expires
+                return
+            end
+        end
+    elseif hoverTarget == 1 then
+        barCloseDelayElapsed = 0
+    end
+
+    if barAlpha == hoverTarget then
+        UpdateBarAnchorVisibility()
+        return
+    end
+
+    hoverElapsed = hoverElapsed + elapsed
+    local t = math.min(hoverElapsed / FADE_DUR, 1)
+    if hoverTarget > barAlpha then
+        barAlpha = easeOut(t) * hoverTarget
+    else
+        barAlpha = 1 - easeOut(t)
+        if barAlpha < 0 then barAlpha = 0 end
+    end
+    if t >= 1 then barAlpha = hoverTarget; barCloseDelayElapsed = 0 end
+    Vista._ApplyCollectorBarAlpha()
+    UpdateBarAnchorVisibility()
+end
+
+-- ============================================================================
+-- CLUSTER OPACITY (default + combat; hover restores full)
+-- ============================================================================
+-- Queue/landing anchors encode lock-handle visibility with SetAlpha(0) and
+-- SetIgnoreParentAlpha on the real button — never SetAlpha those anchors here.
+Vista._opacity = Vista._opacity or { alpha = 1, target = 1, from = 1, elapsed = 0 }
+
+do
+    local function clampPct(v)
+        v = tonumber(v) or 100
+        if v < 0 then return 0 end
+        if v > 100 then return 100 end
+        return v
+    end
+
+    local function frameHovered(f)
+        return f ~= nil and f:IsShown() and f:IsMouseOver()
+    end
+
+    local function IsClusterHovered()
+        if frameHovered(Minimap) then return true end
+        if frameHovered(Vista._opacityHit) then return true end
+        if frameHovered(circularBorderFrame) then return true end
+        if frameHovered(collectorBar) then return true end
+        if frameHovered(barAnchor) then return true end
+        if frameHovered(drawerButton) then return true end
+        if frameHovered(queueAnchor) then return true end
+        if frameHovered(landingPageAnchor) then return true end
+        if defaultProxies then
+            for i = 1, #defaultProxies do
+                if frameHovered(defaultProxies[i]) then return true end
+            end
+        end
+        return false
+    end
+
+    local function GetClusterTargetAlpha()
+        local key = InCombatLockdown() and "vistaCombatOpacity" or "vistaOpacity"
+        local base = clampPct(DB(key, 100))
+        if base >= 100 then return 1 end
+        if IsClusterHovered() then return 1 end
+        return base / 100
+    end
+
+    local function ApplyLandingClusterAlpha()
+        -- GetLandingPageButton is local to the landing do/end — not visible here.
+        if Vista._ApplyLandingMouseoverAlpha then
+            Vista._ApplyLandingMouseoverAlpha()
+            return
+        end
+        local realBtn = _G.ExpansionLandingPageMinimapButton
+        if realBtn and realBtn:IsShown() then
+            pcall(function() realBtn:SetAlpha(Vista._opacity.alpha) end)
+        end
+    end
+
+    local function ApplyQueueClusterAlpha()
+        local q = _G.QueueStatusButton or _G.QueueStatusMinimapButton or _G.MiniMapBattlefieldFrame
+        if q and q:IsShown() then
+            pcall(function() q:SetAlpha(Vista._opacity.alpha) end)
+        end
+    end
+    Vista._ApplyQueueClusterAlpha = ApplyQueueClusterAlpha
+
+    -- Minimap:SetAlpha fades the C++ terrain only. Overlay pins (herbs, pings) and
+    -- child frames (decor / mail / tracking proxies) do not inherit that alpha.
+    local function isSuppressedMinimapChild(child)
+        if not child or child == decor then return true end
+        if Minimap.ZoomIn and child == Minimap.ZoomIn then return true end
+        if Minimap.ZoomOut and child == Minimap.ZoomOut then return true end
+        local n = child.GetName and child:GetName()
+        return n == "MinimapZoomIn" or n == "MinimapZoomOut"
+    end
+
+    local function ApplyMinimapChildAlpha(a)
+        if decor then decor:SetAlpha(a) end
+        if not Minimap then return end
+        local ok, children = pcall(function() return { Minimap:GetChildren() } end)
+        if not ok or not children then return end
+        for i = 1, #children do
+            local child = children[i]
+            if not isSuppressedMinimapChild(child) then
+                pcall(function() child:SetAlpha(a) end)
+            end
+        end
+    end
+    Vista._ApplyMinimapChildAlpha = ApplyMinimapChildAlpha
+
+    -- Engine blips (herbs, mailbox, pings, player arrow) are not frames.
+    -- Minimap:SetAlpha cannot fade them; Hide() is the only reliable way at 0.
+    -- A UIParent hit-frame keeps mouseover restore while the map is hidden.
+    local HIDE_EPS = 0.001
+
+    local function EnsureOpacityHit()
+        local hit = Vista._opacityHit
+        if hit then return hit end
+        hit = CreateFrame("Frame", "HorizonSuiteVistaOpacityHit", UIParent)
+        hit:EnableMouse(true)
+        -- Invisible fill so an empty frame still receives mouse over the world.
+        local tex = hit:CreateTexture(nil, "BACKGROUND")
+        tex:SetAllPoints()
+        tex:SetColorTexture(0, 0, 0, 0)
+        hit._tex = tex
+        -- decor's OnUpdate dies when Minimap is hidden; drive opacity from here.
+        hit:SetScript("OnUpdate", function(_, elapsed)
+            if Vista._UpdateClusterOpacity then Vista._UpdateClusterOpacity(elapsed) end
+        end)
+        hit:Hide()
+        Vista._opacityHit = hit
+        return hit
+    end
+
+    local function LayoutOpacityHit(hit)
+        local sz = GetMapSize()
+        hit:SetSize(sz, sz)
+        hit:ClearAllPoints()
+        hit:SetPoint("CENTER", Minimap, "CENTER", 0, 0)
+        -- Minimap is LOW (special widget). A blank Frame at LOW loses the mouse
+        -- to the world once the map is hidden; HIGH intercepts hover.
+        hit:SetFrameStrata("HIGH")
+        hit:SetFrameLevel(1)
+    end
+
+    local function ApplyClusterAlpha(a)
+        local showMap = DB("vistaShowMinimap", true) ~= false
+        local hit = EnsureOpacityHit()
+        if showMap and a > HIDE_EPS then
+            Minimap:Show()
+            Minimap:SetAlpha(a)
+            ApplyMinimapChildAlpha(a)
+            hit:Hide()
+        else
+            Minimap:Hide()
+            if showMap then
+                LayoutOpacityHit(hit)
+                hit:Show()
+            else
+                hit:Hide()
+            end
+        end
+        if circularBorderFrame then circularBorderFrame:SetAlpha((showMap and a > HIDE_EPS) and a or 0) end
+        if drawerButton then drawerButton:SetAlpha(a) end
+        if collectorBar then collectorBar:SetAlpha(barAlpha * a) end
+        if barAnchor then barAnchor:SetAlpha(a) end
+        ApplyQueueClusterAlpha()
+        ApplyLandingClusterAlpha()
+    end
+
+    function Vista._ApplyCollectorBarAlpha()
+        if collectorBar then
+            collectorBar:SetAlpha(barAlpha * (Vista._opacity.alpha or 1))
+        end
+    end
+
+    function Vista._UpdateClusterOpacity(elapsed)
+        local st = Vista._opacity
+        local target = GetClusterTargetAlpha()
+        if target ~= st.target then
+            st.from = st.alpha
+            st.target = target
+            st.elapsed = 0
+        end
+        if st.alpha == st.target then
+            -- Re-apply overlay alphas while faded so late pins (herbs, pings, queue)
+            -- don't appear fully opaque on a transparent map.
+            if st.alpha < 1 then ApplyMinimapChildAlpha(st.alpha) end
+            return
+        end
+        st.elapsed = st.elapsed + (elapsed or 0)
+        local t = math.min(st.elapsed / FADE_DUR, 1)
+        st.alpha = st.from + (st.target - st.from) * easeOut(t)
+        if t >= 1 then st.alpha = st.target end
+        ApplyClusterAlpha(st.alpha)
+    end
+
+    --- Snap or retarget cluster opacity from hover, combat, and saved sliders.
+    --- @param snap boolean|nil If true, jump to target (slider drag). If false/nil, start a 0.2s lerp.
+    --- @return nil
+    function Vista.ApplyClusterOpacity(snap)
+        local st = Vista._opacity
+        st.target = GetClusterTargetAlpha()
+        if snap then
+            st.alpha = st.target
+            st.from = st.target
+            st.elapsed = FADE_DUR
+            ApplyClusterAlpha(st.alpha)
+            return
+        end
+        st.from = st.alpha
+        st.elapsed = 0
+        ApplyClusterAlpha(st.alpha)
+    end
+end
+
+-- ============================================================================
+-- APPLY COLORS  (lightweight; called during live color-picker drags)
+-- ============================================================================
+
+function Vista.ApplyColors()
+    if not decor then return end
+    ApplyBorderTextures()
+    if zoneText  then zoneText:SetTextColor(G.ZoneColor())   end
+    if coordText then coordText:SetTextColor(G.CoordColor()) end
+    if timeText  then timeText:SetTextColor(G.TimeColor())   end
+    if perf.lbl1 then perf.lbl1:SetTextColor(G.PerfNumColor()) end
+    if perf.lbl2 then perf.lbl2:SetTextColor(G.PerfNumColor()) end
+    if Vista.ApplyPerfNumericColors then Vista.ApplyPerfNumericColors() end
+    if diffText  then UpdateDifficultyText() end  -- per-difficulty colors applied inside
+    if drawerButton then
+        if drawerButton._bg     then drawerButton._bg:SetColorTexture(G.PanelBgColor())     end
+        if drawerButton._border then drawerButton._border:SetColorTexture(G.PanelBorderColor()) end
+    end
+    local bgR, bgG, bgB, bgA = G.PanelBgColor()
+    local brR, brG, brB, brA = G.PanelBorderColor()
+    if drawerPanel and drawerPanel._bgTex then
+        drawerPanel._bgTex:SetColorTexture(bgR, bgG, bgB, bgA)
+    end
+    if drawerPanel and drawerPanel._borderTextures then
+        for _, tex in ipairs(drawerPanel._borderTextures) do tex:SetColorTexture(brR, brG, brB, brA) end
+    end
+    if rightClickPanel and rightClickPanel._bgTex then
+        rightClickPanel._bgTex:SetColorTexture(bgR, bgG, bgB, bgA)
+    end
+    if rightClickPanel and rightClickPanel._borderTextures then
+        for _, tex in ipairs(rightClickPanel._borderTextures) do tex:SetColorTexture(brR, brG, brB, brA) end
+    end
+    -- Mouseover bar backdrop
+    if collectorBar then
+        if collectorBar._bgTex then collectorBar._bgTex:SetColorTexture(G.BarBgColor()) end
+        if collectorBar._borderTextures then
+            local bbR, bbG, bbB, bbA = G.BarBorderColor()
+            for _, tex in ipairs(collectorBar._borderTextures) do tex:SetColorTexture(bbR, bbG, bbB, bbA) end
+        end
+        if collectorBar._applyBarBorderVis then collectorBar._applyBarBorderVis() end
+    end
+    -- Anchor (same colours as the drawer/panel)
+    if barAnchor then
+        if barAnchor._bg     then barAnchor._bg:SetColorTexture(G.PanelBgColor())     end
+        if barAnchor._border then barAnchor._border:SetColorTexture(G.PanelBorderColor()) end
+    end
+end
+
+-- ============================================================================
+-- APPLY OPTIONS  (split into helpers to stay under LuaJIT 60-upvalue limit)
+-- ============================================================================
+
+-- When OptionsData passes a specific key, skip CollectMinimapButtons if the change cannot add/remove/reparent addon buttons.
+-- nil changedKey = full apply (always collect). Keys not listed here still run collect (safe default for new options).
+local VISTA_OPTION_KEYS_SKIP_MINIMAP_COLLECT = {
+    vistaBorderShow = true, vistaBorderWidth = true,
+    vistaBorderColorR = true, vistaBorderColorG = true, vistaBorderColorB = true, vistaBorderColorA = true,
+    vistaZoneFontPath = true, vistaZoneFontSize = true,
+    vistaCoordFontPath = true, vistaCoordFontSize = true,
+    vistaTimeFontPath = true, vistaTimeFontSize = true,
+    vistaPerfFontPath = true, vistaPerfFontSize = true,
+    vistaShowZoneText = true, vistaShowCoordText = true, vistaShowTimeText = true, vistaShowPerfText = true,
+    vistaTimeUseLocal = true, vistaTime24Hour = true,
+    vistaZoneDisplayMode = true,
+    vistaZoneVerticalPos = true, vistaCoordVerticalPos = true, vistaTimeVerticalPos = true, vistaPerfVerticalPos = true, vistaDiffVerticalPos = true,
+    vistaShowTracking = true, vistaMouseoverTracking = true,
+    vistaShowCalendar = true, vistaMouseoverCalendar = true,
+    vistaShowTeleport = true, vistaMouseoverTeleport = true,
+    vistaShowLanding = true, vistaMouseoverLanding = true,
+    vistaEX_zone = true, vistaEY_zone = true,
+    vistaEX_coord = true, vistaEY_coord = true,
+    vistaEX_time = true, vistaEY_time = true,
+    vistaEX_perf = true, vistaEY_perf = true,
+    vistaEX_diff = true, vistaEY_diff = true,
+    ["vistaEX_proxy_tracking"] = true, ["vistaEY_proxy_tracking"] = true,
+    ["vistaEX_proxy_calendar"] = true, ["vistaEY_proxy_calendar"] = true,
+    ["vistaCoordPrecision"] = true,
+    vistaZoneColorR = true, vistaZoneColorG = true, vistaZoneColorB = true,
+    vistaCoordColorR = true, vistaCoordColorG = true, vistaCoordColorB = true,
+    vistaTimeColorR = true, vistaTimeColorG = true, vistaTimeColorB = true,
+    vistaDiffColorR = true, vistaDiffColorG = true, vistaDiffColorB = true,
+    vistaDiffFontPath = true, vistaDiffFontSize = true,
+    vistaDiffColor_mythic_R = true, vistaDiffColor_mythic_G = true, vistaDiffColor_mythic_B = true,
+    vistaDiffColor_heroic_R = true, vistaDiffColor_heroic_G = true, vistaDiffColor_heroic_B = true,
+    vistaDiffColor_normal_R = true, vistaDiffColor_normal_G = true, vistaDiffColor_normal_B = true,
+    vistaDiffColor_looking_for_raid_R = true, vistaDiffColor_looking_for_raid_G = true, vistaDiffColor_looking_for_raid_B = true,
+    vistaPanelBgR = true, vistaPanelBgG = true, vistaPanelBgB = true, vistaPanelBgA = true,
+    vistaPanelBorderR = true, vistaPanelBorderG = true, vistaPanelBorderB = true, vistaPanelBorderA = true,
+    vistaTrackingBtnSize = true, vistaCalendarBtnSize = true, vistaLandingBtnSize = true,
+    vistaDrawerIcon = true,
+}
+
+local function VistaOptionKeySkipsMinimapCollect(changedKey)
+    if changedKey == nil then return false end
+    return VISTA_OPTION_KEYS_SKIP_MINIMAP_COLLECT[changedKey] == true
+end
+
+local function ApplyOptions_Minimap()
+    Minimap:SetMovable(not DB("vistaLock", true))
+    local sz       = GetMapSize()
+    local mapScale = sz / MINIMAP_BASE_SIZE
+    Minimap:SetSize(MINIMAP_BASE_SIZE, MINIMAP_BASE_SIZE)
+    Minimap:SetMaskTexture(G.Circular() and G.MaskCircular or G.MaskSquare)
+    pcall(function() local z = Minimap:GetZoom(); if z then Minimap:SetZoom(z) end end)
+    local vistaScale  = DB("vistaScale", 1.0) or 1.0
+    local moduleScale = (addon.GetModuleScale and addon.GetModuleScale("vista")) or 1
+    proxy.SetScale(Minimap, vistaScale * moduleScale * mapScale)
+    ApplyBorderTextures()
+end
+
+-- Movable state for zone/coord/time/perf/diff only (used by full ApplyOptions_Texts and lightweight lock toggles).
+local function ApplyOptions_TextDraggableLocks()
+    if not decor then return end
+    if zoneText and decor._zoneContainer then
+        decor._zoneContainer:SetMovable(not G.ElemLocked("zone"))
+    end
+    if coordText and decor._coordContainer then
+        decor._coordContainer:SetMovable(not G.ElemLocked("coord"))
+    end
+    if timeText and decor._timeContainer then
+        decor._timeContainer:SetMovable(not G.ElemLocked("time"))
+    end
+    if perf.num1 and decor._perfContainer then
+        decor._perfContainer:SetMovable(not G.ElemLocked("perf"))
+    end
+    if diffText and decor._diffContainer then
+        decor._diffContainer:SetMovable(not G.DiffLocked())
+    end
+end
+
+local function ApplyOptions_Texts(sz)
+    if zoneText and decor._zoneContainer then
+        local show = G.ShowZone()
+        local fp, fs = G.ZoneFont(), G.ZoneSize()
+        zoneText:SetFont(fp, fs, "OUTLINE");  zoneShadow:SetFont(fp, fs, "OUTLINE")
+        zoneText:SetTextColor(G.ZoneColor())
+        zoneText:SetShown(show);  zoneShadow:SetShown(show)
+        local subText   = decor._zoneContainer._subZoneText
+        local subShadow = decor._zoneContainer._subZoneShadow
+        if subText then
+            subText:SetFont(fp, fs, "OUTLINE");   subShadow:SetFont(fp, fs, "OUTLINE")
+            subText:SetTextColor(G.ZoneColor())
+        end
+        decor._zoneContainer:SetShown(show);  decor._zoneContainer:SetWidth(sz)
+        local ap, rp = G.ZoneAnchors()
+        decor._zoneContainer:ClearAllPoints()
+        decor._zoneContainer:SetPoint(ap, Minimap, rp, G.ZoneOffsetX(), G.ZoneOffsetY())
+        UpdateZoneText()
+    end
+    if coordText and decor._coordContainer then
+        local show = G.ShowCoord()
+        local fp, fs = G.CoordFont(), G.CoordSize()
+        coordText:SetFont(fp, fs, "OUTLINE"); coordShadow:SetFont(fp, fs, "OUTLINE")
+        coordText:SetTextColor(G.CoordColor())
+        coordText:SetShown(show); coordShadow:SetShown(show)
+        decor._coordContainer:SetShown(show)
+        local ap, rp = G.CoordAnchors()
+        decor._coordContainer:ClearAllPoints()
+        decor._coordContainer:SetPoint(ap, Minimap, rp, G.CoordOffsetX(), G.CoordOffsetY())
+    end
+    if timeText and decor._timeContainer then
+        local show = G.ShowTime()
+        local fp, fs = G.TimeFont(), G.TimeSize()
+        timeText:SetFont(fp, fs, "OUTLINE"); timeShadow:SetFont(fp, fs, "OUTLINE")
+        timeText:SetTextColor(G.TimeColor())
+        timeText:SetShown(show); timeShadow:SetShown(show)
+        decor._timeContainer:SetShown(show)
+        local ap, rp = G.TimeAnchors()
+        decor._timeContainer:ClearAllPoints()
+        decor._timeContainer:SetPoint(ap, Minimap, rp, G.TimeOffsetX(), G.TimeOffsetY())
+    end
+    if perf.num1 and decor._perfContainer then
+        local show = G.ShowPerf()
+        local fp, fs = G.PerfFont(), G.PerfSize()
+        perf.num1:SetFont(fp, fs, "OUTLINE"); perf.num1Sh:SetFont(fp, fs, "OUTLINE")
+        perf.lbl1:SetFont(fp, fs, "OUTLINE"); perf.lbl1Sh:SetFont(fp, fs, "OUTLINE")
+        perf.num2:SetFont(fp, fs, "OUTLINE"); perf.num2Sh:SetFont(fp, fs, "OUTLINE")
+        perf.lbl2:SetFont(fp, fs, "OUTLINE"); perf.lbl2Sh:SetFont(fp, fs, "OUTLINE")
+        perf.lbl1:SetTextColor(G.PerfNumColor())
+        perf.lbl2:SetTextColor(G.PerfNumColor())
+        if Vista.ApplyPerfNumericColors then Vista.ApplyPerfNumericColors() end
+        perf.num1:SetShown(show); perf.num1Sh:SetShown(show)
+        perf.lbl1:SetShown(show); perf.lbl1Sh:SetShown(show)
+        perf.num2:SetShown(show); perf.num2Sh:SetShown(show)
+        perf.lbl2:SetShown(show); perf.lbl2Sh:SetShown(show)
+        decor._perfContainer:SetShown(show)
+        local ap, rp = G.PerfAnchors()
+        decor._perfContainer:ClearAllPoints()
+        decor._perfContainer:SetPoint(ap, Minimap, rp, G.PerfOffsetX(), G.PerfOffsetY())
+        if Vista.ResizePerfContainer then
+            Vista.ResizePerfContainer()
+        end
+    end
+    if diffText and decor._diffContainer then
+        local fp, fs = G.DiffFont(), G.DiffSize()
+        diffText:SetFont(fp, fs, "OUTLINE"); diffShadow:SetFont(fp, fs, "OUTLINE")
+        diffText:SetWidth(sz); diffShadow:SetWidth(sz)
+        decor._diffContainer:SetWidth(sz)
+        local dAp, dRp = G.DiffAnchors()
+        decor._diffContainer:ClearAllPoints()
+        decor._diffContainer:SetPoint(dAp, Minimap, dRp, G.DiffOffsetX(), G.DiffOffsetY())
+        UpdateDifficultyText()
+    end
+    if collectorBar then
+        local savedX = G.MouseoverBarX()
+        local savedY = G.MouseoverBarY()
+        collectorBar:ClearAllPoints()
+        if savedX and savedY then
+            collectorBar:SetPoint("CENTER", Minimap, "CENTER", savedX, savedY)
+        else
+            collectorBar:SetPoint("TOP", Minimap, "BOTTOM", 0, -8)
+        end
+    end
+    ApplyOptions_TextDraggableLocks()
+end
+
+local function ApplyOptions_Buttons(changedKey)
+    CreateDefaultButtonProxies()
+    if mailFrame then
+        local mailSz = G.MailIconSize()
+        mailFrame:SetSize(mailSz, mailSz)
+    end
+    if mailAnchor then
+        local mailSz = G.MailIconSize()
+        mailAnchor:SetSize(mailSz + MAIL_ANCHOR_PAD * 2, mailSz + MAIL_ANCHOR_PAD * 2)
+        if mailAnchor._border then mailAnchor._border:SetSize(mailSz, mailSz) end
+        RefreshMailAnchor()
+    end
+    if craftingOrderAnchor then
+        local coSz = G.CraftingOrderIconSize()
+        craftingOrderAnchor:SetSize(coSz + MAIL_ANCHOR_PAD * 2, coSz + MAIL_ANCHOR_PAD * 2)
+        if craftingOrderAnchor.icon then craftingOrderAnchor.icon:SetSize(coSz, coSz) end
+        RefreshCraftingOrderAnchor()
+    end
+    if queueAnchor and SyncQueueAnchorGeometry then
+        SyncQueueAnchorGeometry()
+    end
+    if landingPageAnchor and SyncLandingPageAnchorGeometry then
+        SyncLandingPageAnchorGeometry()
+    end
+    if drawerButton then
+        local addonSz = G.AddonBtnSize()
+        drawerButton:SetSize(addonSz + 4, addonSz + 4)
+        if drawerButton._bg     then drawerButton._bg:SetColorTexture(G.PanelBgColor())     end
+        if drawerButton._border then drawerButton._border:SetColorTexture(G.PanelBorderColor()) end
+        ApplyDrawerButtonIcon()
+        ApplyDrawerButtonLockState()
+    end
+    local bgR, bgG, bgB, bgA = G.PanelBgColor()
+    local brR, brG, brB, brA = G.PanelBorderColor()
+    if drawerPanel and drawerPanel._bgTex then
+        drawerPanel._bgTex:SetColorTexture(bgR, bgG, bgB, bgA)
+    end
+    if drawerPanel and drawerPanel._borderTextures then
+        for _, tex in ipairs(drawerPanel._borderTextures) do tex:SetColorTexture(brR, brG, brB, brA) end
+    end
+    if rightClickPanel and rightClickPanel._bgTex then
+        rightClickPanel._bgTex:SetColorTexture(bgR, bgG, bgB, bgA)
+    end
+    if rightClickPanel and rightClickPanel._borderTextures then
+        for _, tex in ipairs(rightClickPanel._borderTextures) do tex:SetColorTexture(brR, brG, brB, brA) end
+    end
+    -- Mouseover bar backdrop
+    if collectorBar then
+        if collectorBar._bgTex then collectorBar._bgTex:SetColorTexture(G.BarBgColor()) end
+        if collectorBar._borderTextures then
+            local bbR, bbG, bbB, bbA = G.BarBorderColor()
+            for _, tex in ipairs(collectorBar._borderTextures) do tex:SetColorTexture(bbR, bbG, bbB, bbA) end
+        end
+        if collectorBar._applyBarBorderVis then collectorBar._applyBarBorderVis() end
+    end
+    -- Anchor colours + visibility sync
+    if barAnchor then
+        if barAnchor._bg     then barAnchor._bg:SetColorTexture(G.PanelBgColor())     end
+        if barAnchor._border then barAnchor._border:SetColorTexture(G.PanelBorderColor()) end
+        local ancSz = G.AddonBtnSize() + 4
+        barAnchor:SetSize(ancSz, ancSz)
+        UpdateBarAnchorVisibility()
+    end
+    for _, p in ipairs(defaultProxies) do
+        if p and p._vistaKey then
+            local pSz = G.ProxyBtnSizeForKey(p._vistaKey)
+            p:SetSize(pSz, pSz)
+        end
+    end
+    if not VistaOptionKeySkipsMinimapCollect(changedKey) then
+        CollectMinimapButtons()
+        C_Timer.After(0.05, CollectMinimapButtons)
+    end
+    CreateQueueAnchor()
+    CreateLandingPageAnchor()
+end
+
+-- Apply Vista minimap/overlay options from DB.
+-- @param changedKey string|nil Option key that triggered the apply; nil = full apply including addon button collect.
+-- @return nil
+function Vista.ApplyOptions(changedKey)
+    if not decor then return end
+    ApplyOptions_Minimap()
+    ApplyOptions_Texts(GetMapSize())
+    ApplyOptions_Buttons(changedKey)
+    if addon.MinimapButton_ApplyPosition then
+        addon.MinimapButton_ApplyPosition()
+    end
+    if Vista.ApplyClusterOpacity then Vista.ApplyClusterOpacity(true) end
+end
+
+-- Lightweight apply for position-lock toggles only: no proxy rebuild, no CollectMinimapButtons, no FullLayout (caller skips NotifyMainAddon).
+-- @return nil
+function Vista.ApplyLockOnlyOptions()
+    if not decor then return end
+    ApplyOptions_TextDraggableLocks()
+    ApplyDrawerButtonLockState()
+    if Vista.RefreshQueueProxies then Vista.RefreshQueueProxies() end
+    if Vista.RefreshLandingPageAnchor then Vista.RefreshLandingPageAnchor() end
+    if Vista.RefreshMailAnchor then Vista.RefreshMailAnchor() end
+    if Vista.RefreshCraftingOrderAnchor then Vista.RefreshCraftingOrderAnchor() end
+    RefreshDefaultButtonProxiesFromDB()
+    UpdateBarAnchorVisibility()
+end
+
+-- Flash the mouseover bar visible for a few seconds so the user can see where it is
+-- after toggling the position lock off.
+function Vista.FlashMouseoverBar()
+    if not collectorBar then return end
+    if G.ButtonMode() ~= BTN_MODE_MOUSEOVER then return end
+    -- Cancel any in-flight flash timer
+    if barFlashTimer then barFlashTimer:Cancel(); barFlashTimer = nil end
+    -- Show immediately
+    barAlpha   = 1
+    hoverTarget = 1
+    hoverElapsed = 0
+    Vista._ApplyCollectorBarAlpha()
+    UpdateBarAnchorVisibility()
+    -- After 3 seconds, fade back out (unless user is hovering or always-visible is on)
+    barFlashTimer = C_Timer.NewTimer(3, function()
+        barFlashTimer = nil
+        if G.MouseoverBarVisible() then return end
+        if collectorBar and collectorBar:IsMouseOver() then return end
+        if barAnchor and barAnchor:IsMouseOver() then return end
+        if Minimap and Minimap:IsMouseOver() then return end
+        hoverTarget  = 0
+        hoverElapsed = 0
+        UpdateBarAnchorVisibility()
+    end)
+end
+
+-- ============================================================================
+-- INIT / DISABLE
+-- ============================================================================
+
+function Vista.Init()
+    if not Minimap or not MinimapCluster then return end
+    addon.Log.debug("vista", "Init")
+
+    -- Difficulty text used to save offsets relative to zone text; re-anchor to Minimap once per profile.
+    do
+        local ver = tonumber(DB("vistaDiffLayoutVersion", 0)) or 0
+        if ver < VISTA_DIFF_LAYOUT_VERSION then
+            SetDB("vistaEX_diff", nil)
+            SetDB("vistaEY_diff", nil)
+            SetDB("vistaDiffLayoutVersion", VISTA_DIFF_LAYOUT_VERSION)
+        end
+    end
+
+    proxy.SetFrameStrata(Minimap, "LOW")
+    proxy.SetFrameLevel(Minimap, 2)
+    pcall(function()
+        proxy.SetFixedFrameStrata(Minimap, true)
+        proxy.SetFixedFrameLevel(Minimap, true)
+    end)
+
+    proxy.SetParent(Minimap, UIParent)
+
+    if hooksecurefunc then
+        setParentHook = function()
+            if addon:IsModuleEnabled("vista") then
+                proxy.SetParent(Minimap, UIParent)
+            end
+        end
+        hooksecurefunc(Minimap, "SetParent", setParentHook)
+    end
+
+    MinimapCluster:EnableMouse(false)
+
+    if MinimapBackdrop then
+        MinimapBackdrop:ClearAllPoints()
+        MinimapBackdrop:SetPoint("CENTER", Minimap, "CENTER", 0, 0)
+    end
+
+
+    StripBlizzardChrome()
+    -- Explicitly hide AddonCompartmentFrame — it's UIParent-parented and loads late
+    pcall(function()
+        if AddonCompartmentFrame then
+            AddonCompartmentFrame:Hide()
+            AddonCompartmentFrame:SetAlpha(0)
+            AddonCompartmentFrame.Show = function() end
+        end
+    end)
+    SuppressDefaultBlizzardButtons()
+    CreateDecor()
+    SetupMinimap()
+    CreateMailIndicator()
+    CreateCraftingOrderIndicator()
+    CreateCollectorBar()
+    SuppressBlizzardMail()
+    SuppressBlizzardCraftingOrder()
+    CreateDefaultButtonProxies()
+    CreateQueueAnchor()
+    CreateLandingPageAnchor()
+
+    UpdateZoneText()
+    UpdateDifficultyText()
+    UpdateMailIndicator()
+    UpdateCraftingOrderIndicator()
+    ScheduleAutoZoom()
+
+    decor:SetScript("OnUpdate", OnHoverUpdate)
+
+    -- Re-apply options one frame after init so profile/scale are fully ready
+    if C_Timer and C_Timer.After and Vista.ApplyOptions then
+        C_Timer.After(0, Vista.ApplyOptions)
+    end
+
+    Minimap:HookScript("OnEnter", function()
+        if G.ButtonMode() == BTN_MODE_MOUSEOVER then
+            hoverTarget = 1; hoverElapsed = 0; barCloseDelayElapsed = 0
+        end
+        if Vista.RefreshLandingPageAnchor then Vista.RefreshLandingPageAnchor() end
+    end)
+    Minimap:HookScript("OnLeave", function()
+        if collectorBar and collectorBar:IsMouseOver() then return end
+        for _, btn in ipairs(collectedButtons) do
+            if btn:IsMouseOver() then return end
+        end
+        hoverTarget = 0; hoverElapsed = 0; barCloseDelayElapsed = 0
+        if Vista.RefreshLandingPageAnchor then Vista.RefreshLandingPageAnchor() end
+    end)
+
+    Minimap:HookScript("OnMouseUp", function(_, button)
+        if button == "RightButton" and G.ButtonMode() == BTN_MODE_RIGHTCLICK then
+            if not rightClickPanel then CreateRightClickPanel() end
+            rightClickVisible = not rightClickVisible
+            if rightClickVisible then
+                LayoutRightClickPanel(collectedButtons)
+                rightClickPanel:Show()
+                if rightClickPanel._scheduleAutoClose then rightClickPanel._scheduleAutoClose() end
+            else
+                rightClickPanel:Hide()
+                if rightClickPanel then rightClickPanel:SetScript("OnUpdate", nil) end
+            end
+        end
+    end)
+
+    eventFrame = CreateFrame("Frame")
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("ZONE_CHANGED")
+    eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+    eventFrame:RegisterEvent("ZONE_CHANGED_INDOORS")
+    eventFrame:RegisterEvent("UPDATE_PENDING_MAIL")
+    eventFrame:RegisterEvent("UPDATE_INSTANCE_INFO")
+    eventFrame:RegisterEvent("PET_BATTLE_OPENING_START")
+    eventFrame:RegisterEvent("PET_BATTLE_CLOSE")
+    eventFrame:RegisterEvent("MINIMAP_UPDATE_ZOOM")
+    eventFrame:RegisterEvent("ADDON_LOADED")
+    eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    pcall(function() eventFrame:RegisterEvent("CRAFTINGORDERS_UPDATE_PERSONAL_ORDER_COUNTS") end)
+    pcall(function() eventFrame:RegisterEvent("CRAFTINGORDERS_UPDATE_ORDER_COUNT") end)
+
+    eventFrame:SetScript("OnEvent", function(_, event, arg1)
+        if event == "ADDON_LOADED" then
+            C_Timer.After(0.5, function()
+                StripBlizzardChrome()
+                SuppressDefaultBlizzardButtons()
+                HookMinimapClusterChildrenShow()
+            end)
+            return
+        end
+        if event == "PLAYER_ENTERING_WORLD" then
+            local function reStrip()
+                StripBlizzardChrome()
+                SuppressDefaultBlizzardButtons()
+                SuppressBlizzardCraftingOrder()
+                HookMinimapClusterChildrenShow()
+            end
+            reStrip()
+            C_Timer.After(2.0, function()
+                reStrip()
+                CollectMinimapButtons()
+                CreateLandingPageAnchor()
+                SyncCraftingOrderFromNative()
+                UpdateCraftingOrderIndicator()
+            end)
+            UpdateZoneText(); UpdateDifficultyText(); UpdateMailIndicator(); UpdateCraftingOrderIndicator()
+        elseif event == "CRAFTINGORDERS_UPDATE_PERSONAL_ORDER_COUNTS"
+            or event == "CRAFTINGORDERS_UPDATE_ORDER_COUNT" then
+            -- Let Blizzard's own handler run first, then mirror its IsShown() state.
+            C_Timer.After(0, SyncCraftingOrderFromNative)
+        elseif event == "MINIMAP_UPDATE_ZOOM" then
+            -- WoW sometimes re-shows zoom buttons after zoom level changes — keep them gone
+            SuppressZoomButtons()
+            pcall(function()
+                if Minimap.ZoomIn then Minimap.ZoomIn:SetAlpha(0) end
+                if Minimap.ZoomOut then Minimap.ZoomOut:SetAlpha(0) end
+            end)
+        elseif event == "ZONE_CHANGED" or event == "ZONE_CHANGED_NEW_AREA" or event == "ZONE_CHANGED_INDOORS" then
+            UpdateZoneText(); UpdateDifficultyText()
+        elseif event == "UPDATE_INSTANCE_INFO" then
+            UpdateDifficultyText()
+        elseif event == "UPDATE_PENDING_MAIL" then
+            UpdateMailIndicator()
+        elseif event == "PET_BATTLE_OPENING_START" then
+            Minimap:Hide()
+        elseif event == "PET_BATTLE_CLOSE" then
+            if addon:IsModuleEnabled("vista") and Vista.ApplyClusterOpacity then
+                Vista.ApplyClusterOpacity(true)
+            elseif addon:IsModuleEnabled("vista") then
+                Minimap:Show()
+            end
+        elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
+            if Vista.ApplyClusterOpacity then Vista.ApplyClusterOpacity(false) end
+        end
+    end)
+
+    local showMinimap = DB("vistaShowMinimap", true)
+    if showMinimap ~= false then Minimap:Show() else Minimap:Hide() end
+end
+
+function Vista.Disable()
+    if not Minimap or not MinimapCluster then return end
+    addon.Log.debug("vista", "Disable")
+    if eventFrame then eventFrame:UnregisterAllEvents(); eventFrame:SetScript("OnEvent", nil) end
+    if decor then decor:SetScript("OnUpdate", nil) end
+    if Vista._opacity then
+        Vista._opacity.alpha = 1
+        Vista._opacity.target = 1
+        Vista._opacity.from = 1
+    end
+    if Vista._opacityHit then Vista._opacityHit:Hide() end
+    if Minimap then Minimap:SetAlpha(1); Minimap:Show() end
+    if Vista._ApplyMinimapChildAlpha then Vista._ApplyMinimapChildAlpha(1) end
+    if circularBorderFrame then circularBorderFrame:SetAlpha(1) end
+    if collectorBar then collectorBar:SetAlpha(barAlpha) end
+    if barAnchor then barAnchor:SetAlpha(1) end
+    if drawerButton then drawerButton:SetAlpha(1) end
+    local q = _G.QueueStatusButton or _G.QueueStatusMinimapButton or _G.MiniMapBattlefieldFrame
+    if q then pcall(function() q:SetAlpha(1) end) end
+    local landing = _G.ExpansionLandingPageMinimapButton
+    if landing then pcall(function() landing:SetAlpha(1) end) end
+    HideAllProxyButtons()
+    DestroyDrawerButton()
+    if not InCombatLockdown() then proxy.SetParent(Minimap, MinimapCluster) end
+    -- Reload is handled by addon:SetModuleEnabled (immediate or user-chosen when dashboard defers).
+end
+
+function Vista.CollectButtons()
+    CollectMinimapButtons()
+    local n = #collectedButtons + #drawerPanelButtons
+    addon.Log.debug("vista", "CollectButtons — " .. n .. " button(s)")
+    return n
+end
+
+function Vista.ApplyScale()
+    if not Minimap then return end
+    local scale = DB("vistaScale", 1.0) or 1.0
+    local moduleScale = (addon.GetModuleScale and addon.GetModuleScale("vista")) or 1
+    local mapScale = GetMapSize() / MINIMAP_BASE_SIZE
+    proxy.SetScale(Minimap, scale * moduleScale * mapScale)
+end
+
+-- Convert PascalCase / camelCase to a human-readable string.
+-- "MyAddonButton" -> "My Addon", "DBMMinimapButton" -> "DBM"
+local function HumanizePascalCase(str)
+    if not str or str == "" then return str end
+    -- Insert spaces before uppercase letters that follow a lowercase letter or digit
+    local spaced = str:gsub("(%l)(%u)", "%1 %2"):gsub("(%d)(%u)", "%1 %2"):gsub("(%u+)(%u%l)", "%1 %2")
+    -- Trim and collapse multiple spaces
+    spaced = spaced:gsub("  +", " "):match("^%s*(.-)%s*$")
+    return spaced
+end
+
+-- Try to get a human-readable addon name from a frame name or its addon owner.
+local function GetAddonDisplayName(btn)
+    local cName = btn:GetName() or ""
+
+    -- Handle LibDBIcon pattern: "LibDBIcon10_AddonName" → extract "AddonName"
+    local libDBSuffix = cName:match("^LibDBIcon[%d]*_(.+)$")
+    if libDBSuffix then
+        -- Try to find the addon title from C_AddOns using the suffix as the addon name
+        if C_AddOns and C_AddOns.GetAddOnInfo then
+            local numAddons = C_AddOns.GetNumAddOns and C_AddOns.GetNumAddOns() or 0
+            for i = 1, numAddons do
+                local addonName = C_AddOns.GetAddOnName(i)
+                if addonName then
+                    local name, title = C_AddOns.GetAddOnInfo(addonName)
+                    if name and name:lower() == libDBSuffix:lower() then
+                        return title or name, cName
+                    end
+                end
+            end
+        end
+        -- No exact match found — humanize the suffix directly
+        return HumanizePascalCase(libDBSuffix), cName
+    end
+
+    -- Try C_AddOns.GetAddOnInfo for the addon that owns this frame
+    if C_AddOns and C_AddOns.GetAddOnInfo then
+        -- Walk loaded addons and check if cName contains the addon name
+        local numAddons = C_AddOns.GetNumAddOns and C_AddOns.GetNumAddOns() or 0
+        for i = 1, numAddons do
+            local addonName = C_AddOns.GetAddOnName(i)
+            if addonName then
+                local name, title = C_AddOns.GetAddOnInfo(addonName)
+                if name and cName:lower():find(name:lower(), 1, true) then
+                    return title or name, cName
+                end
+            end
+        end
+    end
+    -- Fallback: strip common suffixes from frame name, then humanize
+    local stripped = cName:gsub("MinimapButton$",""):gsub("Button$",""):gsub("Frame$",""):gsub("Minimap$","")
+    if stripped ~= "" and stripped ~= cName then
+        return HumanizePascalCase(stripped), cName
+    end
+    return HumanizePascalCase(cName), cName
+end
+
+function Vista.GetDiscoveredButtonNames()
+    local list = Vista._discoveredNames
+    if list and #list > 0 then return list end
+
+    -- Fallback: build from allManagedButtons if scan hasn't run yet
+    local names = {}
+    local seen = {}
+    for btn in pairs(allManagedButtons) do
+        local cName = btn.GetName and btn:GetName()
+        if cName and not seen[cName] then
+            seen[cName] = true
+            names[#names + 1] = cName
+        end
+    end
+    table.sort(names)
+    return names
+end
+
+-- Returns a display name for a given frame name (for options panel labels)
+function Vista.GetButtonDisplayName(frameName)
+    local btn = _G[frameName]
+    if not btn then return frameName end
+    local display = GetAddonDisplayName(btn)
+    return display
+end
+
+-- ============================================================================
+-- MINIMAP POSITION
+-- ============================================================================
+
+-- Clear saved offsets for all draggable Vista minimap overlays so built-in defaults apply again.
+-- Does not move the minimap frame; use ResetMinimapPosition for that.
+-- @return nil
+function Vista.ResetOverlayPositionsToDefaults()
+    local keys = {
+        "vistaEX_zone", "vistaEY_zone",
+        "vistaEX_coord", "vistaEY_coord",
+        "vistaEX_time", "vistaEY_time",
+        "vistaEX_perf", "vistaEY_perf",
+        "vistaEX_diff", "vistaEY_diff",
+        "vistaEX_proxy_tracking", "vistaEY_proxy_tracking",
+        "vistaEX_proxy_calendar", "vistaEY_proxy_calendar",
+        "vistaEX_proxy_teleport", "vistaEY_proxy_teleport",
+        "vistaEX_proxy_queue", "vistaEY_proxy_queue",
+        "vistaEX_proxy_landing", "vistaEY_proxy_landing",
+        "vistaEX_proxy_mail", "vistaEY_proxy_mail",
+        "vistaEX_proxy_craftingOrder", "vistaEY_proxy_craftingOrder",
+        "vistaEX_zoomIn", "vistaEY_zoomIn",
+        "vistaEX_zoomOut", "vistaEY_zoomOut",
+        "vistaMouseoverBarX", "vistaMouseoverBarY",
+        "vistaDrawerBtnX", "vistaDrawerBtnY",
+        "vistaRightClickPanelX", "vistaRightClickPanelY",
+        "vistaQueueBtnX", "vistaQueueBtnY",
+    }
+    for i = 1, #keys do
+        SetDB(keys[i], nil)
+    end
+    if Vista.ApplyOptions then
+        Vista.ApplyOptions()
+    end
+end
+
+-- Reset minimap to default position (top-right) and clear saved position from DB.
+-- Called from options Reset button and slash command.
+function Vista.ResetMinimapPosition()
+    if not InCombatLockdown() then
+        proxy.ClearAllPoints(Minimap)
+        proxy.SetPoint(Minimap, DEFAULT_POINT, UIParent, DEFAULT_RELPOINT, DEFAULT_X, DEFAULT_Y)
+    end
+    SetDB("vistaPoint", nil)
+    SetDB("vistaRelPoint", nil)
+    SetDB("vistaX", nil)
+    SetDB("vistaY", nil)
+end
+
+function Vista.RefreshQueueProxies()
+    RefreshQueueAnchor()
+end
+
+function Vista.RefreshLandingPageAnchor()
+    RefreshLandingPageAnchor()
+end
+
+function Vista.RefreshMailAnchor()
+    RefreshMailAnchor()
+end
+
+function Vista.RefreshCraftingOrderAnchor()
+    RefreshCraftingOrderAnchor()
+end
+
+local vistaPanel = addon.Log.createPanel("vista", "Vista Debug", { maxLines = 200,
+    onClose = function()
+        if addon.SetDB then addon.SetDB("vistaDebugLive", false) end
+        addon.Log.enableTag("vista", nil)
+    end,
+})
+addon.Log.registerTag("vista", "vistaDebugLive")
+
+function Vista.SetDebugLive(v)
+    if addon.SetDB then addon.SetDB("vistaDebugLive", v) end
+    addon.Log.enableTag("vista", v or nil)
+    if v then
+        vistaPanel.Show()
+        addon.Log.debug("vista", "Live debug enabled")
+    else
+        vistaPanel.Hide()
+    end
+end
+
+addon.Vista = Vista

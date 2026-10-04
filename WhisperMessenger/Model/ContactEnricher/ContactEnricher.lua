@@ -1,0 +1,123 @@
+local addonName,ns=...
+if type(ns)~="table"then
+ns={}
+end
+
+
+local AvailabilityEnricher=ns.AvailabilityEnricher or require("WhisperMessenger.Model.ContactEnricher.AvailabilityEnricher")
+local Disambiguation=ns.ContactEnricherDisambiguation or require("WhisperMessenger.Model.ContactEnricher.Disambiguation")
+local ConversationSnapshot=ns.ConversationSnapshot or require("WhisperMessenger.Model.ConversationSnapshot")
+
+
+local ContactEnricher={}
+
+
+ContactEnricher.ShouldRequestAvailability=AvailabilityEnricher.ShouldRequestAvailability
+ContactEnricher.EnrichContactsAvailability=AvailabilityEnricher.EnrichContactsAvailability
+
+function ContactEnricher.BuildConversationStatus(runtime,conversationKey,conversation)
+if conversationKey==nil then
+return nil
+end
+
+if runtime.sendStatusByConversation[conversationKey]~=nil then
+return runtime.sendStatusByConversation[conversationKey]
+end
+
+
+if conversation and conversation.guid and runtime.availabilityByGUID[conversation.guid]then
+local cached=runtime.availabilityByGUID[conversation.guid]
+local Availability=ns.Availability or require("WhisperMessenger.Transport.Availability")
+local isOpposite=AvailabilityEnricher.isOppositeFaction(conversation.factionName,runtime.localFaction)
+
+if isOpposite then
+if cached.status=="CanWhisper"then
+return Availability.FromStatus("XFaction")
+elseif cached.status=="WrongFaction"or cached.status=="Offline"then
+
+return Disambiguation.ResolveWrongFaction({guid=conversation.guid},runtime,true)
+end
+return cached
+end
+
+if cached.status=="WrongFaction"then
+
+return Disambiguation.ResolveWrongFaction({guid=conversation.guid,displayName=conversation.displayName},runtime,false)
+end
+return cached
+end
+
+return nil
+end
+
+
+
+
+function ContactEnricher.EnrichContactsPresence(contacts,runtime)
+local LivePresence=ns.LivePresence or require("WhisperMessenger.Model.LivePresence")
+local now=type(runtime.now)=="function"and runtime.now()or 0
+for _,item in ipairs(contacts or{})do
+item.isTyping=LivePresence.IsTyping(runtime,item.conversationKey,now)
+item.peerHasAddon=LivePresence.HasPeer(runtime,item.conversationKey)
+end
+end
+
+function ContactEnricher.BuildWindowSelectionState(runtime,contacts,buildContactsFn)
+local BNetResolver=ns.BNetResolver or require("WhisperMessenger.Transport.BNetResolver")
+local BNetStatus=ns.ContactEnricherBNetStatus or require("WhisperMessenger.Model.ContactEnricher.BNetStatus")
+local TableUtils=ns.TableUtils or require("WhisperMessenger.Util.TableUtils")
+if contacts==nil and buildContactsFn then
+contacts=buildContactsFn(runtime)
+end
+
+ContactEnricher.EnrichContactsAvailability(contacts,runtime)
+ContactEnricher.EnrichContactsPresence(contacts,runtime)
+
+if runtime.activeConversationKey==nil then
+return{
+contacts=contacts,
+}
+end
+
+local conversationKey=runtime.activeConversationKey
+local conversation=runtime.store.conversations[conversationKey]
+local selectedContact=TableUtils.findWhere(contacts,"conversationKey",conversationKey)
+if selectedContact==nil and conversation~=nil then
+selectedContact=ConversationSnapshot.Build(conversationKey,conversation,runtime.accountState and runtime.accountState.settings)
+ContactEnricher.EnrichContactsPresence({selectedContact},runtime)
+end
+
+
+local divider=runtime.unreadDivider
+if selectedContact then
+selectedContact.unreadDividerMessage=divider and divider.conversationKey==conversationKey and divider.message or nil
+end
+
+
+if selectedContact and selectedContact.channel=="BN"and selectedContact.bnetAccountID then
+local accountInfo=BNetResolver.ResolveAccountInfo(
+runtime.bnetApi,
+selectedContact.bnetAccountID,
+selectedContact.guid,
+selectedContact.battleTag or selectedContact.displayName
+)
+if accountInfo then
+local gameInfo=accountInfo.gameAccountInfo
+if BNetStatus.ApplyGameInfoMetadata(selectedContact,gameInfo,runtime)then
+selectedContact.characterName=gameInfo.characterName
+selectedContact.realm=gameInfo.realmName or gameInfo.realmDisplayName
+end
+end
+end
+
+return{
+contacts=contacts,
+selectedContact=selectedContact,
+conversation=conversation,
+status=selectedContact and selectedContact.availability or ContactEnricher.BuildConversationStatus(runtime,conversationKey,conversation),
+notice=runtime.messagingNotice or(type(runtime.getGroupSendNotice)=="function"and runtime.getGroupSendNotice(conversation)or nil),
+}
+end
+
+ns.ContactEnricher=ContactEnricher
+return ContactEnricher

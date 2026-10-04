@@ -1,0 +1,9 @@
+------------------------------------------------------------------------
+r462 | ileclerk | 2026-10-02 00:16:17 +0000 (Fri, 02 Oct 2026) | 1 line
+Changed paths:
+   M /trunk/MI2_Events.lua
+   M /trunk/MI2_Tooltip.lua
+
+WOW_PROJECT_ID was changed in Forever Beta - so far not issues, but dependent libraries might have similar challenges.
+------------------------------------------------------------------------
+

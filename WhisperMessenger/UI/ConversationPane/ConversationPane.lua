@@ -1,0 +1,312 @@
+local addonName,ns=...
+if type(ns)~="table"then
+ns={}
+end
+
+local ScrollView=ns.ScrollView or require("WhisperMessenger.UI.ScrollView")
+
+local StatusLine=ns.ConversationPaneStatusLine or require("WhisperMessenger.UI.ConversationPane.StatusLine")
+local TranscriptView=ns.ConversationPaneTranscriptView or require("WhisperMessenger.UI.ConversationPane.TranscriptView")
+local HeaderView=ns.ConversationPaneHeaderView or require("WhisperMessenger.UI.ConversationPane.HeaderView")
+local HeaderElements=ns.ConversationPaneHeaderElements or require("WhisperMessenger.UI.ConversationPane.HeaderElements")
+local TranscriptSetup=ns.ConversationPaneTranscriptSetup or require("WhisperMessenger.UI.ConversationPane.TranscriptSetup")
+local EdgeFade=ns.ConversationPaneEdgeFade or require("WhisperMessenger.UI.ConversationPane.EdgeFade")
+local ChannelContextMerger=ns.ConversationPaneChannelContextMerger or require("WhisperMessenger.UI.ConversationPane.ChannelContextMerger")
+local BottomBanner=ns.ConversationPaneBottomBanner or require("WhisperMessenger.UI.ConversationPane.BottomBanner")
+local RequestBanner=ns.ConversationPaneRequestBanner or require("WhisperMessenger.UI.ConversationPane.RequestBanner")
+local ReplyBanner=ns.ConversationPaneReplyBanner or require("WhisperMessenger.UI.ConversationPane.ReplyBanner")
+
+local sizeValue=TranscriptView._sizeValue
+local pointValue=TranscriptView._pointValue
+
+local Theme=ns.Theme or require("WhisperMessenger.UI.Theme")
+local UIHelpers=ns.UIHelpers or require("WhisperMessenger.UI.Helpers")
+local applyColor=UIHelpers.applyColor
+local ConversationPane={}
+
+local TRANSCRIPT_SCROLL_STEP=TranscriptView.TRANSCRIPT_SCROLL_STEP
+local ACTIVE_STATUS_BANNER_HEIGHT=BottomBanner.HEIGHT
+
+
+
+local FORCE_RENDER=TranscriptView.FORCE_RENDER
+
+ConversationPane.RenderTranscript=TranscriptView.RenderTranscript
+
+local function buildMessagesWithChannelContext(messages,selectedContact,conversation)
+return ChannelContextMerger.Merge(messages,selectedContact,{
+channelMessageStore=ns.ChannelMessageStore,
+channelMessageState=ns._channelMessageState,
+conversation=conversation,
+now=type(_G["time"])=="function"and _G["time"]()or nil,
+})
+end
+
+local transcriptIsAtEnd=TranscriptView.IsAtEnd
+
+ConversationPane.Refresh=function(view,selectedContact,conversation,status,noticeText)
+local selectedConversationKey=selectedContact and selectedContact.conversationKey or nil
+if view._selectedConversationKey~=selectedConversationKey then
+TranscriptView.Reset(view.transcript)
+end
+view._selectedConversationKey=selectedConversationKey
+view._selectedContact=selectedContact
+view._conversation=conversation
+view._status=status
+view._isRequest=selectedContact~=nil and selectedContact.isRequest==true
+HeaderView.Refresh(view,selectedContact,conversation,status)
+
+
+view.transcript.fallbackClassTag=selectedContact and selectedContact.classTag or nil
+view.transcript.unreadDividerMessage=selectedContact and selectedContact.unreadDividerMessage or nil
+
+
+view.transcript.chatLocked=(noticeText or"")~=""
+local messages=conversation and conversation.messages or{}
+messages=buildMessagesWithChannelContext(messages,selectedContact,conversation)
+ConversationPane.RenderTranscript(view.transcript,messages)
+ConversationPane.SetStatus(view,status)
+ConversationPane.SetNotice(view,noticeText)
+ConversationPane.RefreshActiveStatus(view,conversation and conversation.activeStatus or nil)
+return view
+end
+
+local refreshBottomBanner=BottomBanner.Refresh
+
+function ConversationPane.SetNotice(view,noticeText)
+view._noticeText=noticeText or""
+refreshBottomBanner(view)
+end
+
+
+function ConversationPane.SetReply(view,replyTo,onCancel)
+view._replyTo=replyTo
+view.replyBanner.setReply(replyTo,onCancel)
+refreshBottomBanner(view)
+end
+
+function ConversationPane.RefreshActiveStatus(view,activeStatus)
+view._activeStatusText=activeStatus and activeStatus.text or""
+refreshBottomBanner(view)
+end
+
+function ConversationPane.SetLanguage(view)
+if view==nil then
+return
+end
+HeaderView.SetLanguage(view)
+view.requestBanner.setLanguage()
+view.replyBanner.setLanguage()
+
+
+
+
+if view._selectedContact~=nil or view._conversation~=nil then
+HeaderView.Refresh(view,view._selectedContact,view._conversation,view._status)
+end
+end
+
+function ConversationPane.SetStatus(view,status)
+if view.statusBanner==nil then
+return nil
+end
+
+local label=""
+if status and status.status and StatusLine and StatusLine.AVAILABILITY_DISPLAY then
+local avail=StatusLine.AVAILABILITY_DISPLAY[status.status]
+if avail then
+label=avail.label
+end
+end
+view.statusBanner:SetText(label)
+return view.statusBanner.text
+end
+
+function ConversationPane.Create(factory,parent,selectedContact,conversation,options)
+options=options or{}
+local pane=factory.CreateFrame("Frame",nil,parent)
+local parentWidth=sizeValue(parent,"GetWidth","width",600)
+local parentHeight=sizeValue(parent,"GetHeight","height",420)
+pane:SetAllPoints(parent)
+
+
+
+local header=HeaderView.Create(factory,pane,selectedContact,{
+HEADER_HEIGHT=Theme.LAYOUT.HEADER_HEIGHT,
+nativeChrome=options.nativeChrome==true,
+})
+local headerFrame=header.headerFrame
+
+
+
+local statusBanner=pane:CreateFontString(nil,"OVERLAY",Theme.FONTS.system_text)
+statusBanner:SetPoint("TOPLEFT",headerFrame,"BOTTOMLEFT",0,0)
+statusBanner:SetText("")
+statusBanner:Hide()
+
+
+
+
+
+local transcriptHeight=parentHeight-Theme.LAYOUT.HEADER_HEIGHT
+local transcript=ScrollView.Create(factory,pane,{
+width=parentWidth-Theme.LAYOUT.TRANSCRIPT_HORIZONTAL_INSET,
+height=transcriptHeight,
+point={"TOPLEFT",headerFrame,"BOTTOMLEFT",Theme.LAYOUT.TRANSCRIPT_LEFT_GUTTER,0},
+step=TRANSCRIPT_SCROLL_STEP,
+})
+transcript.factory=factory
+transcript.point=pointValue(transcript.scrollFrame,nil)
+transcript.width=sizeValue(transcript.scrollFrame,"GetWidth","width",parentWidth-Theme.LAYOUT.TRANSCRIPT_HORIZONTAL_INSET)
+transcript.height=sizeValue(transcript.scrollFrame,"GetHeight","height",transcriptHeight)
+TranscriptSetup.ConfigureTranscript(factory,transcript,parentWidth)
+
+
+
+local activeStatusBanner=pane:CreateFontString(nil,"OVERLAY",Theme.FONTS.system_text)
+activeStatusBanner:SetPoint("BOTTOMLEFT",pane,"BOTTOMLEFT",Theme.LAYOUT.TRANSCRIPT_LEFT_GUTTER,4)
+activeStatusBanner:SetPoint("BOTTOMRIGHT",pane,"BOTTOMRIGHT",-Theme.LAYOUT.TRANSCRIPT_LEFT_GUTTER,4)
+activeStatusBanner:SetText("")
+applyColor(activeStatusBanner,Theme.COLORS.text_system)
+activeStatusBanner:Hide()
+
+
+local view
+local requestBanner=RequestBanner.Create(factory,pane,{
+nativeChrome=options.nativeChrome==true,
+onAccept=function()
+if options.onAcceptRequest then
+options.onAcceptRequest(view._selectedContact)
+end
+end,
+onDelete=function()
+if options.onDeleteRequest then
+options.onDeleteRequest(view._selectedContact)
+end
+end,
+})
+
+view={
+frame=pane,
+
+header=header.headerName,
+headerFrame=header.headerFrame,
+headerClassIcon=header.headerClassIcon,
+headerName=header.headerName,
+headerFactionIcon=header.headerFactionIcon,
+headerStatus=header.headerStatus,
+headerStatusDetail=header.headerStatusDetail,
+headerAddonBadge=header.headerAddonBadge,
+headerAddonBadgeButton=header.headerAddonBadgeButton,
+headerStatusDot=header.headerStatusDot,
+headerDivider=header.headerDivider,
+headerEmpty=header.headerEmpty,
+headerChannelChip=header.headerChannelChip,
+headerNote=header.headerNote,
+headerNoteHitArea=header.headerNoteHitArea,
+statusBanner=statusBanner,
+activeStatusBanner=activeStatusBanner,
+requestBanner=requestBanner,
+replyBanner=ReplyBanner.Create(factory,pane,{nativeChrome=options.nativeChrome==true}),
+transcript=transcript,
+
+edgeFade=EdgeFade.Attach(factory,pane,transcript),
+refreshTheme=function()
+if view.headerFrame and view.headerFrame.bg then
+UIHelpers.applyColorTexture(view.headerFrame.bg,Theme.COLORS.bg_header)
+end
+if view.headerDivider then
+HeaderElements.applyDividerTheme(view.headerDivider)
+end
+HeaderView.Refresh(view,view._selectedContact,view._conversation,view._status)
+if view.headerStatus then
+applyColor(view.headerStatus,Theme.COLORS.text_secondary)
+end
+if view.headerStatusDetail then
+applyColor(view.headerStatusDetail,Theme.COLORS.text_secondary)
+end
+if view.headerEmpty and view.headerEmpty.applyTheme then
+view.headerEmpty.applyTheme()
+end
+if view.activeStatusBanner then
+applyColor(view.activeStatusBanner,Theme.COLORS.text_system)
+end
+view.requestBanner.refreshTheme()
+view.replyBanner.refreshTheme()
+if view.edgeFade then
+view.edgeFade.refreshTheme()
+end
+if view.transcript and view.transcript.refreshSkin then
+view.transcript.refreshSkin()
+end
+if view.transcript and view.transcript._allMessages then
+TranscriptView.RenderTranscript(view.transcript,view.transcript._allMessages,FORCE_RENDER)
+end
+end,
+}
+
+HeaderView.Relayout(view,parentWidth)
+
+if type(options.onReact)=="function"then
+transcript.onReact=function(message,reactionKey)
+return options.onReact(view._selectedContact,message,reactionKey)
+end
+end
+
+TranscriptSetup.BindMessageActions(transcript,view,options.onMessageAction)
+TranscriptSetup.BindPlayerMenu(transcript,view,options)
+
+if type(options.canReact)=="function"then
+transcript.canReact=function(message)
+return options.canReact(view._selectedContact,message)
+end
+end
+
+
+if type(options.onInviteContact)=="function"then
+view.onInviteContact=options.onInviteContact
+end
+
+view.hideEmptyHeader=options.hideEmptyHeader==true
+ConversationPane.Refresh(view,selectedContact,conversation)
+return view
+end
+
+
+
+function ConversationPane.Relayout(view,width,height)
+if view==nil then
+return
+end
+
+HeaderView.Relayout(view,width)
+if view.transcript==nil then
+return
+end
+local bannerOffset=view._activeStatusVisible and ACTIVE_STATUS_BANNER_HEIGHT or 0
+
+
+
+local paneHeight=sizeValue(view.frame,"GetHeight","height",height)
+local transcriptW=width-Theme.LAYOUT.TRANSCRIPT_HORIZONTAL_INSET
+local transcriptH=paneHeight-Theme.LAYOUT.HEADER_HEIGHT-bannerOffset
+local t=view.transcript
+local wasAtEnd=transcriptIsAtEnd(t)
+t.scrollFrame:SetSize(transcriptW,transcriptH)
+t.content:SetSize(transcriptW,t.content.height or transcriptH)
+t.scrollBar:SetHeight(transcriptH)
+t.viewportHeight=transcriptH
+t.totalWidth=transcriptW
+if t.text and t.text.SetWidth then
+t.text:SetWidth(transcriptW)
+end
+
+if t._allMessages then
+t._virtualForceEnd=wasAtEnd
+TranscriptView.RenderTranscript(t,t._allMessages,FORCE_RENDER)
+end
+end
+
+ns.ConversationPane=ConversationPane
+
+return ConversationPane

@@ -1,0 +1,9 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <Script file="MI2_CustomizeColumnsDropDown.lua"/>
+    <Frame name="MI2_CustomizeColumnsDropDownTemplate" mixin="MI2_CustomizeColumnsDropDownMixin"
+        virtual="true">
+        <Scripts>
+            <OnLoad method="OnLoad"/>
+        </Scripts>
+    </Frame>
+</Ui>

@@ -1,0 +1,238 @@
+local addonName,ns=...
+if type(ns)~="table"then
+ns={}
+end
+
+local Theme=ns.Theme or require("WhisperMessenger.UI.Theme")
+local Base=ns.UIHelpersBase or require("WhisperMessenger.UI.Helpers.Base")
+local GhostButton=ns.UIHelpersGhostButton or require("WhisperMessenger.UI.Helpers.GhostButton")
+local NavItem=ns.UIHelpersNavItem or require("WhisperMessenger.UI.Helpers.NavItem")
+local ToggleSwitch=ns.UIHelpersToggleSwitch or require("WhisperMessenger.UI.Helpers.ToggleSwitch")
+
+local Controls={}
+
+function Controls.createOptionButton(factory,parent,label,colors,layout)
+local btnHeight=layout.height or Theme.LAYOUT.OPTION_BUTTON_HEIGHT
+local btnWidth=layout.width or 200
+
+local button=factory.CreateFrame("Button",nil,parent)
+button:SetSize(btnWidth,btnHeight)
+
+local bg=button:CreateTexture(nil,"BACKGROUND")
+bg:SetAllPoints(button)
+
+local labelFs=button:CreateFontString(nil,"OVERLAY",Theme.FONTS.icon_label)
+labelFs:SetPoint("CENTER",button,"CENTER",0,0)
+labelFs:SetText(label)
+
+button._wmHovered=false
+button._wmColors={
+bg=colors.bg,
+bgHover=colors.bgHover or colors.bg,
+text=colors.text,
+textHover=colors.textHover or colors.text,
+}
+
+
+
+local ghost=layout.ghost and GhostButton.Attach(button,{danger=layout.danger})or nil
+button.ghost=ghost
+
+local nav=layout.nav and NavItem.Attach(button)or nil
+button.nav=nav
+button._wmNavActive=false
+
+if nav then
+labelFs:ClearAllPoints()
+labelFs:SetPoint("LEFT",button,"LEFT",NavItem.PADDING_X,0)
+end
+
+local function applyNavState(hovered)
+if not nav then
+return false
+end
+Base.applyColorTexture(bg,Base.TRANSPARENT)
+NavItem.Paint(nav,labelFs,button._wmNavActive,hovered)
+return true
+end
+
+local function applyGhostState(hovered)
+if not ghost then
+return false
+end
+Base.applyColorTexture(bg,Base.TRANSPARENT)
+GhostButton.Paint(ghost,labelFs,hovered)
+return true
+end
+
+local function applyBaseState()
+if applyNavState(false)or applyGhostState(false)then
+return
+end
+local palette=button._wmColors
+Base.applyColorTexture(bg,palette.bg)
+Base.setTextColor(labelFs,palette.text)
+end
+
+local function applyHoverState()
+if applyNavState(true)or applyGhostState(true)then
+return
+end
+local palette=button._wmColors
+Base.applyColorTexture(bg,palette.bgHover or palette.bg)
+Base.setTextColor(labelFs,palette.textHover or palette.text)
+end
+
+local function repaint()
+if button._wmHovered then
+applyHoverState()
+else
+applyBaseState()
+end
+end
+
+button.setNavActive=function(active)
+button._wmNavActive=active==true
+repaint()
+end
+
+button.applyThemeColors=function(nextColors)
+if type(nextColors)=="table"then
+if nextColors.bg~=nil then
+button._wmColors.bg=nextColors.bg
+end
+if nextColors.bgHover~=nil then
+button._wmColors.bgHover=nextColors.bgHover
+end
+if nextColors.text~=nil then
+button._wmColors.text=nextColors.text
+end
+if nextColors.textHover~=nil then
+button._wmColors.textHover=nextColors.textHover
+end
+end
+repaint()
+end
+
+button:SetScript("OnEnter",function()
+button._wmHovered=true
+applyHoverState()
+end)
+
+button:SetScript("OnLeave",function()
+button._wmHovered=false
+applyBaseState()
+end)
+
+applyBaseState()
+button.bg=bg
+button.label=labelFs
+
+button.setWidth=function(nextWidth)
+if type(nextWidth)~="number"or nextWidth<=0 then
+return
+end
+button:SetSize(nextWidth,btnHeight)
+end
+
+return button
+end
+
+function Controls.createToggleRow(factory,parent,label,initial,colors,layout,onChange,tooltip)
+local toggleWidth=layout.width or 280
+local toggleHeight=layout.height or 24
+
+local row=factory.CreateFrame("Frame",nil,parent)
+row:SetSize(toggleWidth,toggleHeight)
+
+local labelFs=row:CreateFontString(nil,"OVERLAY",Theme.FONTS.icon_label)
+labelFs:SetPoint("LEFT",row,"LEFT",0,0)
+labelFs:SetText(label)
+
+local dot=factory.CreateFrame("Button",nil,row)
+dot:SetSize(ToggleSwitch.TRACK_WIDTH,ToggleSwitch.TRACK_HEIGHT)
+dot:SetPoint("RIGHT",row,"RIGHT",0,0)
+
+row._wmColors={
+text=colors.text,
+on=colors.on or Theme.COLORS.option_toggle_on or Theme.COLORS.online or{0.30,0.82,0.40,1.0},
+off=colors.off or Theme.COLORS.option_toggle_off or Theme.COLORS.offline or{0.45,0.45,0.50,1.0},
+knob=colors.knob or Theme.COLORS.control_knob,
+}
+
+local switch=ToggleSwitch.Attach(dot)
+
+local enabled=initial==true
+local function updateVisual()
+Base.setTextColor(labelFs,row._wmColors.text)
+ToggleSwitch.Paint(switch,dot,enabled,row._wmColors)
+end
+updateVisual()
+
+dot:SetScript("OnClick",function()
+enabled=not enabled
+updateVisual()
+if onChange then
+onChange(enabled)
+end
+end)
+
+if tooltip and row.SetScript then
+local lines=type(tooltip)=="table"and tooltip or{tooltip}
+row:SetScript("OnEnter",function()
+if _G.GameTooltip and _G.GameTooltip.SetOwner then
+_G.GameTooltip:SetOwner(row,"ANCHOR_TOP")
+_G.GameTooltip:SetText(lines[1])
+for i=2,#lines do
+if _G.GameTooltip.AddLine then
+pcall(_G.GameTooltip.AddLine,_G.GameTooltip,lines[i],1,1,1)
+end
+end
+_G.GameTooltip:Show()
+end
+end)
+row:SetScript("OnLeave",function()
+if _G.GameTooltip and _G.GameTooltip.Hide then
+_G.GameTooltip:Hide()
+end
+end)
+end
+
+return{
+row=row,
+label=labelFs,
+dot=dot,
+switch=switch,
+setValue=function(val)
+enabled=val==true
+updateVisual()
+end,
+setWidth=function(nextWidth)
+if type(nextWidth)~="number"or nextWidth<=0 then
+return
+end
+row:SetSize(nextWidth,toggleHeight)
+end,
+applyThemeColors=function(nextColors)
+if type(nextColors)=="table"then
+if nextColors.text~=nil then
+row._wmColors.text=nextColors.text
+end
+if nextColors.on~=nil then
+row._wmColors.on=nextColors.on
+end
+if nextColors.off~=nil then
+row._wmColors.off=nextColors.off
+end
+if nextColors.knob~=nil then
+row._wmColors.knob=nextColors.knob
+end
+end
+updateVisual()
+end,
+}
+end
+
+ns.UIHelpersControls=Controls
+
+return Controls

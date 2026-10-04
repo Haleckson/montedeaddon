@@ -1,0 +1,7 @@
+## Interface: 16001
+## Title: Where You At?
+## Notes: Adds the leader's current zone to each Looking For Group browser entry.
+## Author: samfoxy
+## Version: 1.0.0
+
+WhereYouAt.lua

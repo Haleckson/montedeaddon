@@ -1,0 +1,39 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+..\FrameXML\UI.xsd">
+	<Script file="SettingsPanelMixin.lua"/>
+
+	<Frame name="ArcaneWizardLibrary_SettingsPanelText" mixin="ArcaneWizardLibrary_SettingsPanelTextMixin" virtual="true">
+		<Layers>
+			<Layer level="OVERLAY">
+				<FontString parentKey="LeftText" inherits="GameFontNormal" justifyH="LEFT" justifyV="TOP">
+					<Size x="230" />
+					<Anchors>
+						<Anchor point="TOPLEFT" x="37" y="-8" />
+					</Anchors>
+				</FontString>
+				<FontString parentKey="RightText" inherits="GameFontHighlight" justifyH="LEFT" justifyV="TOP" wordwrap="true">
+					<Anchors>
+						<Anchor point="TOPLEFT" x="280" y="-8" />
+						<Anchor point="TOPRIGHT" x="-10" y="-8" />
+					</Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+	</Frame>
+
+	<Frame name="ArcaneWizardLibrary_SettingsSeparatorTemplate" mixin="ArcaneWizardLibrary_SettingsSeparatorMixin" virtual="true">
+		<Layers>
+			<Layer level="ARTWORK">
+				<Texture parentKey="Left"/>
+				<Texture parentKey="LeftLine"/>
+				<Texture parentKey="Center"/>
+				<Texture parentKey="RightLine"/>
+				<Texture parentKey="Right"/>
+			</Layer>
+		</Layers>
+	</Frame>
+
+	<Frame name="ArcaneWizardLibrary_SettingsExpandTemplate" inherits="SettingsExpandableSectionTemplate" mixin="ArcaneWizardLibrary_SettingsExpandMixin" virtual="true">
+		<Size y="30" />
+	</Frame>
+</Ui>

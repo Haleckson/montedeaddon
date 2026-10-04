@@ -1,0 +1,5 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Script file="MI2_LootDataProvider.lua"/>
+  <Include file="MI2_LootKeyCell.xml"/>
+  <Include file="MI2_FilterDropDown.xml"/>
+</Ui>

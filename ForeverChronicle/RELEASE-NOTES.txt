@@ -1,0 +1,70 @@
+0.9.5 Beta 2 — Fehlerbehebungen / Fixes
+
+Behebt den Lua-Warnhinweis, dass der Aufbau des Hauptfensters mehr als 60 Upvalues verwendet. Dadurch kann die UI wieder geladen werden. Der Minikarten-Button wirft außerdem keinen Folgefehler mehr, wenn der UI-Handler nicht verfügbar ist.
+
+Fixes the warning that main-window construction uses more than 60 upvalues, allowing the UI to load. The minimap button also avoids a follow-up Lua error if the UI handler is unavailable.
+
+Forever Chronicle 0.9.6
+
+Die neue Seite „Hilfe & Anleitung“ erklärt die Bereiche des Add-ons mit kurzen Abschnitten und hervorgehobenen Überschriften. Der Kartenfilter-Button wird dort ausgeblendet. Öffne die Anleitung mit dem Fragezeichen-Button oben rechts neben den Einstellungen oder mit /fc help. Sie ist auf Deutsch und Englisch verfügbar.
+
+Bestehende Chronikdaten bleiben erhalten. SavedVariables-Schema und Export-/Importformat ändern sich nicht.
+
+Forever Chronicle 0.9.6
+
+The new “Help & guide” page explains the add-on in shorter, clearly headed sections. The map-filter button is hidden while the guide is open. Open it with the question-mark button at the top right beside Settings or type /fc help. The guide is available in German and English.
+
+Existing chronicle data is preserved. The SavedVariables schema and export/import format are unchanged.
+
+Forever Chronicle 0.9.5
+
+Die Einstellungsseite erklärt jetzt, wie du die SavedVariables-Datei von Forever Chronicle manuell sicherst und wiederherstellst. Das Add-on kann Dateien nicht selbst auf dem Computer speichern. Die frühere Export-/Importbox wurde aus der Seite entfernt.
+
+Der Umfang der Tagebuchtexte lässt sich jetzt pro Charakter in vier Stufen einstellen: Kurz, Kompakt, Ausführlich und Sehr ausführlich. Die bisherige Detailtiefe bleibt als „Sehr ausführlich“ erhalten. Die Auswahl verändert nur den erzeugten Tagebuchtext; aufgezeichnete Ereignisse und Chronikdaten bleiben vollständig bestehen. Die Einstellung wird auch in Account-Exporten gesichert.
+
+„Wo war das?“ und die Weltkarte sind jetzt in einem Navigationspunkt zusammengefasst. Innerhalb des Bereichs kannst du zwischen Entdeckungen und Weltkarte wechseln. Die bisherigen Fundorte, Filter und gespeicherten Ansichten bleiben erhalten.
+
+Diary length can now be set per character at four levels: Short, Compact, Detailed and Very detailed. The previous full detail remains available as “Very detailed”. This only changes the generated diary text; recorded events and chronicle data are preserved. The setting is included in account exports.
+
+The Settings page now explains how to back up and restore Forever Chronicle's SavedVariables file manually. An add-on cannot save files directly to the computer. The previous export/import box has been removed from the page.
+
+“Where was that?” and the world map are now grouped under one navigation entry. Switch between Discoveries and World map inside that section. Existing saved places, filters and saved views are preserved.
+
+Das Chronicle-Symbol an der Minikarte lässt sich weiterhin unter „Einstellungen & Daten“ ein- und ausblenden. `/fc` öffnet die Chronik auch ohne Minikarten-Symbol.
+
+The minimap button can still be shown or hidden under “Settings & Data”. `/fc` opens the Chronicle even when the minimap button is hidden.
+
+Vorherige Änderungen in 0.9.6:
+
+Gefährten werden nur noch aus gemeinsamen Questabschlüssen und Dungeon-Eintritten abgeleitet. Ein bloßer Gruppenbeitritt oder Login erzeugt keinen Gefährteneintrag. Die Übersicht zeigt den Spielernamen und den eigenen Charakter, mit dem die gemeinsame Aktivität aufgezeichnet wurde. Die Gruppe wird direkt vor dem Chronikereignis aktualisiert, damit keine veraltete Gruppenzusammensetzung übernommen wird.
+
+Bestehende Chronikdaten bleiben erhalten. Das SavedVariables-Schema und das Export-/Importformat ändern sich nicht.
+
+Companions are now derived only from shared quest completions and dungeon entries. Joining a group or logging in alone does not create a companion entry. The list shows the player's name and which of your characters shared the activity. The group roster is refreshed immediately before the chronicle event to avoid stale membership.
+
+Existing chronicle data is preserved. The SavedVariables schema and export/import format are unchanged.
+
+Earlier development notes: security hardening
+
+Prüft Spielwerte vor der Verarbeitung. Geschützte Charakter-, Karten-, Quest-, Item-, Händler-, Trainer- und Zauberereignisdaten werden übersprungen, statt Fehler auszulösen. Loot-Chat und Zauberereignisse werden nur zur Erkennung relevanter Gegenstände und Sammelaktionen ausgewertet; Rohtexte werden nicht gespeichert.
+
+Dungeon- und Bossereignisse speichern keine redundanten Gruppenschnappschüsse. Das separate Begleiter-Tracking zeichnet Gruppenbegegnungen weiterhin auf, wenn es aktiviert ist.
+
+Behebt einen weiteren Lua-Fehler, der durch geschützte Ereignisargumente bei Zauberwirken ausgelöst wurde. Geschützte Werte werden jetzt vor Textverarbeitung und Fehlerprotokollierung abgefangen.
+
+Behebt einen Lua-Fehler beim Lesen geschützter Aura-Daten. Die Erkennung von Essens- und Trink-Auren wurde deaktiviert, da der Forever-Client diese Daten zeitweise als geschützt markiert.
+
+Deutsche Umlaute werden in Suche und Sortierung jetzt unabhängig von Groß-/Kleinschreibung erkannt (ä/ö/ü sowie Ä/Ö/Ü und ß).
+Export/Import: Ortsangaben mit Sonderzeichen und leeren optionalen Feldern bleiben korrekt zugeordnet.
+Bündel: eigenständige dunkle Goldplakette mit großem Plus.
+Wichtiger Fix: Blizzard-Kartencontainer nicht mehr verändert; Kartengrafik wieder sichtbar.
+Zoom-Clipping ohne kurz sichtbare Pins außerhalb der Karte; Gold-Bündel statt Blau.
+Kartenzoom: Chronicle-Pins außerhalb des sichtbaren Kartenausschnitts ausgeblendet; Bündel klar blau markiert.
+Kartenbündel: zweiter Ring und kleines Plus statt Zahl.
+Nahe NPC-Markierungen: Klick auf die Gruppe, dann NPC-Namen für Minikarten-Wegpunkt auswählen.
+Händlerwaren: echtes Item-Icon und Tooltip links oberhalb des Mauszeigers.
+Händlerwaren: Tooltip beim Überfahren, Umschalt-Klick zum Verlinken im Chat (bei Waren mit Item-ID).
+
+Qualitätsprüfung des bestehenden Funktionsumfangs: Datenrundlauf, stabile Tagebuchtexte, korrekte Fundorte, sichtbare Filter und robustere Verarbeitung älterer Daten. Enthält alle Korrekturen aus beta.2 bis beta.4.
+
+Offline geprüft: Lua-Syntax, Sprachschlüssel, Boss-Ereignisse, Tagebuch, Suche, Kartenfilter, Datenexport/-import, Sonderzeichen, alte Exporte, beschädigte Einträge und größere synthetische Datenmengen. Echte Spielereignisse und UI-Skalierung sind erst im Forever-Client bestätigbar.

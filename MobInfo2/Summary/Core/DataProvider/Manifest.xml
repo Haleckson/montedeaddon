@@ -1,0 +1,4 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Script file="MI2_Sorting.lua"/>
+  <Script file="MI2_DataProvider.lua"/>
+</Ui>

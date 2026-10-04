@@ -1,0 +1,249 @@
+local addonName,ns=...
+if type(ns)~="table"then
+ns={}
+end
+
+local ContactsController=ns.MessengerWindowContactsController or require("WhisperMessenger.UI.MessengerWindow.ContactsController")
+local ContactsSearchController=ns.MessengerWindowContactsSearchController
+or require("WhisperMessenger.UI.MessengerWindow.MessengerWindow.ContactsSearchController")
+local ContactSearch=ns.MessengerWindowContactSearch or require("WhisperMessenger.UI.MessengerWindow.MessengerWindow.ContactSearch")
+local TabToggle=ns.ContactsListTabToggle or require("WhisperMessenger.UI.ContactsList.TabToggle")
+local ContactsTabFilter=ns.ContactsTabFilter or require("WhisperMessenger.UI.ContactsList.ContactsTabFilter")
+local EmptyState=ns.ContactsListEmptyState or require("WhisperMessenger.UI.ContactsList.EmptyState")
+local BadgeFilter=ns.ToggleIconBadgeFilter or require("WhisperMessenger.UI.ToggleIcon.BadgeFilter")
+local Localization=ns.Localization or require("WhisperMessenger.Locale.Localization")
+
+local ContactsRuntime={}
+
+function ContactsRuntime.Create(factory,options)
+options=options or{}
+
+
+local settingsConfig=options.settingsConfig or{}
+local function getShowGroupChats()
+return settingsConfig.showGroupChats~=false
+end
+local function getRequestsInbox()
+return settingsConfig.requestsInbox==true
+end
+
+local function visibleTabModes()
+local modes={"whispers"}
+if getShowGroupChats()then
+modes[#modes+1]="groups"
+end
+if getRequestsInbox()then
+modes[#modes+1]="requests"
+end
+return modes
+end
+
+
+local currentTabMode=(options.initialTabMode and options.initialTabMode~="")and options.initialTabMode or"whispers"
+if currentTabMode=="requests"and not getRequestsInbox()then
+currentTabMode="whispers"
+end
+
+
+
+local triggerTabRefresh=nil
+
+
+local tabToggle=nil
+if options.contactsPane then
+tabToggle=TabToggle.Create(factory,options.contactsPane,{
+initialMode=currentTabMode,
+nativeChrome=options.nativeChrome==true,
+onModeChanged=function(mode)
+if mode==currentTabMode then
+return
+end
+local oldMode=currentTabMode
+currentTabMode=mode
+if options.onTabModeChanged then
+options.onTabModeChanged(mode)
+end
+if triggerTabRefresh then
+triggerTabRefresh()
+end
+
+
+if options.onTabModeSwapSelection then
+options.onTabModeSwapSelection(oldMode,mode)
+end
+end,
+})
+end
+
+local function applyTabModes()
+if tabToggle==nil then
+return
+end
+local modes=visibleTabModes()
+tabToggle.setModes(modes)
+tabToggle.setShown(#modes>1)
+end
+applyTabModes()
+
+local contactsController=ContactsController.Create(factory,options.contactsView,options.initialContacts or{},{
+getHideMessagePreview=function()
+return settingsConfig.hideMessagePreview==true
+end,
+onSelect=function(item)
+if options.onSelect then
+options.onSelect(item)
+end
+end,
+onPin=function(item)
+if options.onPin then
+options.onPin(item)
+end
+end,
+onRemove=function(item)
+if options.onRemove then
+options.onRemove(item)
+end
+end,
+onMarkUnread=function(item)
+if options.onMarkUnread then
+options.onMarkUnread(item)
+end
+end,
+onUpdatePrefs=function(item,changes)
+if options.onUpdatePrefs then
+options.onUpdatePrefs(item,changes)
+end
+end,
+onReorder=function(orders)
+if options.onReorder then
+options.onReorder(orders)
+end
+end,
+})
+
+local contacts={
+rows=contactsController.rows,
+scrollFrame=contactsController.scrollFrame,
+scrollBar=contactsController.scrollBar,
+content=contactsController.content,
+view=contactsController.view,
+}
+
+
+local emptyStateFrame=nil
+if options.contactsView then
+local contentParent=contactsController.content or options.contactsView
+emptyStateFrame=EmptyState.Create(contentParent)
+end
+
+
+
+
+local GROUPS_EMPTY_KEY="No group chats yet.\nJoin a party or instance to see messages here."
+local REQUESTS_EMPTY_KEY="No message requests."
+local WHISPERS_EMPTY_KEY="No conversations yet. Click Start New Whisper to message a friend."
+
+
+
+local function hasSearchText()
+local input=options.contactsSearchInput
+if input==nil then
+return false
+end
+local text=(input.GetText and input:GetText())or input.text or""
+return ContactSearch.NormalizeSearchQuery(text)~=""
+end
+
+local contactsSearchController=ContactsSearchController.Create({
+contacts=contacts,
+contactsController=contactsController,
+contactSearch=options.contactSearch or ContactSearch,
+initialContacts=options.initialContacts or{},
+contactsSearchInput=options.contactsSearchInput,
+contactsSearchClearButton=options.contactsSearchClearButton,
+contactsSearchPlaceholder=options.contactsSearchPlaceholder,
+getSelectedConversationKey=options.getSelectedConversationKey,
+getTabFilter=function(items)
+return ContactsTabFilter.Apply(items,currentTabMode,getShowGroupChats())
+end,
+onAfterFilter=function(filtered,allContacts)
+
+if tabToggle and tabToggle.setUnreadCounts then
+local source=allContacts or filtered
+tabToggle.setUnreadCounts(BadgeFilter.SumWhisperUnread(source),BadgeFilter.SumGroupUnread(source),BadgeFilter.SumRequestUnread(source))
+end
+if options.onAllContactsRefreshed then
+options.onAllContactsRefreshed(allContacts or filtered)
+end
+if emptyStateFrame==nil then
+return
+end
+if currentTabMode=="groups"and getShowGroupChats()and#filtered==0 then
+EmptyState.Show(emptyStateFrame,Localization.Text(GROUPS_EMPTY_KEY))
+elseif currentTabMode=="requests"and#filtered==0 and not hasSearchText()then
+EmptyState.Show(emptyStateFrame,Localization.Text(REQUESTS_EMPTY_KEY))
+elseif currentTabMode=="whispers"and#filtered==0 and not hasSearchText()then
+EmptyState.Show(emptyStateFrame,Localization.Text(WHISPERS_EMPTY_KEY))
+else
+EmptyState.Hide(emptyStateFrame)
+end
+end,
+})
+
+
+triggerTabRefresh=function()
+contactsSearchController.refresh(nil,nil,true)
+end
+
+return{
+contactsController=contactsController,
+contacts=contacts,
+tabToggle=tabToggle,
+refreshContacts=function(nextContacts,selectedConversationKey,resetPaging)
+return contactsSearchController.refresh(nextContacts,selectedConversationKey,resetPaging)
+end,
+getCurrentContacts=function()
+return contactsSearchController.getCurrentContacts()
+end,
+bindInputScripts=function()
+contactsSearchController.bindInputScripts()
+end,
+refreshTabToggleVisibility=applyTabModes,
+
+
+
+getContactsBottomInset=function(paneWidth)
+if tabToggle and tabToggle.frame and tabToggle.frame:IsShown()then
+return tabToggle.reservedHeightFor(paneWidth or tabToggle.frame:GetWidth())
+end
+return 0
+end,
+setTabMode=function(mode)
+local resolved=mode or"whispers"
+if resolved==currentTabMode then
+return
+end
+local oldMode=currentTabMode
+currentTabMode=resolved
+if tabToggle then
+tabToggle.setMode(currentTabMode)
+end
+if options.onTabModeChanged then
+options.onTabModeChanged(currentTabMode)
+end
+if triggerTabRefresh then
+triggerTabRefresh()
+end
+if options.onTabModeSwapSelection then
+options.onTabModeSwapSelection(oldMode,currentTabMode)
+end
+end,
+getTabMode=function()
+return currentTabMode
+end,
+}
+end
+
+ns.MessengerWindowContactsRuntime=ContactsRuntime
+
+return ContactsRuntime

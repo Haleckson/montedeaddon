@@ -1,0 +1,338 @@
+local addonName,ns=...
+if type(ns)~="table"then
+ns={}
+end
+
+local Fonts={}
+
+
+
+
+
+local FRIZQT_PATH="Fonts\\FRIZQT__.TTF"
+
+
+
+
+
+
+
+
+
+
+
+
+local MULTI_SCRIPT_LANGUAGES={
+koKR=true,
+zhCN=true,
+zhTW=true,
+ruRU=true,
+}
+
+
+
+
+local MULTI_SCRIPT_FONT_OBJECT_NAMES={
+"GameTooltipText",
+"SystemFont_Med1",
+"GameFontNormal",
+}
+
+local DEFAULT_BASE_SIZE=12
+
+
+
+
+
+local FONT_DEFS={
+{"WM_Normal","GameFontNormal",0},
+{"WM_DisableSmall","GameFontDisableSmall",-2},
+{"WM_Highlight","GameFontHighlight",0},
+{"WM_HighlightSmall","GameFontHighlightSmall",-2},
+{"WM_HighlightLarge","GameFontHighlightLarge",4},
+{"WM_ChatNormal","GameFontHighlight",0},
+{"WM_Title","GameFontHighlight",0,true},
+}
+
+local SHADOW_OFFSET_X,SHADOW_OFFSET_Y=1,-1
+local SHADOW_ALPHA=0.85
+
+local FONT_MAP={
+contact_name="WM_Normal",
+contact_preview="WM_DisableSmall",
+contact_time="WM_DisableSmall",
+message_text="WM_Highlight",
+message_time="WM_DisableSmall",
+header_name="WM_HighlightLarge",
+header_status="WM_DisableSmall",
+date_separator="WM_DisableSmall",
+system_text="WM_HighlightSmall",
+unread_badge="WM_HighlightSmall",
+composer_input="WM_ChatNormal",
+icon_label="WM_Highlight",
+empty_state="WM_Highlight",
+window_title="WM_Title",
+}
+
+local FONT_COLOR_PRESETS={
+default={key="default",label="Default",rgba=nil},
+gold={key="gold",label="Gold",rgba={1,0.82,0,1}},
+light_blue={key="light_blue",label="Blue",rgba={0.67,0.85,1,1}},
+soft_green={key="soft_green",label="Green",rgba={0.67,1,0.67,1}},
+purple={key="purple",label="Purple",rgba={0.78,0.61,1,1}},
+rose={key="rose",label="Rose",rgba={1,0.65,0.75,1}},
+}
+
+local FONT_COLOR_ORDER={"default","gold","light_blue","soft_green","purple","rose"}
+
+local currentMode="default"
+local currentFontPath=nil
+local currentFontSize=DEFAULT_BASE_SIZE
+local currentOutline="NONE"
+local currentFontColor="default"
+local currentLanguage="auto"
+
+local function sharedMedia()
+local libStub=_G and _G.LibStub
+if type(libStub)~="table"then
+return nil
+end
+
+local ok,lsm=pcall(libStub,"LibSharedMedia-3.0",true)
+if ok and type(lsm)=="table"then
+return lsm
+end
+return nil
+end
+
+local function fetchFontPath(name)
+if type(name)~="string"or name==""or name=="default"or name=="system"or name=="morpheus"then
+return nil
+end
+
+local lsm=sharedMedia()
+if not lsm or type(lsm.Fetch)~="function"then
+return nil
+end
+
+local ok,path=pcall(lsm.Fetch,lsm,"font",name,true)
+if ok and type(path)=="string"and path~=""then
+return path
+end
+return nil
+end
+
+local function selectMode(mode)
+local path=fetchFontPath(mode)
+if path then
+currentMode=mode
+currentFontPath=path
+else
+currentMode="default"
+currentFontPath=nil
+end
+end
+
+local function resolveOutlineFlags(outline)
+if outline=="OUTLINE"or outline=="THICKOUTLINE"then
+return outline
+end
+return""
+end
+
+local function effectiveLanguage()
+if currentLanguage~="auto"and currentLanguage~=nil then
+return currentLanguage
+end
+local getLocale=_G and _G.GetLocale
+if type(getLocale)=="function"then
+local ok,locale=pcall(getLocale)
+if ok and type(locale)=="string"then
+return locale
+end
+end
+return nil
+end
+
+local function clientLocale()
+local getLocale=_G and _G.GetLocale
+if type(getLocale)=="function"then
+local ok,locale=pcall(getLocale)
+if ok and type(locale)=="string"then
+return locale
+end
+end
+return nil
+end
+
+local function resolveInheritedSourceFontObject()
+local language=effectiveLanguage()
+if language==nil or not MULTI_SCRIPT_LANGUAGES[language]then
+return nil
+end
+
+
+
+
+
+if clientLocale()==language then
+return nil
+end
+for _,name in ipairs(MULTI_SCRIPT_FONT_OBJECT_NAMES)do
+local obj=_G[name]
+if obj then
+return obj
+end
+end
+return nil
+end
+
+local function applyFonts()
+local baseSize=currentFontSize
+local flags=resolveOutlineFlags(currentOutline)
+local CreateFont=_G.CreateFont
+local inheritedSource=resolveInheritedSourceFontObject()
+
+for _,def in ipairs(FONT_DEFS)do
+local wmName,gameFont,sizeOffset,hasShadow=def[1],def[2],def[3],def[4]
+local size=baseSize+sizeOffset
+local fontObj=_G[wmName]
+if not fontObj then
+fontObj=CreateFont(wmName)
+end
+
+if inheritedSource then
+
+
+
+
+
+fontObj:SetFontObject(inheritedSource)
+elseif currentFontPath then
+fontObj:SetFont(currentFontPath,size,flags)
+else
+local source=_G[gameFont]
+if source then
+fontObj:SetFontObject(source)
+local p=source:GetFont()
+fontObj:SetFont(p or FRIZQT_PATH,size,flags)
+else
+fontObj:SetFont(FRIZQT_PATH,size,flags)
+end
+end
+
+if hasShadow and fontObj.SetShadowOffset then
+fontObj:SetShadowOffset(SHADOW_OFFSET_X,SHADOW_OFFSET_Y)
+fontObj:SetShadowColor(0,0,0,SHADOW_ALPHA)
+end
+end
+end
+
+function Fonts.Initialize(mode)
+selectMode(mode)
+currentFontSize=DEFAULT_BASE_SIZE
+currentOutline="NONE"
+currentFontColor="default"
+currentLanguage="auto"
+applyFonts()
+end
+
+function Fonts.SetLanguage(language)
+currentLanguage=language or"auto"
+applyFonts()
+end
+
+function Fonts.GetLanguage()
+return currentLanguage
+end
+
+function Fonts.SetMode(mode)
+selectMode(mode)
+applyFonts()
+end
+
+function Fonts.GetMode()
+return currentMode
+end
+
+function Fonts.ListFontFamilies()
+local families={{key="default",label="Default"}}
+local lsm=sharedMedia()
+if not lsm or type(lsm.List)~="function"then
+return families
+end
+
+local ok,names=pcall(lsm.List,lsm,"font")
+if not ok or type(names)~="table"then
+return families
+end
+
+local unique={}
+local sortedNames={}
+for _,name in ipairs(names)do
+if type(name)=="string"and name~=""and name~="default"and name~="system"and name~="morpheus"and not unique[name]then
+unique[name]=true
+sortedNames[#sortedNames+1]=name
+end
+end
+
+table.sort(sortedNames,function(a,b)
+local lowerA,lowerB=string.lower(a),string.lower(b)
+if lowerA==lowerB then
+return a<b
+end
+return lowerA<lowerB
+end)
+
+for _,name in ipairs(sortedNames)do
+families[#families+1]={key=name,label=name}
+end
+return families
+end
+
+function Fonts.SetFontSize(size)
+currentFontSize=size or DEFAULT_BASE_SIZE
+applyFonts()
+end
+
+function Fonts.GetFontSize()
+return currentFontSize
+end
+
+function Fonts.SetOutline(outline)
+currentOutline=outline or"NONE"
+applyFonts()
+end
+
+function Fonts.GetOutline()
+return currentOutline
+end
+
+function Fonts.SetFontColor(key)
+if type(key)=="string"and FONT_COLOR_PRESETS[key]then
+currentFontColor=key
+else
+currentFontColor="default"
+end
+end
+
+function Fonts.GetFontColorRGBA()
+local preset=FONT_COLOR_PRESETS[currentFontColor]
+return preset and preset.rgba or nil
+end
+
+function Fonts.ListFontColorPresets()
+local list={}
+for _,key in ipairs(FONT_COLOR_ORDER)do
+local preset=FONT_COLOR_PRESETS[key]
+list[#list+1]={key=preset.key,label=preset.label,rgba=preset.rgba}
+end
+return list
+end
+
+for key,value in pairs(FONT_MAP)do
+Fonts[key]=value
+end
+
+ns.ThemeFonts=Fonts
+return Fonts
