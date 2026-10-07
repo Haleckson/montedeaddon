@@ -1,0 +1,116 @@
+## Interface: 16001
+## Title: Forever Companion |cffd8b25cDiscovery Journal|r
+## Notes: A collaborative discovery journal for WoW Forever. Explore, document and share what your guild finds.
+## Author: Duta
+## Version: 0.9.3
+## X-Build-Target: World of Warcraft: Forever 1.60.1 (build 70170)
+## X-License: All Rights Reserved
+## X-Copyright: Copyright (c) 2026 IAMTHEDOT. All rights reserved.
+## X-Website: https://www.curseforge.com/wow/addons/forever-companion
+## Category: Map & Minimap
+## IconTexture: Interface\AddOns\ForeverCompanion\Media\Logo
+## SavedVariables: ForeverCompanionDB
+## SavedVariablesPerCharacter: ForeverCompanionCharDB
+## AddonCompartmentFunc: ForeverCompanion_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ForeverCompanion_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ForeverCompanion_OnAddonCompartmentLeave
+## OptionalDeps: TomTom, LibSharedMedia-3.0
+
+# Interface number: 16001 is what the Forever client reports for build line 1.60.x
+# (verified in game with: /dump select(4, GetBuildInfo()) ). When Blizzard moves the
+# build line (1.61, 1.70 ...), update the first line of this file before packaging.
+
+# Core
+Core\Init.lua
+Core\Constants.lua
+Core\Log.lua
+Core\Utils.lua
+Localization\Localization.lua
+Localization\enUS.lua
+Core\Compatibility.lua
+Core\Events.lua
+Core\Serializer.lua
+Core\Migration.lua
+Core\Database.lua
+Core\Profiles.lua
+
+# Data layer
+Data\Categories.lua
+Data\DiscoveryStore.lua
+Data\Query.lua
+Data\QuestLore.lua
+Data\Characters.lua
+# WoW Forever reference data, generated from AllTheThings (MIT License, see THIRD_PARTY_NOTICES.md)
+Data\Reference\Quests.lua
+Data\Reference\Creatures.lua
+Data\Reference\World.lua
+# quest titles, the names of quest givers and what AllTheThings does not list yet, generated from Wowhead's WoW Forever database
+Data\Reference\Wowhead.lua
+# where the quests start that the files above name no start for, generated from the newer AllTheThings data (MIT License)
+Data\Reference\Starts.lua
+Data\Reference.lua
+Data\Biography.lua
+
+# Discovery engine
+Discovery\Location.lua
+Discovery\AutoText.lua
+Discovery\DiscoveryEngine.lua
+Discovery\NPCDiscovery.lua
+Discovery\VendorDiscovery.lua
+Discovery\QuestDiscovery.lua
+Discovery\ItemDiscovery.lua
+Discovery\GatheringDiscovery.lua
+Discovery\WorldDiscovery.lua
+Discovery\DungeonDiscovery.lua
+Discovery\ExplorationDiscovery.lua
+Discovery\NearbyDiscovery.lua
+
+# Guild
+Guild\Comm.lua
+Guild\Sync.lua
+
+# Features
+Features\ImportExport.lua
+Features\ChatLinks.lua
+Features\Milestones.lua
+Features\Progress.lua
+Features\QuestHistory.lua
+
+# UI framework and journal
+UI\Theme.lua
+UI\Fonts.lua
+UI\Skin.lua
+UI\Framework.lua
+UI\Controls.lua
+UI\Dialogs.lua
+UI\CardList.lua
+UI\DetailPanel.lua
+UI\Pages.lua
+UI\Biography.lua
+UI\ProgressPage.lua
+UI\QuestLogPage.lua
+UI\MainWindow.lua
+UI\Editor.lua
+UI\Notifications.lua
+UI\Tooltips.lua
+UI\QuestMarkers.lua
+UI\ZoneGuide.lua
+UI\MinimapButton.lua
+UI\TargetButton.lua
+UI\Onboarding.lua
+
+# Map
+Map\Waypoints.lua
+Map\Pins.lua
+Map\Pins.xml
+Map\MapIntegration.lua
+Map\MinimapPins.lua
+
+# Settings
+Settings\SettingsSchema.lua
+Settings\SettingsWindow.lua
+
+# Developer tools (inactive unless debug mode is on)
+Dev\DevTools.lua
+
+Core\Commands.lua
