@@ -21,7 +21,7 @@ local U = FC.Utils
 local ACCOUNT_TABLES = {
     "meta", "profileKeys", "profiles", "discoveries", "userState",
     "tagColors", "customThemes", "myChars", "sync", "milestones", "ordinaryNpcs", "gatherObjects",
-    "found", "charMilestones",
+    "found", "charMilestones", "forgotten",
 }
 
 -- { ["Name-Realm"] = { [key] = time } }: what each character found, and the
@@ -44,6 +44,10 @@ local function ensureStructure(db)
     end
     cleanPerCharacter(db.found)
     cleanPerCharacter(db.charMilestones)
+    -- { ["Name-Realm"] = time }: characters you deleted and asked the lists to leave out
+    for key, ts in pairs(db.forgotten) do
+        if type(key) ~= "string" or type(ts) ~= "number" then db.forgotten[key] = nil end
+    end
     -- "account" | "character"; nil until the player chose (they are asked at login)
     if db.progressMode ~= "account" and db.progressMode ~= "character" then db.progressMode = nil end
     if type(db.meta.created) ~= "number" then db.meta.created = U.Now() end
@@ -84,6 +88,7 @@ function Database:Load()
     db.meta.lastAddonVersion = FC.version
     FC.db = db
     FC.cdb = cdb
+    FC.Locale:Initialize(db)
 end
 
 function Database:ClearCharacterData()
@@ -95,6 +100,13 @@ function Database:ClearCharacterData()
     if me then
         FC.db.found[me] = nil
         FC.db.charMilestones[me] = nil
+        for _, state in pairs(FC.db.userState) do
+            if state.opened then
+                state.opened[me] = nil
+                if not next(state.opened) then state.opened = nil end
+            end
+        end
+        FC.Store:MarkDirty()
     end
 end
 

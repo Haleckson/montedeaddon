@@ -2,8 +2,8 @@
   Forever Companion - Settings/SettingsWindow.lua
   The configuration window. Renders Settings/SettingsSchema.lua generically
   (one page per category, built on first open), plus three custom pages:
-  Profiles, Data management and About. Every change applies immediately;
-  nothing in the addon needs /reload.
+  Profiles, Data management and About. Appearance changes apply immediately;
+  switching the display language offers an explicit Apply and reload action.
 
   A small panel is also registered in Blizzard's Options > AddOns list that
   opens this window.
@@ -27,6 +27,31 @@ local HEADER_HEIGHT = 96   -- the settings painting (journal style)
 ------------------------------------------------------------------------
 -- Generic control rendering
 ------------------------------------------------------------------------
+
+local function fitHeader(header, width)
+    header:SetWidth(width)
+    header.label:SetWidth(0)
+    header.label:SetWordWrap(false)
+    local natural = math.ceil(header.label:GetStringWidth()) + 2
+    header.label:SetWidth(math.min(width, natural))
+    header.label:SetWordWrap(natural > width)
+    header.line:SetShown(natural + 18 < width)
+    header:SetHeight(math.max(22, header.label:GetStringHeight() + 2))
+    return header:GetHeight() + 10
+end
+
+local function fitDropdown(widget, width)
+    widget:SetWidth(math.min(CONTROL_WIDTH, width))
+    local caption = 0
+    if widget.label then
+        widget.label:SetWidth(widget:GetWidth())
+        widget.label:SetWordWrap(true)
+        caption = widget.label:GetStringHeight() + 8
+    end
+    widget.button:SetHeight(math.max(26, widget.button.text:GetStringHeight() + 10))
+    widget:SetHeight(caption + widget.button:GetHeight())
+    return widget:GetHeight()
+end
 
 -- controls read their setting path, or control.get for values kept outside
 -- the profile (the progress mode belongs to the whole account)
@@ -103,28 +128,92 @@ local function buildControl(parent, control, width)
     end
 end
 
-local function buildSchemaPage(page, category)
-    local area = page.area
-    local content = area.content
-    local width = WIDTH - NAV_WIDTH - 90
+-- Both Settings and the journal's Map page use these same bindings.
+-- Reflow existing widgets on resize; never create a new copy per slider move.
+local function layoutSchemaPage(page, width)
+    if page.fcSettingsLayout then return end
+    page.fcSettingsLayout = true
+    width = math.max(240, width or page.fcSettingsWidth or WIDTH - NAV_WIDTH - 90)
+    page.fcSettingsWidth = width
     local y = 4
-    page.controls = {}
-    for _, section in ipairs(category.sections or {}) do
-        local header = UI.SectionHeader(content, L[section.title])
-        header:SetPoint("TOPLEFT", 0, -y)
-        header:SetWidth(width)
-        y = y + 32
-        for _, control in ipairs(section.controls) do
-            local widget, height = buildControl(content, control, width)
-            if widget then
-                widget:SetPoint("TOPLEFT", 4, -y)
-                y = y + height + 4
-                page.controls[#page.controls + 1] = { widget = widget, control = control }
+    for _, section in ipairs(page.settingsSections or {}) do
+        section.header:ClearAllPoints()
+        section.header:SetPoint("TOPLEFT", 0, -y)
+        y = y + fitHeader(section.header, width)
+        for _, entry in ipairs(section.entries) do
+            local widget, control = entry.widget, entry.control
+            local h = entry.height
+            local available = math.max(220, width - 8)
+            if control.type == "note" then
+                widget:SetWidth(available)
+                h = widget:GetStringHeight() + 10
+            elseif control.type == "dropdown" then
+                h = fitDropdown(widget, available) + 8
+            elseif control.type == "slider" then
+                h = widget:Layout(math.min(CONTROL_WIDTH, available)) + 8
+            elseif control.type == "color" then
+                widget:SetWidth(math.min(CONTROL_WIDTH, available))
+            elseif control.type == "checkbox" then
+                widget:SetWidth(available)
+                widget.label:SetWidth(math.max(100, available - 30))
+                widget.label:SetWordWrap(true)
+                h = math.max(26, widget.label:GetStringHeight() + 8)
+                widget:SetHeight(h)
+            elseif control.type == "button" then
+                h = widget:FitLabel(available, 26) + 8
+            elseif control.type == "checkgrid" then
+                local columns = control.columns or 2
+                if available < 440 then columns = 1 end
+                local colWidth = math.floor(available / columns)
+                local rowHeight = 24
+                for _, box in ipairs(widget.boxes or {}) do
+                    box:SetWidth(colWidth - 8)
+                    box.label:SetWidth(math.max(80, colWidth - 40))
+                    box.label:SetWordWrap(true)
+                    rowHeight = math.max(rowHeight, box.label:GetStringHeight() + 8)
+                end
+                for i, box in ipairs(widget.boxes or {}) do
+                    box:ClearAllPoints()
+                    box:SetPoint("TOPLEFT", ((i - 1) % columns) * colWidth, -math.floor((i - 1) / columns) * rowHeight)
+                    box:SetHeight(rowHeight)
+                end
+                h = math.ceil(#(widget.boxes or {}) / columns) * rowHeight
+                widget:SetSize(available, h)
+            elseif control.type == "custom" and control.reflow and widget.Layout then
+                h = widget:Layout(available)
             end
+            widget:ClearAllPoints()
+            widget:SetPoint("TOPLEFT", 4, -y)
+            y = y + h + 4
         end
         y = y + 14
     end
-    area:SetContentHeight(y)
+    page.area:SetContentHeight(y)
+    page.fcSettingsLayout = nil
+end
+
+local function buildSchemaPage(page, category)
+    local content = page.area.content
+    local width = WIDTH - NAV_WIDTH - 90
+    page.controls, page.settingsSections = {}, {}
+    for _, section in ipairs(category.sections or {}) do
+        local entry = { header = UI.SectionHeader(content, L[section.title]), entries = {} }
+        page.settingsSections[#page.settingsSections + 1] = entry
+        for _, control in ipairs(section.controls) do
+            local widget, height = buildControl(content, control, width)
+            if widget then
+                if control.reflow then
+                    widget.onLayoutChanged = function()
+                        layoutSchemaPage(page, math.max(240, page.area:ContentWidth() - 12))
+                    end
+                end
+                local item = { widget = widget, control = control, height = height }
+                page.controls[#page.controls + 1] = item
+                entry.entries[#entry.entries + 1] = item
+            end
+        end
+    end
+    layoutSchemaPage(page, width)
 end
 
 local function refreshControls(page)
@@ -134,6 +223,34 @@ local function refreshControls(page)
         if control.disabled and widget.SetDisabled then widget:SetDisabled(control.disabled()) end
     end
     if page.OnRefresh then page:OnRefresh() end
+    if page.settingsSections then layoutSchemaPage(page, math.max(240, page.area:ContentWidth() - 12)) end
+end
+
+--- A real journal page, not a second floating Settings window.
+function SettingsWindow:BuildEmbeddedMapPage(parent)
+    local category
+    for _, candidate in ipairs(FC.SettingsSchema) do
+        if candidate.key == "map" then category = candidate break end
+    end
+    assert(category, "Forever Companion: Map settings schema missing")
+    local page = CreateFrame("Frame", nil, parent)
+    page.area = UI.ScrollArea(page)
+    page.area:SetAllPoints()
+    page.title, page.subtitle = L.NAV_MAP, L.SET_MAP_DESC
+    buildSchemaPage(page, category)
+    function page:Refresh()
+        refreshControls(self)
+        layoutSchemaPage(self, math.max(240, self.area:ContentWidth() - 12))
+    end
+    local function reflow()
+        U.Debounce("map-page-layout", 0.1, function()
+            if page:IsVisible() then page:Refresh() end
+        end)
+    end
+    page:SetScript("OnSizeChanged", reflow)
+    page.area:AutoGutter(reflow)
+    page:SetScript("OnShow", function() page:Refresh() end)
+    return page
 end
 
 ------------------------------------------------------------------------
@@ -145,34 +262,43 @@ local function buildProfilesPage(page)
     local P = FC.Profiles
     local width = WIDTH - NAV_WIDTH - 90
     local y = 4
+    local blocks = {}
+    local function block(kind, widget) blocks[#blocks + 1] = { kind = kind, widget = widget } end
 
     local header = UI.SectionHeader(content, L.PROFILE_ACTIVE)
     header:SetPoint("TOPLEFT", 0, -y)
     header:SetWidth(width)
+    block("header", header)
     y = y + 32
     local selector = UI.Dropdown(content, L.PROFILE_SELECT, function()
         local items = {}
-        for _, name in ipairs(P:List()) do items[#items + 1] = { value = name, text = name } end
+        for _, name in ipairs(P:List()) do items[#items + 1] = { value = name, text = P:DisplayName(name) } end
         return items
     end, function() return P:GetActive() end, function(value) P:Activate(value) end, CONTROL_WIDTH)
     selector:SetPoint("TOPLEFT", 4, -y)
+    block("dropdown", selector)
     y = y + 60
     page.info = UI.WrappedText(content, "secondary", "muted")
     page.info:SetPoint("TOPLEFT", 4, -y)
     page.info:SetWidth(width - 8)
+    block("text", page.info)
     y = y + 30
 
     local quick = UI.SectionHeader(content, L.PROFILE_QUICK)
     quick:SetPoint("TOPLEFT", 0, -y)
     quick:SetWidth(width)
+    block("header", quick)
     y = y + 34
     local function row(buttons)
         local x = 4
+        local widgets = {}
         for _, spec in ipairs(buttons) do
             local button = UI.Button(content, spec[1], { style = spec[3] or "secondary", height = 26, autoWidth = true, width = 110, onClick = spec[2] })
             button:SetPoint("TOPLEFT", x, -y)
             x = x + button:GetWidth() + 8
+            widgets[#widgets + 1] = button
         end
+        block("buttons", widgets)
         y = y + 36
     end
     row({
@@ -184,6 +310,7 @@ local function buildProfilesPage(page)
     local manage = UI.SectionHeader(content, L.PROFILE_MANAGE)
     manage:SetPoint("TOPLEFT", 0, -y)
     manage:SetWidth(width)
+    block("header", manage)
     y = y + 34
     local function report(ok, err)
         if not ok and err then FC:Print(err) end
@@ -193,7 +320,7 @@ local function buildProfilesPage(page)
             UI.Prompt(L.PROFILE_NEW, L.PROFILE_NAME_PROMPT, "", function(name) report(P:Create(name)) end, 48)
         end },
         { L.PROFILE_COPY_AS_NEW, function()
-            UI.Prompt(L.PROFILE_COPY_AS_NEW, L.PROFILE_NAME_PROMPT, P:GetActive() .. " copy", function(name) report(P:Create(name, P:GetActive())) end, 48)
+            UI.Prompt(L.PROFILE_COPY_AS_NEW, L.PROFILE_NAME_PROMPT, string.format(L.PROFILE_COPY_NAME, P:DisplayName(P:GetActive())), function(name) report(P:Create(name, P:GetActive())) end, 48)
         end },
         { L.PROFILE_RENAME, function()
             UI.Prompt(L.PROFILE_RENAME, L.PROFILE_NAME_PROMPT, P:GetActive(), function(name) report(P:Rename(P:GetActive(), name)) end, 48)
@@ -202,17 +329,18 @@ local function buildProfilesPage(page)
     local copySource = UI.Dropdown(content, L.PROFILE_COPY_FROM, function()
         local items = {}
         for _, name in ipairs(P:List()) do
-            if name ~= P:GetActive() then items[#items + 1] = { value = name, text = name } end
+            if name ~= P:GetActive() then items[#items + 1] = { value = name, text = P:DisplayName(name) } end
         end
         return items
     end, function() return nil end, function(value)
-        UI.Confirm(L.PROFILE_COPY_FROM, string.format(L.PROFILE_COPY_CONFIRM, value, P:GetActive()), L.COPY, function() P:CopyFrom(value) end)
+        UI.Confirm(L.PROFILE_COPY_FROM, string.format(L.PROFILE_COPY_CONFIRM, P:DisplayName(value), P:DisplayName(P:GetActive())), L.COPY, function() P:CopyFrom(value) end)
     end, CONTROL_WIDTH)
     copySource:SetPoint("TOPLEFT", 4, -y)
+    block("dropdown", copySource)
     y = y + 62
     row({
         { L.PROFILE_RESET, function()
-            UI.Confirm(L.PROFILE_RESET, string.format(L.PROFILE_RESET_CONFIRM, P:GetActive()), L.RESET, function() P:Reset() end, true)
+            UI.Confirm(L.PROFILE_RESET, string.format(L.PROFILE_RESET_CONFIRM, P:DisplayName(P:GetActive())), L.RESET, function() P:Reset() end, true)
         end, "danger" },
         { L.PROFILE_DELETE, function()
             UI.Prompt(L.PROFILE_DELETE, L.PROFILE_DELETE_PROMPT, "", function(name)
@@ -224,6 +352,7 @@ local function buildProfilesPage(page)
     local share = UI.SectionHeader(content, L.PROFILE_SHARE)
     share:SetPoint("TOPLEFT", 0, -y)
     share:SetWidth(width)
+    block("header", share)
     y = y + 34
     row({
         { L.PROFILE_EXPORT, function()
@@ -240,7 +369,38 @@ local function buildProfilesPage(page)
     page.area:SetContentHeight(y + 10)
     page.controls = { { widget = selector, control = {} }, { widget = copySource, control = {} } }
     function page:OnRefresh()
-        self.info:SetText(string.format(L.PROFILE_INFO, P:GetActive(), P:CharacterKey() or "?"))
+        self.info:SetText(string.format(L.PROFILE_INFO, P:DisplayName(P:GetActive()), P:CharacterKey() or "?"))
+        local available = math.max(240, self.area:ContentWidth() - 12)
+        local top = 4
+        for _, entry in ipairs(blocks) do
+            local widget = entry.widget
+            if entry.kind == "buttons" then
+                local x, rowHeight = 4, 0
+                for _, button in ipairs(widget) do
+                    local h = button:FitLabel(available - 8, 26)
+                    if x > 4 and x + button:GetWidth() > available then
+                        x, top, rowHeight = 4, top + rowHeight + 8, 0
+                    end
+                    button:ClearAllPoints()
+                    button:SetPoint("TOPLEFT", x, -top)
+                    x = x + button:GetWidth() + 8
+                    rowHeight = math.max(rowHeight, h)
+                end
+                top = top + rowHeight + 14
+            else
+                widget:ClearAllPoints()
+                widget:SetPoint("TOPLEFT", entry.kind == "header" and 0 or 4, -top)
+                if entry.kind == "header" then
+                    top = top + fitHeader(widget, available)
+                elseif entry.kind == "text" then
+                    widget:SetWidth(available - 8)
+                    top = top + widget:GetStringHeight() + 18
+                else
+                    top = top + fitDropdown(widget, available - 8) + 14
+                end
+            end
+        end
+        self.area:SetContentHeight(top + 10)
     end
 end
 
@@ -248,9 +408,12 @@ local function buildDataPage(page)
     local content = page.area.content
     local width = WIDTH - NAV_WIDTH - 90
     local y = 4
+    local blocks = {}
+    local function block(kind, widget) blocks[#blocks + 1] = { kind = kind, widget = widget } end
     local header = UI.SectionHeader(content, L.DATA_STATS)
     header:SetPoint("TOPLEFT", 0, -y)
     header:SetWidth(width)
+    block("header", header)
     y = y + 32
     page.statRows = {}
     for i = 1, 6 do
@@ -262,6 +425,7 @@ local function buildDataPage(page)
         row.right = UI.Text(row, "body", "text")
         row.right:SetPoint("RIGHT")
         page.statRows[i] = row
+        block("stat", row)
         y = y + 22
     end
     y = y + 14
@@ -270,11 +434,13 @@ local function buildDataPage(page)
         local h = UI.SectionHeader(content, title)
         h:SetPoint("TOPLEFT", 0, -y)
         h:SetWidth(width)
+        block("header", h)
         y = y + 34
     end
     local function button(label, onClick, style)
         local b = UI.Button(content, label, { style = style or "secondary", height = 26, autoWidth = true, width = 140, onClick = onClick })
         b:SetPoint("TOPLEFT", 4, -y)
+        block("button", b)
         y = y + 34
         return b
     end
@@ -283,6 +449,7 @@ local function buildDataPage(page)
         fs:SetPoint("TOPLEFT", 4, -y)
         fs:SetWidth(width - 8)
         fs:SetText(text)
+        block("text", fs)
         y = y + fs:GetStringHeight() + 10
     end
 
@@ -346,12 +513,33 @@ local function buildDataPage(page)
             { L.DATA_PERSONAL_ENTRIES, U.FormatNumber(stats.personal + alts) },
             { L.DATA_PRIVATE_ENTRIES, U.FormatNumber(stats.private) },
             { L.DATA_HIDDEN_ENTRIES, U.FormatNumber(stats.hidden) },
-            { L.DATA_SIZE, size > 1048576 and string.format("%.1f MB", size / 1048576) or string.format("%.1f KB", size / 1024) },
+            { L.DATA_SIZE, size > 1048576 and string.format(L.DATA_MEGABYTES, size / 1048576) or string.format(L.DATA_KILOBYTES, size / 1024) },
         }
         for i, row in ipairs(self.statRows) do
             row.left:SetText(data[i][1])
             row.right:SetText(data[i][2])
         end
+        local available, top = math.max(240, self.area:ContentWidth() - 12), 4
+        for _, entry in ipairs(blocks) do
+            local widget = entry.widget
+            widget:ClearAllPoints()
+            widget:SetPoint("TOPLEFT", entry.kind == "header" and 0 or 4, -top)
+            if entry.kind == "header" then
+                top = top + fitHeader(widget, available)
+            elseif entry.kind == "button" then
+                top = top + widget:FitLabel(available - 8, 26) + 8
+            elseif entry.kind == "stat" then
+                widget:SetWidth(available - 8)
+                widget.left:SetWidth(math.max(100, available - widget.right:GetStringWidth() - 24))
+                widget.left:SetWordWrap(true)
+                widget:SetHeight(math.max(20, widget.left:GetStringHeight(), widget.right:GetStringHeight()))
+                top = top + widget:GetHeight() + 6
+            else
+                widget:SetWidth(available - 8)
+                top = top + widget:GetStringHeight() + 10
+            end
+        end
+        self.area:SetContentHeight(top + 10)
     end
 end
 
@@ -376,7 +564,15 @@ local function buildAboutPage(page)
     commands:SetPoint("TOPLEFT", body, "BOTTOMLEFT", 0, -16)
     commands:SetWidth(width - 8)
     commands:SetText(L.ABOUT_COMMANDS)
-    page.area:SetContentHeight(90 + body:GetStringHeight() + commands:GetStringHeight() + 40)
+    function page:OnRefresh()
+        local available = math.max(240, self.area:ContentWidth() - 12)
+        body:SetWidth(available - 8)
+        commands:SetWidth(available - 8)
+        title:SetWidth(available - 90)
+        version:SetWidth(available - 90)
+        self.area:SetContentHeight(90 + body:GetStringHeight() + commands:GetStringHeight() + 40)
+    end
+    page:OnRefresh()
 end
 
 ------------------------------------------------------------------------
@@ -420,7 +616,7 @@ function SettingsWindow:Build()
     brand.title:SetPoint("RIGHT", -6, 0)
     brand.title:SetText(L.SETTINGS_TITLE)
     brand.profile = UI.Text(brand, "meta", "muted")
-    brand.profile:SetPoint("BOTTOMLEFT", brand.logo, "BOTTOMRIGHT", 8, 0)
+    brand.profile:SetPoint("TOPLEFT", brand.title, "BOTTOMLEFT", 0, -3)
     brand.profile:SetPoint("RIGHT", -6, 0)
     UI.MakeMovable(frame, brand)
     self.brand = brand
@@ -462,10 +658,10 @@ function SettingsWindow:Build()
     header.subtitle:SetPoint("TOPLEFT", header.title, "BOTTOMLEFT", 0, -6)
     header.subtitle:SetPoint("RIGHT", -24, 0)
     header.subtitle:SetMaxLines(2)
-    header.close = UI.IconButton(header, "Interface\\Buttons\\UI-StopButton", 24, L.CLOSE, function() frame:Hide() end)
+    header.close = UI.IconButton(header, "Interface\\Buttons\\UI-StopButton", 24, nil, function() frame:Hide() end)
     header.close:SetPoint("TOPRIGHT", -8, -8)
     header.journal = UI.Button(header, L.OPEN_JOURNAL, { height = 26, autoWidth = true, width = 110, onClick = function() FC.MainWindow:Show() end })
-    header.journal:SetPoint("RIGHT", header.close, "LEFT", -6, 0)
+    header.journal:SetPoint("TOPRIGHT", header.close, "TOPLEFT", -6, 0)
     header.plate = header:CreateTexture(nil, "ARTWORK", nil, -1)
     header.plate:SetTexture(C.WHITE)
     header.plate:SetColorTexture(0.05, 0.03, 0.02, 0.6)
@@ -497,18 +693,38 @@ function SettingsWindow:Layout()
     local painted = frame.fcPainted
     local edge = painted and FC.Skin:FrameInset(CORNER) or 8
     local nav, header = self.nav, self.header
+    local brand = self.brand
+    brand:SetHeight(math.max(52, brand.title:GetStringHeight() + brand.profile:GetStringHeight() + 18))
+    local navY = 0
+    for _, category in ipairs(FC.SettingsSchema) do
+        local item = self.navItems[category.key]
+        local h = math.max(29, item.label:GetStringHeight() + 8)
+        item:ClearAllPoints()
+        item:SetPoint("TOPLEFT", 0, -navY)
+        item:SetPoint("RIGHT", self.navArea.content, "RIGHT", 0, 0)
+        item:SetHeight(h)
+        navY = navY + h
+    end
+    self.navArea:SetContentHeight(navY + 6)
     nav:ClearAllPoints()
     nav:SetPoint("TOPLEFT", edge, -edge)
     nav:SetPoint("BOTTOMLEFT", edge, edge)
     header:ClearAllPoints()
     header:SetPoint("TOPLEFT", edge + NAV_WIDTH + 12, -edge)
     header:SetPoint("TOPRIGHT", -edge, -edge)
-    header:SetHeight(painted and HEADER_HEIGHT or 70)
+    header.journal:FitLabel(math.max(160, (header:GetWidth() or 580) * 0.46), 26)
+    header.title:ClearAllPoints()
+    header.title:SetPoint("TOPLEFT", 18, -14)
+    header.title:SetPoint("RIGHT", header.journal, "LEFT", -12, 0)
+    header:SetHeight(math.max(painted and HEADER_HEIGHT or 70, header.title:GetStringHeight() + header.subtitle:GetStringHeight() + 32))
+    -- the page (and its scroll bar) ends above the resize grip, which would
+    -- otherwise lie under the bar and lose its clicks to it
+    local gripAt = painted and (edge - 6) or 3
     self.body:ClearAllPoints()
     self.body:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 4, -12)
-    self.body:SetPoint("BOTTOMRIGHT", -edge, edge)
+    self.body:SetPoint("BOTTOMRIGHT", -edge, math.max(edge, gripAt + 14))
     self.grip:ClearAllPoints()
-    self.grip:SetPoint("BOTTOMRIGHT", painted and -(edge - 6) or -3, painted and (edge - 6) or 3)
+    self.grip:SetPoint("BOTTOMRIGHT", -gripAt, gripAt)
     if painted then
         nav.bg:SetColorTexture(0, 0, 0, 0.28)
         FC.Theme:Forget(nav.bg)
@@ -526,7 +742,7 @@ function SettingsWindow:Layout()
     header.fade:SetShown(painted)
     header.plate:SetShown(painted)
     if painted then
-        local path, focusY = FC.Skin:HeaderPath("settings")
+        local path, focusY = FC.Skin:HeaderPath(self.current == "language" and "language" or "settings")
         header.art:SetArt(path, 0.5, focusY)
     end
 end
@@ -581,12 +797,13 @@ function SettingsWindow:ShowCategory(key)
         page.area:ScrollToTop()
         self.header.title:SetText(page.title or "")
         self.header.subtitle:SetText(page.subtitle or "")
+        self:Layout()
     end
 end
 
 function SettingsWindow:RefreshAll()
     if not self.frame then return end
-    self.brand.profile:SetText(string.format(L.SETTINGS_PROFILE, FC.Profiles:GetActive()))
+    self.brand.profile:SetText(string.format(L.SETTINGS_PROFILE, FC.Profiles:DisplayName(FC.Profiles:GetActive())))
     for _, page in pairs(self.pages) do refreshControls(page) end
 end
 
@@ -612,11 +829,15 @@ function SettingsWindow:RegisterBlizzardPanel()
     title:SetText("Forever Companion")
     local text = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     text:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+    text:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -42)
+    text:SetWordWrap(true)
     text:SetText(L.BLIZZARD_PANEL_TEXT)
     local button = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     button:SetSize(200, 26)
     button:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -12)
     button:SetText(L.OPEN_SETTINGS)
+    local buttonText = button.GetFontString and button:GetFontString()
+    if buttonText and buttonText.GetStringWidth then button:SetWidth(math.max(200, buttonText:GetStringWidth() + 32)) end
     button:SetScript("OnClick", function()
         if SettingsPanel and SettingsPanel:IsShown() and HideUIPanel then pcall(HideUIPanel, SettingsPanel) end
         self:Show()
@@ -642,6 +863,9 @@ function SettingsWindow:OnEnable()
     FC.Bus:On("SETTINGS_CHANGED", self, refresh)
     FC.Bus:On("PROFILE_CHANGED", self, refresh)
     FC.Bus:On("THEMES_LIST_CHANGED", self, refresh)
+    FC.Bus:On("FONTS_CHANGED", self, function()
+        if self.frame then self:Layout(); self:RefreshAll() end
+    end)
     -- the style (journal or flat) can change while the window is open
     FC.Bus:On("THEME_CHANGED", self, function()
         if self.frame then self:Layout() end

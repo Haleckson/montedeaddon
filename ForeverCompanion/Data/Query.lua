@@ -27,7 +27,7 @@ local Query = FC:NewModule("Query")
 local U = FC.Utils
 local L = FC.L
 local Categories = FC.Categories
-local lower, find = string.lower, string.find
+local lower, find = U.Lower, string.find
 
 local haystacks = {}
 
@@ -54,21 +54,25 @@ function Query:Haystack(rec)
     local cached = haystacks[rec.id]
     if cached then return cached end
     local parts = {}
-    local def = Categories:Get(rec.t)
-    add(parts, rec.t)
+    local def = Categories:ForRecord(rec)
+    add(parts, def.key)
     add(parts, L[def.label])
     add(parts, rec.z)
+    add(parts, FC.Locale:Place(rec.z))
+    add(parts, FC.Locale:Place(rec.sz))
     add(parts, rec.sz)
     if not FC.Store:IsRumored(rec) then
         add(parts, rec.n)
         add(parts, rec.d)
+        add(parts, FC.Locale:RecordText(rec, "n"))
+        add(parts, FC.Locale:RecordText(rec, "d"))
         add(parts, rec.a)
         add(parts, U.ShortName(rec.a))
         add(parts, rec.inn)
         add(parts, rec.src)
         add(parts, rec.gv)
         if rec.pr then add(parts, L[Categories:Profession(rec.pr).label]) end
-        for _, tag in ipairs(FC.Store:AllTags(rec)) do add(parts, tag) end
+        for _, tag in ipairs(FC.Store:AllTags(rec)) do add(parts, tag); add(parts, FC.Locale:TagLabel(rec, tag)) end
         if rec.inv then
             for _, item in ipairs(rec.inv) do add(parts, item.n) end
         end
@@ -168,7 +172,7 @@ end
 
 local function matchesTag(rec, tag)
     for _, t in ipairs(FC.Store:AllTags(rec)) do
-        if find(t, tag, 1, true) then return true end
+        if find(lower(t), tag, 1, true) or find(lower(FC.Locale:TagLabel(rec, t)), tag, 1, true) then return true end
     end
     return false
 end
@@ -189,7 +193,9 @@ local function matchesIs(rec, status, flags)
         elseif flag == "private" then
             if not status.private then return false end
         elseif flag == "secret" then
-            if Categories:Get(rec.t).group ~= "secrets" then return false end
+            if not FC.SecretCatalog:Contains(rec) then return false end
+        elseif flag == "opened" then
+            if not FC.Store:HasOpened(rec) then return false end
         elseif flag == "rumored" then
             if not status.rumored then return false end
         elseif flag == "new" then
@@ -208,8 +214,9 @@ local function matchesIs(rec, status, flags)
 end
 
 local function typeAllowed(rec, spec, parsed)
-    if parsed.type and rec.t ~= parsed.type then return false end
-    if spec.types then return spec.types[rec.t] == true end
+    local typeKey = Categories:RecordType(rec)
+    if parsed.type and typeKey ~= parsed.type then return false end
+    if spec.types then return spec.types[typeKey] == true end
     return true
 end
 
@@ -218,6 +225,9 @@ function Query:Matches(rec, spec, parsed)
     if parsed.impossible then return false end
     if not FC.Store:IsKnown(rec) then return false end
     if not typeAllowed(rec, spec, parsed) then return false end
+    if spec.secrets and not FC.SecretCatalog:Contains(rec) then return false end
+    if spec.excludeSecrets and FC.SecretCatalog:Contains(rec) then return false end
+    if spec.opened and not FC.Store:HasOpened(rec) then return false end
 
     local status = FC.Store:GetStatus(rec)
     local archivedMode = spec.archived or (FC.Config:Get("journal.showArchived") and "include" or "hide")
@@ -244,9 +254,10 @@ function Query:Matches(rec, spec, parsed)
     if spec.parent and rec.pa ~= spec.parent then return false end
 
     if parsed.prof and rec.pr ~= parsed.prof then return false end
-    if parsed.zone and not (containsLower(rec.z, parsed.zone) or containsLower(rec.sz, parsed.zone)) then return false end
+    if parsed.zone and not (containsLower(rec.z, parsed.zone) or containsLower(rec.sz, parsed.zone)
+        or containsLower(FC.Locale:Place(rec.z), parsed.zone) or containsLower(FC.Locale:Place(rec.sz), parsed.zone)) then return false end
     if parsed.author and not containsLower(rec.a, parsed.author) then return false end
-    if parsed.instance and not containsLower(rec.inn, parsed.instance) then return false end
+    if parsed.instance and not (containsLower(rec.inn, parsed.instance) or containsLower(FC.Locale:Place(rec.inn), parsed.instance)) then return false end
     if parsed.tag and not matchesTag(rec, parsed.tag) then return false end
     if next(parsed.is) and not matchesIs(rec, status, parsed.is) then return false end
 

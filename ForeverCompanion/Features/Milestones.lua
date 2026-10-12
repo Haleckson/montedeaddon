@@ -14,6 +14,8 @@ local _, FC = ...
 local Milestones = FC:NewModule("Milestones")
 
 local U = FC.Utils
+local EXPLORATION_TYPES = { secret=true, cave=true, path=true, landmark=true,
+    treasure=true, object=true, shortcut=true, note=true }
 
 Milestones.list = {
     { id = "first", label = "MS_FIRST", desc = "MS_FIRST_DESC", icon = "Interface\\Icons\\INV_Misc_Map_01", goal = 1, stat = "personal" },
@@ -47,8 +49,9 @@ function Milestones:Progress(keys)
                 end
                 if rec.t == "rare" then p.rares = p.rares + 1 end
                 if rec.t == "creature" then p.creatures = p.creatures + 1 end
-                local group = FC.Categories:Get(rec.t).group
-                if group == "secrets" or rec.t == "note" then p.secrets = p.secrets + 1 end
+                -- Cartographer is exploration progress; changing journal pages
+                -- must not remove earlier caves, routes or chest discoveries.
+                if EXPLORATION_TYPES[rec.t] then p.secrets = p.secrets + 1 end
                 if rec.t == "recipe" or rec.t == "profession" or rec.t == "trainer" then p.recipes = p.recipes + 1 end
             end
         elseif rec.ver then

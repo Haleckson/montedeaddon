@@ -30,7 +30,7 @@ function Dungeon:CheckInstance()
     self.current = instance.instanceID
 
     local dungeonID = "dungeon:" .. instance.instanceID
-    local outdoor = FC.cdb.lastOutdoor
+    local outdoor = FC.Utils.CopyTable(FC.cdb.lastOutdoor)
     local fields = {
         t = "dungeon",
         n = instance.name,
@@ -40,19 +40,22 @@ function Dungeon:CheckInstance()
         -- the location lives on the entrance child, so the map shows one pin
         z = outdoor and outdoor.z,
     }
-    local dungeonRec = Engine:Record(fields, { id = dungeonID })
-
-    if outdoor and outdoor.m and outdoor.x and dungeonRec then
-        Engine:Record({
-            t = "entrance",
-            n = string.format(FC.L.AUTO_ENTRANCE_TITLE, instance.name or "?"),
-            m = outdoor.m, x = outdoor.x, y = outdoor.y, z = outdoor.z,
-            ["in"] = instance.instanceID,
-            inn = instance.name,
-            pa = dungeonID,
-            ic = Categories:Get("entrance").icon,
-        }, { id = "entrance:" .. instance.instanceID })
-    end
+    local dungeonRec = Engine:Record(fields, {
+        id = dungeonID,
+        onRecorded = function()
+            if not (outdoor and outdoor.m and outdoor.x) then return end
+            Engine:Record({
+                t = "entrance",
+                n = string.format(FC.L.AUTO_ENTRANCE_TITLE, instance.name or "?"),
+                m = outdoor.m, x = outdoor.x, y = outdoor.y, z = outdoor.z,
+                ["in"] = instance.instanceID,
+                inn = instance.name,
+                pa = dungeonID,
+                ic = Categories:Get("entrance").icon,
+            }, { id = "entrance:" .. instance.instanceID })
+        end,
+    })
+    if not dungeonRec and not Engine.queued[dungeonID] then self.current = nil end
 end
 
 Engine:RegisterDetector("dungeons", {
@@ -86,7 +89,7 @@ function Dungeon:OnBossText(text, speaker)
     if encounter.seen[key] then return end
     encounter.seen[key] = true
     encounter.count = encounter.count + 1
-    local short = #text > 60 and (text:sub(1, 57) .. "...") or text
+    local short = FC.Utils.Truncate(text, 57)
     local fields = Engine:LocationFields()
     fields.t = "mechanic"
     fields.n = (encounter.name or speaker or "?") .. ": " .. short

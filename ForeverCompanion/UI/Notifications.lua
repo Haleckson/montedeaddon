@@ -68,8 +68,10 @@ function Notifications:BuildAnchor()
     if self.anchor then return end
     local anchor = UI.Panel(UIParent, { name = "ForeverCompanionToastAnchor", strata = "HIGH", bg = "accent", bgAlpha = 0.25, border = "accent" })
     anchor:SetSize(TOAST_WIDTH, 30)
-    anchor.label = UI.Text(anchor, "meta", "text")
+    anchor.label = UI.WrappedText(anchor, "meta", "text")
     anchor.label:SetPoint("CENTER")
+    anchor.label:SetWidth(TOAST_WIDTH - 24)
+    anchor.label:SetJustifyH("CENTER")
     anchor.label:SetText(L.NOTIFY_ANCHOR)
     anchor.bg:SetShown(false)
     UI.SetBorderColor(anchor, "accent", 0)
@@ -87,6 +89,7 @@ function Notifications:PlaceAnchor()
     self.anchor:ClearAllPoints()
     self.anchor:SetPoint(p[1] or "TOP", UIParent, p[2] or "TOP", p[3] or 0, p[4] or -150)
     self.anchor:SetScale(FC.P.notifications.scale or 1)
+    self.anchor:SetHeight(math.max(30, self.anchor.label:GetStringHeight() + 12))
 end
 
 function Notifications:ToggleAnchor()
@@ -105,6 +108,21 @@ end
 ------------------------------------------------------------------------
 -- Toasts
 ------------------------------------------------------------------------
+
+function Notifications:ApplyToastIcon(toast)
+    local data = toast.data
+    if not data then return end
+    local rec = data.artRecord or data.rec
+    local clean = rec and FC.PinArt and FC.PinArt:ApplyDiscovery(toast.icon, rec, data.desaturate, 42, data.icon)
+    if not rec or not FC.PinArt then
+        UI.SetIcon(toast.icon, data.icon)
+        toast.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    end
+    toast.icon:SetDesaturated(data.desaturate and true or false)
+    -- A filled square border would show through the selected artwork's alpha.
+    -- Pooled toasts restore that border when displaying an original icon.
+    toast.iconBorder:SetShown(not clean)
+end
 
 local function createToast(self)
     local toast = UI.Panel(UIParent, { strata = "HIGH", bgAlpha = 0.97, skin = "panel", corner = 12 })
@@ -138,13 +156,13 @@ local function createToast(self)
     Theme:OnChange(toast, function(t) t:ApplyStyle() end)
     toast.iconBorder:SetPoint("TOPLEFT", toast.icon, -1, 1)
     toast.iconBorder:SetPoint("BOTTOMRIGHT", toast.icon, 1, -1)
-    toast.header = UI.Text(toast, "meta", "accent")
-    toast.header:SetPoint("TOPLEFT", toast.icon, "TOPRIGHT", 12, 1)
+    toast.header = UI.WrappedText(toast, "meta", "accent")
+    toast.header:SetPoint("TOPLEFT", 68, -12)
     toast.header:SetPoint("RIGHT", -52, 0)
-    toast.title = UI.Text(toast, "cardTitle", "text")
+    toast.title = UI.WrappedText(toast, "cardTitle", "text")
     toast.title:SetPoint("TOPLEFT", toast.header, "BOTTOMLEFT", 0, -4)
     toast.title:SetPoint("RIGHT", -14, 0)
-    toast.line = UI.Text(toast, "meta", "muted")
+    toast.line = UI.WrappedText(toast, "meta", "muted")
     toast.line:SetPoint("TOPLEFT", toast.title, "BOTTOMLEFT", 0, -4)
     toast.line:SetPoint("RIGHT", -14, 0)
     toast.close = UI.IconButton(toast, "Interface\\Buttons\\UI-StopButton", 18, nil, function() self:Dismiss(toast) end)
@@ -247,37 +265,39 @@ end
 function Notifications:Layout()
     local y = 0
     for _, toast in ipairs(self.active) do
+        toast:SetHeight(math.max(TOAST_HEIGHT, 32 + toast.header:GetStringHeight() + toast.title:GetStringHeight() + toast.line:GetStringHeight()))
         toast:ClearAllPoints()
         toast:SetPoint("TOP", self.anchor, "TOP", 0, -y)
-        y = y + TOAST_HEIGHT + 8
+        y = y + toast:GetHeight() + 8
     end
 end
 
 function Notifications:ShowNext()
     local settings = FC.P.notifications
     while #self.active < (settings.maxVisible or 3) and #self.queue > 0 do
-        local data = table.remove(self.queue, 1)
-        local toast = self:Acquire()
-        toast.data = data
-        toast:SetScale(settings.scale or 1)
-        UI.SetIcon(toast.icon, data.icon)
-        toast.icon:SetDesaturated(data.desaturate and true or false)
-        local r, g, b = U.HexToRGB(data.color or Theme:Hex("accent"))
-        toast.iconBorder:SetColorTexture(r, g, b)
-        toast.stripe:SetColorTexture(r, g, b)
-        Theme:Forget(toast.stripe)
-        toast.header:SetText(data.header or "")
-        toast.title:SetText(data.title or "")
-        toast.line:SetText(data.line or "")
-        toast.duration = settings.duration or 6
-        toast.remaining = toast.duration
-        toast.hovered = false
-        self.active[#self.active + 1] = toast
-        self:Layout()
-        toast:SetAlpha(1)
-        toast:Show()
-        if UI.AnimationsEnabled() and settings.animate then toast.intro:Play() end
-        if settings.sound and not data.silent then self:PlayToastSound(data) end
+        local data = self:PrepareData(table.remove(self.queue, 1))
+        if data then
+            local toast = self:Acquire()
+            toast.data = data
+            toast:SetScale(settings.scale or 1)
+            self:ApplyToastIcon(toast)
+            local r, g, b = U.HexToRGB(data.color or Theme:Hex("accent"))
+            toast.iconBorder:SetColorTexture(r, g, b)
+            toast.stripe:SetColorTexture(r, g, b)
+            Theme:Forget(toast.stripe)
+            toast.header:SetText(data.header or "")
+            toast.title:SetText(data.title or "")
+            toast.line:SetText(data.line or "")
+            toast.duration = settings.duration or 6
+            toast.remaining = toast.duration
+            toast.hovered = false
+            self.active[#self.active + 1] = toast
+            self:Layout()
+            toast:SetAlpha(1)
+            toast:Show()
+            if UI.AnimationsEnabled() and settings.animate then toast.intro:Play() end
+            if settings.sound and not data.silent then self:PlayToastSound(data) end
+        end
     end
 end
 
@@ -324,13 +344,10 @@ function Notifications:PreviewSounds()
     end
 end
 
---- data: { kind, header, title, line, icon, color, onView, force, silent, desaturate, soundKey }
+--- data: { kind, header, title, line, icon, color, onView, force, silent, desaturate, soundKey, artRecord }
 function Notifications:Push(data)
-    local settings = FC.P.notifications
-    if not data.force then
-        if not settings.enabled then return end
-        if settings.types[data.kind] == false then return end
-    end
+    data = self:PrepareData(data)
+    if not data then return end
     self:BuildAnchor()
     self.queue[#self.queue + 1] = data
     if #self.queue > QUEUE_LIMIT then table.remove(self.queue, 1) end
@@ -362,7 +379,7 @@ local CATEGORY_ICONS = {
 --- recipes and gathering spots are told apart, and recipes on a vendor's
 --- shelf are not the same event as a recipe that dropped.
 function Notifications.NotifyCategory(rec)
-    local t = rec.t
+    local t = Categories:RecordType(rec)
     if t == "npc" and rec.cls == "worldboss" then return "boss" end
     if t == "profession" and type(rec.id) == "string" and rec.id:find("^gather:") then return "gathering" end
     if t == "recipe" and type(rec.pa) == "string" and rec.pa:find("^vendor:") then return "vendorrecipe" end
@@ -450,6 +467,49 @@ function Notifications:WantsRecord(rec)
     return type(categories) ~= "table" or categories[self.NotifyCategory(rec)] ~= false
 end
 
+--- Whether a record event can produce an alert with the current settings.
+--- Detectors use the same rules before suppressing a duplicate alert.
+function Notifications:CanNotifyRecord(rec, kind)
+    local settings = FC.P.notifications
+    return settings.enabled and settings.types[kind] ~= false
+        and (not rec or self:WantsRecord(rec))
+end
+
+--- Retain the members of a burst so later setting changes can remove only
+--- the muted discoveries without suppressing the rest of the summary.
+function Notifications:MakeSummary(items)
+    local soundKey
+    for _, item in ipairs(items) do
+        if item.soundKey and (not soundKey or soundRank[item.soundKey] < soundRank[soundKey]) then soundKey = item.soundKey end
+    end
+    return {
+        kind = items[1].kind,
+        soundKey = soundKey,
+        summaryItems = items,
+        header = "|T" .. C.FAVORITE_ICON .. ":12|t " .. L.NOTIFY_MANY_HEADER,
+        title = string.format(L.NOTIFY_MANY_TITLE, #items),
+        line = items[1].title .. ", " .. items[2].title .. ", ...",
+        icon = items[1].icon,
+        artRecord = items[1].artRecord or items[1].rec,
+        desaturate = items[1].desaturate,
+        onView = function() FC.MainWindow:Show("recent") end,
+    }
+end
+
+--- Check eligibility again at display time, after a toast has waited.
+function Notifications:PrepareData(data)
+    if data.force then return data end
+    if not self:CanNotifyRecord(data.rec, data.kind) then return nil end
+    if not data.summaryItems then return data end
+    local items = {}
+    for _, item in ipairs(data.summaryItems) do
+        if self:CanNotifyRecord(item.rec, item.kind) then items[#items + 1] = item end
+    end
+    if #items == 0 then return nil end
+    if #items == 1 then return items[1] end
+    return self:MakeSummary(items)
+end
+
 --- kind: "personal" (default), "guild" (fromGuild) or an event kind such as "kill".
 function Notifications:RecordToast(rec, header, line, fromGuild, kind)
     local info = UI.Display(rec)
@@ -464,7 +524,7 @@ function Notifications:RecordToast(rec, header, line, fromGuild, kind)
         line = line or UI.MetaLine(info),
         icon = info.icon,
         desaturate = info.rumored,
-        color = Categories:Get(rec.t).color,
+        color = Categories:ForRecord(rec).color,
         onView = function() FC.MainWindow:ShowDiscovery(rec.id) end,
     }
 end
@@ -478,36 +538,36 @@ local function bigFind(data)
 end
 
 function Notifications:Queue(data)
-    local settings = FC.P.notifications
-    if not settings.enabled or settings.types[data.kind] == false then return end
-    if data.rec and not self:WantsRecord(data.rec) then return end
+    if not self:CanNotifyRecord(data.rec, data.kind) then return end
     self.pending[#self.pending + 1] = data
     if self.flushScheduled then return end
     self.flushScheduled = true
     C_Timer.After(BURST_WINDOW, function()
         self.flushScheduled = false
-        local pending, big = {}, {}
+        local groups, order, big = {}, {}, {}
         for _, item in ipairs(self.pending) do
-            if bigFind(item) then big[#big + 1] = item else pending[#pending + 1] = item end
+            if self:CanNotifyRecord(item.rec, item.kind) then
+                if bigFind(item) then
+                    big[#big + 1] = item
+                else
+                    local key = item.kind or "personal"
+                    if not groups[key] then
+                        groups[key] = {}
+                        order[#order + 1] = key
+                    end
+                    groups[key][#groups[key] + 1] = item
+                end
+            end
         end
         self.pending = {}
         for _, item in ipairs(big) do self:Push(item) end
-        if #pending > BURST_LIMIT then
-            local soundKey
-            for _, item in ipairs(pending) do
-                if item.soundKey and (not soundKey or soundRank[item.soundKey] < soundRank[soundKey]) then soundKey = item.soundKey end
+        for _, key in ipairs(order) do
+            local pending = groups[key]
+            if #pending > BURST_LIMIT then
+                self:Push(self:MakeSummary(pending))
+            else
+                for _, item in ipairs(pending) do self:Push(item) end
             end
-            self:Push({
-                kind = pending[1].kind,
-                soundKey = soundKey,
-                header = "|T" .. C.FAVORITE_ICON .. ":12|t " .. L.NOTIFY_MANY_HEADER,
-                title = string.format(L.NOTIFY_MANY_TITLE, #pending),
-                line = pending[1].title .. ", " .. pending[2].title .. ", ...",
-                icon = pending[1].icon,
-                onView = function() FC.MainWindow:Show("recent") end,
-            })
-        else
-            for _, item in ipairs(pending) do self:Push(item) end
         end
     end)
 end
@@ -516,7 +576,7 @@ local function vendorLine(rec)
     if rec.t ~= "vendor" or not rec.inv then return nil end
     for _, item in ipairs(rec.inv) do
         if item.rc or item.l then
-            return string.format(L.NOTIFY_INTERESTING_ITEM, U.Escape(item.n or "?"))
+            return string.format(L.NOTIFY_INTERESTING_ITEM, U.Escape(FC.Locale:ContentName("item", item.n, item.i) or "?"))
         end
     end
     return nil
@@ -552,6 +612,7 @@ function Notifications:OnEnable()
         self:Queue(self:RecordToast(rec, header, string.format(L.NOTIFY_FIRST_FOUND_BY, U.ShortName(rec.a))))
     end)
     Bus:On("NEARBY_FOUND", self, function(_, rec, kind)
+        if not self:CanNotifyRecord(rec, "nearby") then return end
         local header = "|T" .. (kind == "rare" and SKULL_ICON or C.FAVORITE_ICON) .. ":12|t " .. (kind == "rare" and L.NOTIFY_RARE_NEARBY or L.NOTIFY_TREASURE_NEARBY)
         local toast = self:RecordToast(rec, header, nil, false, "nearby")
         toast.soundKey = kind == "rare" and "rare" or "treasure"
@@ -593,25 +654,33 @@ function Notifications:OnEnable()
     end)
     Bus:On("SETTINGS_CHANGED", self, function(_, path)
         if self.anchor and (path == "*" or path:find("^notifications")) then self:PlaceAnchor() end
+        if path == "*" or path == "map" or path == "map.*" or path == "map.pinArtwork" then
+            for _, toast in ipairs(self.active) do self:ApplyToastIcon(toast) end
+        end
+    end)
+    Bus:On("FONTS_CHANGED", self, function()
+        if self.anchor then self:PlaceAnchor() end
+        self:Layout()
     end)
 end
 
 --- Developer/test helper: shows a sample toast of the given kind.
 function Notifications:Test(kind)
     local samples = {
-        rare = { "rare", "INV_Misc_Head_Dragon_01", "The Forgotten Watcher" },
-        recipe = { "recipe", "INV_Scroll_04", "Recipe: Elixir of Shadows" },
-        secret = { "secret", "INV_Misc_QuestionMark", "Hidden cave behind the waterfall" },
-        dungeon = { "dungeon", "INV_Misc_Key_03", "Hidden door in the western corridor" },
-        guild = { "guild", "INV_Misc_Bag_10", "Mysterious Trader" },
-        personal = { "personal", "INV_Misc_Map_01", "Old watchtower ruins" },
+        rare = { "rare", "INV_Misc_Head_Dragon_01", L.SET_PREVIEW_HEADER },
+        recipe = { "recipe", "INV_Scroll_04", L.SAMPLE_RECIPE },
+        secret = { "secret", "INV_Misc_QuestionMark", L.SAMPLE_CAVE },
+        dungeon = { "dungeon", "INV_Misc_Key_03", L.SAMPLE_DOOR },
+        guild = { "guild", "INV_Misc_Bag_10", L.SAMPLE_TRADER },
+        personal = { "personal", "INV_Misc_Map_01", L.SAMPLE_RUINS },
     }
     local sample = samples[kind] or samples.rare
     self:Push({
         kind = sample[1], force = true, soundKey = soundByKey[sample[1]] and sample[1] or nil,
         header = "|T" .. C.FAVORITE_ICON .. ":12|t " .. (sample[1] == "guild" and L.NOTIFY_NEW_GUILD_DISCOVERY or L.NOTIFY_NEW_DISCOVERY),
-        title = sample[3], line = "Ashenvale \194\183 42.4, 68.1",
+        title = sample[3], line = L.SAMPLE_ZONE .. " \194\183 42.4, 68.1",
         icon = "Interface\\Icons\\" .. sample[2],
+        artRecord = { t = sample[1] == "guild" and "vendor" or (sample[1] == "personal" and "landmark" or sample[1]) },
         color = Categories:Get(sample[1] == "guild" and "vendor" or (sample[1] == "personal" and "landmark" or sample[1])).color,
     })
 end

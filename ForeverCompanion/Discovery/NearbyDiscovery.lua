@@ -81,9 +81,9 @@ function Nearby:Record(v)
         return Engine:Record(fields, { deferInCombat = false })
     end
     if not FC.Config:Get("discovery.objects") then return nil end
-    fields.t = "treasure"
-    fields.ic = Categories:Get("treasure").icon
     local id = Engine:ObjectId("u:obj:" .. (v.id or 0) .. ":" .. (fields.m or 0) .. ":", fields.m, fields.x, fields.y)
+    fields.t = Categories:RecordType({ t="treasure", id=id })
+    fields.ic = Categories:Get(fields.t).icon
     return Engine:Record(fields, { id = id, deferInCombat = false })
 end
 
@@ -92,19 +92,28 @@ function Nearby:OnVignette(guid, onMinimap)
     if type(guid) ~= "string" or Compat.Safe(onMinimap) == false then return end
     local v = Compat.GetVignette(guid)
     if not v or v.dead then return end
+    if v.kind == "rare" and not FC.Config:Get("discovery.rares") then return end
+    if v.kind == "treasure" and not FC.Config:Get("discovery.objects") then return end
     local rec, isNew, announced = self:Record(v)
     local now = GetTime()
     local last = self.announced[guid]
     if last and now - last < ANNOUNCE_AGAIN then return end
+    local notifications = FC.Notifications
+    -- A first find replaces the nearby alert only when its personal toast
+    -- is enabled. The engine's result describes a discovery event even
+    -- when the player has muted that notification kind.
+    if (isNew or announced) and notifications and notifications:CanNotifyRecord(rec, "personal") then
+        self.announced[guid] = now
+        return
+    end
+    local record = rec or { t = v.kind, n = v.name, id = "vignette:" .. guid, m = v.m, x = v.x, y = v.y }
+    if notifications and not notifications:CanNotifyRecord(record, "nearby") then return end
     self.announced[guid] = now
-    -- a first find has its "new discovery" toast already (so has one this
-    -- character just came across for the first time)
-    if isNew or announced then return end
-    FC.Bus:Emit("NEARBY_FOUND", rec or { t = v.kind, n = v.name, id = "vignette:" .. guid, m = v.m, x = v.x, y = v.y }, v.kind)
+    FC.Bus:Emit("NEARBY_FOUND", record, v.kind)
 end
 
 Engine:RegisterDetector("nearby", {
-    setting = "discovery.rares",
+    setting = function() return FC.Config:Get("discovery.rares") or FC.Config:Get("discovery.objects") end,
     events = {
         VIGNETTE_MINIMAP_UPDATED = function(_, _, guid, onMinimap) Nearby:OnVignette(guid, onMinimap) end,
         VIGNETTES_UPDATED = function()

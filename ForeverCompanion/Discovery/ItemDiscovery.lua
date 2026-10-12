@@ -29,7 +29,7 @@ end
 
 local function sourceOf(sources)
     for _, source in ipairs(sources) do
-        if source.guidType == "Creature" and source.id then
+        if (source.guidType == "Creature" or source.guidType == "Vehicle") and source.id then
             local rec = creatureRecord(source.id)
             if rec then return rec.n, rec.id, source.id end
             return nil, nil, source.id
@@ -39,8 +39,8 @@ local function sourceOf(sources)
     -- herb, a fishing bobber, a lockbox): a corpse that happens to be
     -- targeted did not drop it
     if #sources > 0 then return nil end
-    local target = Compat.GetUnitInfo("target")
-    if target and target.isDead and target.name then
+    local target = Compat.GetLootCreatureFallback()
+    if target and target.name then
         local rec = target.npcID and creatureRecord(target.npcID)
         return target.name, rec and rec.id, target.npcID
     end
@@ -63,7 +63,7 @@ local function onLoot()
         if parentID and wantDrops then
             FC.Store:AddToSet(parentID, "dr", item.itemID, "local")
         end
-        if (isRecipe and wantRecipes) or (wantItems and (item.quality or 0) >= minQuality) then
+        if (isRecipe and wantRecipes) or (wantItems and ((item.quality or 0) >= minQuality or FC.SecretCatalog.items[item.itemID])) then
             local fields = U.CopyTable(base)
             fields.t = isRecipe and "recipe" or "item"
             fields.n = item.name
@@ -89,5 +89,40 @@ Engine:RegisterDetector("loot", {
     end,
     events = {
         LOOT_OPENED = function() onLoot() end,
+    },
+})
+
+-- Hidden rewards can be common quality and arrive from an emote or a quest,
+-- without LOOT_OPENED. Recover only catalogued items actually in the bags.
+-- Possession does not prove where or when they were acquired: no map pin.
+local function scanSecretItems()
+    if not FC.Config:Get("discovery.loot") then return end
+    local countItem = (C_Item and C_Item.GetItemCount) or _G.GetItemCount
+    if not countItem then return end
+    for itemID in pairs(FC.SecretCatalog.items) do
+        local count = Compat.SafeCall(countItem, itemID, false)
+        if type(count) == "number" and count > 0 then
+            local existing = FC.Store:Get("item:" .. itemID)
+            if not existing or not FC.Store:IsFoundBy(existing) then
+                local info = Compat.GetItemInfo(itemID)
+                if info and info.name then
+                    Engine:Record({ t="item", it=itemID, n=info.name, iq=info.quality,
+                        ic=info.icon, rcv=true, v="p" })
+                end
+            end
+        end
+    end
+end
+Engine:RegisterDetector("secret-items", {
+    setting = "discovery.loot",
+    events = {
+        BAG_UPDATE_DELAYED = function() U.Debounce("secret-items", .5, scanSecretItems) end,
+        GET_ITEM_INFO_RECEIVED = function(_, _, id, success)
+            id = Compat.Safe(id)
+            if Compat.Safe(success) and FC.SecretCatalog.items[id] then
+                U.Debounce("secret-items", .5, scanSecretItems)
+            end
+        end,
+        PLAYER_ENTERING_WORLD = function() U.Debounce("secret-items", 2, scanSecretItems) end,
     },
 })

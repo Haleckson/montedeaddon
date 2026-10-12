@@ -16,6 +16,7 @@ local C = FC.C
 local Theme = FC.Theme
 local Categories = FC.Categories
 local Compat = FC.Compat
+local Locale = FC.Locale
 
 local PAD = 16
 local TOOL_STEP = 28     -- action button spacing when the panel is wide enough
@@ -26,7 +27,7 @@ local DUNGEON_SECTIONS = {
     { key = "boss", types = { boss = true }, label = "DUNGEON_BOSSES" },
     { key = "npc", types = { npc = true, rare = true, trainer = true, vendor = true, creature = true, travel = true }, label = "DUNGEON_NPCS" },
     { key = "quest", types = { quest = true, questchain = true }, label = "DUNGEON_QUESTS" },
-    { key = "secret", types = { secret = true, room = true, cave = true, path = true, treasure = true, object = true, landmark = true }, label = "DUNGEON_SECRETS" },
+    { key = "secret", types = { secret = true, room = true, cave = true, path = true, treasure = true, object = true, landmark = true }, label = "DUNGEON_DISCOVERIES" },
     { key = "recipe", types = { recipe = true, profession = true }, label = "DUNGEON_RECIPES" },
     { key = "loot", types = { item = true }, label = "DUNGEON_LOOT" },
     { key = "mechanic", types = { mechanic = true }, label = "DUNGEON_MECHANICS" },
@@ -87,17 +88,22 @@ function UI.DetailPanel(parent)
     --- Places the shown badges left to right, wrapping when the panel is narrow.
     function panel:LayoutBadges()
         local available = math.floor(self:HeadWidth())
-        local x, y = 0, 0
+        local titleHeight = math.max(46, self.title:GetHeight() + 5 + self.typeLabel:GetHeight())
+        self.badgeRow:ClearAllPoints()
+        self.badgeRow:SetPoint("TOPLEFT", self.icon, "TOPLEFT", 0, -titleHeight - 10)
+        self.badgeRow:SetPoint("RIGHT", head, "RIGHT", 0, 0)
+        local x, y, rowHeight = 0, 0, 18
         for _, badge in ipairs({ self.badge, self.badge2, self.badge3 }) do
             if badge:IsShown() then
                 local w = badge:GetWidth()
-                if x > 0 and x + w > available then x, y = 0, y + 22 end
+                if x > 0 and x + w > available then x, y, rowHeight = 0, y + rowHeight + 4, 18 end
                 badge:ClearAllPoints()
                 badge:SetPoint("TOPLEFT", self.badgeRow, "TOPLEFT", x, -y)
                 x = x + w + 6
+                rowHeight = math.max(rowHeight, badge:GetHeight())
             end
         end
-        self.badgeRow:SetHeight(y + 18)
+        self.badgeRow:SetHeight(y + rowHeight)
     end
 
     -- action toolbar
@@ -165,7 +171,7 @@ function UI.DetailPanel(parent)
     function panel:HeadHeight()
         local title = 46
         if self.title:IsShown() then
-            title = math.max(46, self.title:GetStringHeight() + 5 + 14)
+            title = math.max(46, self.title:GetHeight() + 5 + self.typeLabel:GetHeight())
         end
         return title + 10 + self.badgeRow:GetHeight() + 10 + self.toolbar:GetHeight() + 9
     end
@@ -187,11 +193,33 @@ function UI.DetailPanel(parent)
     -- Pooled blocks
     ------------------------------------------------------------------
     local content = panel.body.content
+    -- A stable hover region survives pooled paragraph redraws of the same entry.
+    -- It covers only the description/account, never notes or action buttons.
+    local narration = CreateFrame("Frame", nil, content)
+    panel.narrationHover = narration
+    narration:SetFrameLevel(content:GetFrameLevel() + 2)
+    narration:EnableMouse(true)
+    narration:SetScript("OnEnter", function(self)
+        if FC.Narrator then FC.Narrator:Hover(self, self.rec) end
+    end)
+    local function leaveNarration(self)
+        if FC.Narrator then FC.Narrator:Leave(self) end
+    end
+    narration:SetScript("OnLeave", leaveNarration)
+    narration:SetScript("OnHide", leaveNarration)
+    narration:EnableMouseWheel(true)
+    narration:SetScript("OnMouseWheel", function(_, delta)
+        leaveNarration(narration)
+        local scroll = panel.body.scroll
+        scroll:GetScript("OnMouseWheel")(scroll, delta)
+    end)
+    narration:Hide()
+
     panel.headers = UI.Pool(function() return UI.SectionHeader(content) end)
     panel.kvs = UI.Pool(function()
         local row = CreateFrame("Frame", nil, content)
         row:SetHeight(18)
-        row.key = UI.Text(row, "secondary", "muted")
+        row.key = UI.WrappedText(row, "secondary", "muted")
         row.key:SetPoint("TOPLEFT")
         row.key:SetWidth(110)
         row.value = UI.WrappedText(row, "secondary", "text")
@@ -229,9 +257,9 @@ function UI.DetailPanel(parent)
         end)
         row:SetScript("OnEnter", function(self)
             if self.itemID then
-                GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+                UI.SetTooltipOwner(self, "ANCHOR_LEFT")
                 pcall(GameTooltip.SetItemByID, GameTooltip, self.itemID)
-                if self.onClick then GameTooltip:AddLine(L.INVENTORY_FLAG_HINT, 0.6, 0.6, 0.6) end
+                if self.onClick then UI.AddTooltipLine(GameTooltip, L.INVENTORY_FLAG_HINT, 0.6, 0.6, 0.6) end
                 GameTooltip:Show()
             elseif self.tipTitle then
                 UI.ShowTooltip(self, self.tipTitle, self.tipLines)
@@ -263,7 +291,8 @@ function UI.DetailPanel(parent)
         h:SetText(text)
         h:SetPoint("TOPLEFT", 0, -y)
         h:SetPoint("RIGHT", content, "RIGHT", -4, 0)
-        y = y + 28
+        h:FitHeading()
+        y = y + h:GetHeight() + 6
     end
 
     local function kv(key, value)
@@ -274,7 +303,7 @@ function UI.DetailPanel(parent)
         row.key:SetText(key)
         row.value:SetWidth(width - 120)
         row.value:SetText(value)
-        local h = math.max(16, row.value:GetStringHeight())
+        local h = math.max(16, row.key:GetStringHeight(), row.value:GetStringHeight())
         row:SetHeight(h)
         y = y + h + 5
     end
@@ -289,6 +318,7 @@ function UI.DetailPanel(parent)
         local h = holder.text:GetStringHeight()
         holder:SetHeight(h)
         y = y + h + 8
+        return holder
     end
 
     local function listRow(icon, label, right, onClick)
@@ -367,15 +397,15 @@ function UI.DetailPanel(parent)
         if info.rumored then return end
         if rec.npc then kv(L.FIELD_NPC_ID, tostring(rec.npc)) end
         if rec.lvl then kv(L.FIELD_LEVEL, FC.AutoText.LevelText(rec)) end
-        kv(L.FIELD_CREATURE_TYPE, rec.ct)
+        kv(L.FIELD_CREATURE_TYPE, Locale:ContentName("creature", rec.ct))
         if rec.pts then kv(L.FIELD_SPOTS, tostring(#rec.pts)) end
         if rec.tr then kv(L.FIELD_ROUTE, string.format(L.ROUTE_POINTS, #rec.tr)) end
         if rec.cnt and rec.cnt > 1 then kv(L.FIELD_COUNT, tostring(rec.cnt)) end
         if rec.cls and rec.cls ~= "normal" then kv(L.FIELD_CLASSIFICATION, L["CLASS_" .. rec.cls] or rec.cls) end
         if rec.q then kv(L.FIELD_QUEST_ID, tostring(rec.q)) end
-        kv(L.FIELD_QUEST_GIVER, rec.gv and (rec.gv .. (rec.gvi and ("  (" .. rec.gvi .. ")") or "")))
+        kv(L.FIELD_QUEST_GIVER, rec.gv and (Locale:ContentName("npc", rec.gv, rec.gvi) .. (rec.gvi and ("  (" .. rec.gvi .. ")") or "")))
         if rec.it then kv(L.FIELD_ITEM_ID, tostring(rec.it)) end
-        kv(L.FIELD_SOURCE, rec.src)
+        kv(L.FIELD_SOURCE, Locale:ContentName("npc", rec.src))
         if rec.pr then
             local prof = Categories:Profession(rec.pr)
             kv(L.FIELD_PROFESSION, "|T" .. prof.icon .. ":14:14:0:0:64:64:5:59:5:59|t " .. L[prof.label])
@@ -385,7 +415,7 @@ function UI.DetailPanel(parent)
             local known = Compat.IsRecipeKnown(rec.it)
             kv(L.FIELD_KNOWN, known == true and L.KNOWN_YES or (known == false and L.KNOWN_NO or L.KNOWN_UNKNOWN))
         end
-        kv(L.FIELD_INSTANCE, rec.inn)
+        kv(L.FIELD_INSTANCE, Locale:Place(rec.inn))
         local state = store:GetState(rec.id)
         if rec.t == "quest" and rec.q then
             -- what the game says, so a quest turned in while the addon was away is done too
@@ -439,7 +469,7 @@ function UI.DetailPanel(parent)
             if item.l then tags[#tags + 1] = string.format(L.ITEM_LIMITED, item.l) end
             if item.rc then tags[#tags + 1] = L.ITEM_RECIPE end
             local instant = Compat.GetItemInfoInstant(item.i)
-            local name = item.n or ("item:" .. item.i)
+            local name = Locale:ContentName("item", item.n, item.i) or ("item:" .. item.i)
             local hex = item.q and Compat.GetQualityHex(item.q)
             local row = listRow(instant and instant.icon, hex and U.Colorize(U.Escape(name), hex) or U.Escape(name), table.concat(tags, " \194\183 "), function()
                 FC.Store:ToggleItemFlag(rec.id, item.i)
@@ -455,7 +485,7 @@ function UI.DetailPanel(parent)
         for _, itemID in ipairs(rec.dr) do
             local details = Compat.GetItemInfo(itemID)
             local instant = Compat.GetItemInfoInstant(itemID)
-            local name = details and details.name or ("item:" .. itemID)
+            local name = Locale:ContentName("item", details and details.name, itemID) or ("item:" .. itemID)
             local hex = details and details.quality and Compat.GetQualityHex(details.quality)
             local row = listRow(instant and instant.icon, hex and U.Colorize(U.Escape(name), hex) or U.Escape(name), "")
             row.itemID = itemID
@@ -572,7 +602,7 @@ function UI.DetailPanel(parent)
         local chips = {}
         for _, tag in ipairs(store:AllTags(rec)) do
             chips[#chips + 1] = {
-                text = "#" .. tag,
+                text = "#" .. FC.Locale:TagLabel(rec, tag),
                 color = FC.db.tagColors[tag],
                 onClick = function(_, mouseButton)
                     if mouseButton == "RightButton" and personal[tag] then
@@ -637,6 +667,9 @@ function UI.DetailPanel(parent)
     -- Public
     ------------------------------------------------------------------
     function panel:Clear()
+        leaveNarration(narration)
+        narration.rec = nil
+        narration:Hide()
         self.rec = nil
         self.headers:ReleaseAll()
         self.kvs:ReleaseAll()
@@ -652,18 +685,22 @@ function UI.DetailPanel(parent)
 
     function panel:ShowRecord(rec)
         if not rec then return self:Clear() end
+        if narration.rec ~= rec then leaveNarration(narration) end
         self.rec = rec
         self.empty:Hide()
         for _, region in ipairs({ self.icon, self.iconBorder, self.title, self.typeLabel, self.toolbar, self.headerLine, self.body }) do
             region:Show()
         end
         local info = UI.Display(rec)
+        narration.rec, narration.veiled = rec, info.rumored
+        local firstProse, lastProse
         local status = info.status
-        UI.SetIcon(self.icon, info.icon)
+        local artwork = UI.SetIcon(self.icon, info.icon, info.iconFallback)
+        self.iconBorder:SetShown(not artwork)
         self.icon:SetDesaturated(info.rumored and true or false)
-        self.iconBorder:SetColorTexture(Theme:CategoryColor(rec.t))
+        self.iconBorder:SetColorTexture(Theme:CategoryColor(Categories:RecordType(rec)))
         self.title:SetText(U.Escape(info.title))
-        self.typeLabel:SetText(info.typeLabel:upper())
+        self.typeLabel:SetText(U.Upper(info.typeLabel))
         self.badge:SetStatus(status.primary)
         local extra = {}
         if status.favorite then extra[#extra + 1] = "favorite" end
@@ -701,7 +738,21 @@ function UI.DetailPanel(parent)
         else
             if info.description then
                 header(L.SECTION_DESCRIPTION)
-                paragraph(U.Escape(info.description), "text")
+                firstProse = paragraph(U.Escape(info.description), "text")
+                lastProse = firstProse
+            end
+            if info.lore then
+                header(info.loreEntry.scope == "facts" and L.LORE_FIELD_NOTES or L.SECTION_DISCOVERY_LORE)
+                lastProse = paragraph(U.Escape(info.lore), "text")
+                firstProse = firstProse or lastProse
+                actionButton(L.LORE_SOURCES, function()
+                    UI.TextDialog(L.LORE_SOURCES, FC.DiscoveryLore:SourceText(info.loreEntry), true, nil, L.LORE_SOURCE_HINT)
+                end)
+            end
+            if info.secretEntry then
+                actionButton(L.SECRET_SOURCES, function()
+                    UI.TextDialog(L.SECRET_SOURCES, FC.SecretCatalog:SourceText(info.secretEntry), true, nil, L.SECRET_SOURCE_HINT)
+                end)
             end
             detailsSection(rec, info)
             respawnSection(rec)
@@ -713,6 +764,15 @@ function UI.DetailPanel(parent)
             tagsSection(rec)
             notesSection(rec)
             verificationSection(rec)
+        end
+        if firstProse then
+            narration:ClearAllPoints()
+            narration:SetPoint("TOPLEFT", firstProse, "TOPLEFT")
+            narration:SetPoint("BOTTOMRIGHT", lastProse, "BOTTOMRIGHT")
+            narration:Show()
+        else
+            leaveNarration(narration)
+            narration:Hide()
         end
         self.body:SetContentHeight(y + 12)
     end

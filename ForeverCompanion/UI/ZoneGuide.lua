@@ -29,12 +29,13 @@ local U = FC.Utils
 local L = FC.L
 local C = FC.C
 local Compat = FC.Compat
+local Locale = FC.Locale
 local Theme = FC.Theme
 
 local WIDTH, HEIGHT = 300, 420
 local ROW = 18
 local TITLE_ROW = 20
-local HEADER_HEIGHT = 60
+local HEADER_HEIGHT = 68        -- logo, source and summary lines, then the progress bar below them
 local INDENT = 14
 local CHECK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:12:12|t"
 local QUEST_STATUS = {
@@ -53,7 +54,7 @@ local FOLDED, UNFOLDED = "Interface\\Buttons\\UI-PlusButton-Up", "Interface\\But
 -- What the zone holds
 ------------------------------------------------------------------------
 
-local FIND_TYPES = { treasure = true, secret = true, cave = true, shortcut = true }
+local FIND_TYPES = { treasure = true, secret = true, cave = true, shortcut = true, object = true, path = true }
 local STATUS_ORDER = { ready = 1, active = 2, open = 3, done = 4 }
 
 local function rareStatus(rec)
@@ -83,8 +84,9 @@ end
 
 --- A quest giver and its quests: one foldable line with done / total.
 local function questGroup(npcID, npc, given)
+    local npcName = Locale:ContentName("npc", npc.n, npcID)
     local group = {
-        key = "npc:" .. npcID, text = U.Escape(npc.n or ("#" .. npcID)), title = npc.n,
+        key = "npc:" .. npcID, text = U.Escape(npcName or ("#" .. npcID)), title = npcName,
         m = npc.m, x = npc.x, y = npc.y, children = {},
     }
     local done, ready = 0, false
@@ -92,7 +94,7 @@ local function questGroup(npcID, npc, given)
         group.children[#group.children + 1] = {
             text = U.Escape(entry.title), right = QUEST_STATUS[entry.status] or QUEST_STATUS.open,
             done = entry.status == "done" or nil, status = entry.status, questID = entry.questID,
-            m = npc.m, x = npc.x, y = npc.y, title = npc.n, rec = entry.rec,
+            m = npc.m, x = npc.x, y = npc.y, title = npcName, rec = entry.rec,
         }
         if entry.status == "done" then done = done + 1 end
         if entry.status == "ready" then ready = true end
@@ -154,8 +156,8 @@ end
 function Guide:Collect(mapID, zone)
     local store, chars, Ref = FC.Store, FC.Characters, FC.Reference
     local zref = mapID and Ref.zones[mapID] or EMPTY
-    local lists = { rares = {}, finds = {}, travel = {}, dungeons = {}, achievements = {}, explored = {}, recipes = {} }
-    local counts = { rares = { 0, 0 }, finds = { 0, 0 }, travel = { 0, 0 }, dungeons = { 0, 0 }, achievements = { 0, 0 }, explored = { 0, 0 } }
+    local lists = { rares = {}, finds = {}, caves = {}, secrets = {}, travel = {}, dungeons = {}, achievements = {}, explored = {}, recipes = {} }
+    local counts = { rares = { 0, 0 }, finds = { 0, 0 }, caves = { 0, 0 }, secrets = { 0, 0 }, travel = { 0, 0 }, dungeons = { 0, 0 }, achievements = { 0, 0 }, explored = { 0, 0 } }
     local function add(key, row, done, untracked)
         local list = lists[key]
         list[#list + 1] = row
@@ -172,15 +174,16 @@ function Guide:Collect(mapID, zone)
     for _, rec in ipairs(mapID and store:ForMap(mapID) or {}) do
         if not seen[rec.id] and store:IsKnown(rec) then
             seen[rec.id] = true
-            local t = rec.t
+            local t = FC.Categories:RecordType(rec)
             if t == "rare" or (t == "npc" and rec.cls == "worldboss") then
                 local done = chars:Defeated(rec.npc)
                 if rec.npc then rareNpcs[rec.npc] = true end
                 add("rares", recordRow(rec, rareStatus(rec) .. (done and ("  " .. CHECK) or ""), done), done)
-            elseif FIND_TYPES[t] then
-                local done = store:IsPersonal(rec)
+            elseif FIND_TYPES[t] or FC.SecretCatalog:Contains(rec) then
+                local done = t == "treasure" and store:HasOpened(rec) or (t ~= "treasure" and store:IsPersonal(rec))
                 findPoints[#findPoints + 1] = rec
-                add("finds", recordRow(rec, done and CHECK or U.Colorize(U.ShortName(rec.a), "999999"), done), done)
+                local key = FC.SecretCatalog:Contains(rec) and "secrets" or (t == "cave" and "caves" or (t == "treasure" and "finds" or "explored"))
+                add(key, recordRow(rec, done and CHECK or U.Colorize(U.ShortName(rec.a), "999999"), done), done, t == "quest")
             elseif t == "travel" then
                 local known = chars:KnowsFlightPath(rec.npc)
                 if rec.npc then travelNpcs[rec.npc] = true end
@@ -233,7 +236,7 @@ function Guide:Collect(mapID, zone)
             if giver and not grouped[giver] then
                 local m, x, y = Ref:Place(Ref:Npc(giver))
                 if not m then m, x, y = Ref:QuestPlace(questID) end
-                local name = Ref:NpcName(giver) or string.format(L.TIP_NPC_ID, giver)
+                local name = Locale:ContentName("npc", Ref:NpcName(giver), giver) or string.format(L.TIP_NPC_ID, giver)
                 addGroup(giver, { n = name, m = m, x = x, y = y }, FC.QuestLore:QuestsGivenBy(giver, name))
             elseif not giver and not listed[questID] then
                 local status = Compat.GetQuestStatus(questID) or "open"
@@ -245,7 +248,7 @@ function Guide:Collect(mapID, zone)
     for _, rec in ipairs(questRecords) do
         if not listed[rec.q] then
             local status = Compat.GetQuestStatus(rec.q) or "open"
-            others[#others + 1] = { questID = rec.q, title = rec.n or FC.QuestLore:Title(rec.q), status = status, rec = rec }
+            others[#others + 1] = { questID = rec.q, title = Locale:RecordText(rec,"n") or FC.QuestLore:Title(rec.q), status = status, rec = rec }
         end
     end
     local kept = {}
@@ -261,7 +264,7 @@ function Guide:Collect(mapID, zone)
         -- no creature gives these: each says what starts it (a wanted poster, an
         -- item), and where, when the data knows
         for _, child in ipairs(group.children) do
-            child.title = child.rec and child.rec.gv or nil
+            child.title = child.rec and Locale:ContentName("npc", child.rec.gv, child.rec.gvi) or nil
             local start = not child.title and Ref:QuestStart(child.questID)
             if start then
                 child.start = start
@@ -278,7 +281,7 @@ function Guide:Collect(mapID, zone)
             if not rareNpcs[npcID] then
                 rareNpcs[npcID] = true
                 local m, x, y = Ref:Place(Ref:Npc(npcID))
-                local name = Ref:NpcName(npcID) or string.format(L.TIP_NPC_ID, npcID)
+                local name = Locale:ContentName("npc", Ref:NpcName(npcID), npcID) or string.format(L.TIP_NPC_ID, npcID)
                 local done = chars:Defeated(npcID)
                 add("rares", {
                     icon = iconOf("rare"), text = U.Escape(name), right = done and CHECK or "", done = done or nil,
@@ -293,9 +296,12 @@ function Guide:Collect(mapID, zone)
         local m, x, y = Ref:Place(object)
         if object and not nearAny(findPoints, m, x, y) then
             local done = object.q and Compat.GetQuestStatus(object.q) == "done"
-            local name = object.n or string.format(L.ZONE_OBJECT_ID, objectID)
-            add("finds", {
-                icon = iconOf("treasure"), text = U.Escape(name), right = done and CHECK or "", done = done or nil,
+            local name = Locale:ContentName("object", object.n, objectID) or string.format(L.ZONE_OBJECT_ID, objectID)
+            local secret = FC.SecretCatalog.objects[objectID] ~= nil
+            local prop = FC.SecretCatalog.nonContainers[objectID] == true
+            local key = secret and "secrets" or (prop and "explored" or "finds")
+            add(key, {
+                icon = iconOf(secret and "secret" or (prop and "object" or "treasure")), text = U.Escape(name), right = done and CHECK or "", done = done or nil,
                 m = m, x = x, y = y, title = name,
             }, done, not object.q)
         end
@@ -307,7 +313,7 @@ function Guide:Collect(mapID, zone)
         if fp and not (fp.f and faction and fp.f ~= faction) and not (fp.npc and travelNpcs[fp.npc]) then
             local known = chars:Me().fp[nodeID] == true
             local m, x, y = Ref:Place(fp)
-            local name = fp.n or string.format(L.ZONE_FLIGHT_ID, nodeID)
+            local name = Locale:Place(fp.n) or string.format(L.ZONE_FLIGHT_ID, nodeID)
             add("travel", {
                 icon = iconOf("travel"), text = U.Escape(name), right = known and CHECK or U.Colorize(L.ZONE_NOT_LEARNED, "e6a23c"),
                 done = known or nil, m = m, x = x, y = y, title = name,
@@ -332,7 +338,7 @@ function Guide:Collect(mapID, zone)
             sortByStatus(children)
             local m, x, y = Ref:Place(instance)
             dungeonPoints[#dungeonPoints + 1] = { m = m, x = x, y = y }
-            local name = instance.maps and Compat.GetMapName(instance.maps[1]) or string.format(L.ZONE_DUNGEON_ID, instanceID)
+            local name = instance.maps and Locale:Place(Compat.GetMapName(instance.maps[1])) or string.format(L.ZONE_DUNGEON_ID, instanceID)
             lists.dungeons[#lists.dungeons + 1] = {
                 key = "inst:" .. instanceID, icon = iconOf("entrance"), text = U.Escape(name), title = name,
                 right = #children > 0 and progressRight(done, #children) or "", children = #children > 0 and children or nil,
@@ -345,7 +351,7 @@ function Guide:Collect(mapID, zone)
     -- entrances you found that the reference data does not list
     for _, rec in ipairs(entrances) do
         if not nearAny(dungeonPoints, rec.m, rec.x, rec.y) then
-            add("dungeons", recordRow(rec, store:IsPersonal(rec) and CHECK or (rec.inn or "")), nil, true)
+            add("dungeons", recordRow(rec, store:IsPersonal(rec) and CHECK or (Locale:Place(rec.inn) or "")), nil, true)
         end
     end
     -- achievements of the zone (exploring it among them), with their steps
@@ -375,7 +381,7 @@ function Guide:Collect(mapID, zone)
         if #rows > 0 then sections[#sections + 1] = { key = key, title = title, rows = rows, done = done, total = total } end
     end
     section("quests", L.ZONE_QUESTS, groups, questDone, questTotal)
-    for _, key in ipairs({ "rares", "finds", "travel", "dungeons", "achievements", "explored" }) do
+    for _, key in ipairs({ "rares", "finds", "caves", "secrets", "travel", "dungeons", "achievements", "explored" }) do
         local c = counts[key]
         section(key, L["ZONE_" .. key:upper()], lists[key], c[1], c[2] > 0 and c[2] or nil)
     end
@@ -416,20 +422,21 @@ function Guide:Build()
     header.zone = UI.Text(header, "cardTitle", "text")
     header.zone:SetPoint("LEFT", header.logo, "RIGHT", 7, 0)
     header.zone:SetPoint("RIGHT", -54, 0)
-    header.source = UI.Text(header, "meta", "muted")
+    header.source = UI.WrappedText(header, "meta", "muted")
+    header.source:SetWidth(WIDTH - 22)
     header.source:SetPoint("TOPLEFT", header.logo, "BOTTOMLEFT", 0, -4)
-    header.summary = UI.Text(header, "meta", "text")
+    header.summary = UI.WrappedText(header, "meta", "text")
     header.summary:SetPoint("TOPLEFT", header.source, "BOTTOMLEFT", 0, -3)
-    header.summary:SetPoint("RIGHT", -10, 0)
-    -- the zone's progress as a thin bar under the summary
+    header.summary:SetWidth(WIDTH - 22)
+    -- the zone's progress as a thin bar under the summary (hung from the
+    -- text, so a larger font pushes it down instead of drawing it through)
     header.track = UI.Texture(header, "ARTWORK", "border", 0.8)
-    header.track:SetPoint("BOTTOMLEFT", 10, 7)
-    header.track:SetPoint("BOTTOMRIGHT", -10, 7)
-    header.track:SetHeight(3)
+    header.track:SetPoint("TOPLEFT", header.summary, "BOTTOMLEFT", 0, -4)
+    header.track:SetSize(WIDTH - 22, 3)
     header.fill = UI.Texture(header, "OVERLAY", "accent", 1)
     header.fill:SetPoint("TOPLEFT", header.track, "TOPLEFT")
     header.fill:SetPoint("BOTTOMLEFT", header.track, "BOTTOMLEFT")
-    header.close = UI.IconButton(header, "Interface\\Buttons\\UI-StopButton", 18, L.CLOSE, function() self:Hide() end)
+    header.close = UI.IconButton(header, "Interface\\Buttons\\UI-StopButton", 18, nil, function() self:Hide() end)
     header.close:SetPoint("TOPRIGHT", -6, -7)
     header.hideDone = UI.IconButton(header, "Interface\\RaidFrame\\ReadyCheck-Ready", 18, nil, function()
         FC.Config:Set("zoneGuide.hideDone", not FC.P.zoneGuide.hideDone)
@@ -441,7 +448,7 @@ function Guide:Build()
     header.hideDone:SetScript("OnLeave", UI.HideTooltip)
     UI.MakeMovable(frame, header, function(point, relPoint, x, y)
         FC.P.zoneGuide.point = { point, relPoint, x, y }
-    end)
+    end, function() return not self.docked end)
     self.header = header
 
     local area = UI.ScrollArea(frame)
@@ -463,6 +470,7 @@ function Guide:Build()
         title.count = UI.Text(title, "meta", "muted")
         title.count:SetPoint("RIGHT", -4, 0)
         title.count:SetJustifyH("RIGHT")
+        title.label:SetPoint("RIGHT", title.count, "LEFT", -8, 0)
         title.line = UI.Divider(title, "border", 0.6)
         title.line:SetPoint("BOTTOMLEFT", 2, 0)
         title.line:SetPoint("BOTTOMRIGHT", -2, 0)
@@ -499,20 +507,79 @@ function Guide:Build()
     self.empty:SetWidth(WIDTH - 40)
     self.empty:SetText(L.ZONE_EMPTY)
 
-    frame:SetScript("OnShow", function() self:Refresh() end)
+    frame:SetScript("OnShow", function() self:Place() self:Refresh() end)
     self:Place()
     return frame
 end
 
+--- Reserve real space to the right, not over the journal's painted border.
+--- Geometry changes here are temporary: no profile dimensions are overwritten.
 function Guide:Place()
-    local p = FC.P.zoneGuide.point
-    self.frame:ClearAllPoints()
-    if type(p) == "table" and U.IsAnchor(p[1]) then
-        self.frame:SetPoint(p[1], UIParent, p[2] or p[1], p[3] or 0, p[4] or 0)
+    local frame = self.frame
+    if not frame or self.fcDockLayout then return end
+    self.fcDockLayout = true
+    local main = FC.MainWindow and FC.MainWindow.frame
+    local dock = main and main:IsShown() and frame:IsShown() and not self.mapID
+        and FC.P.zoneGuide.dockToJournal ~= false
+    if dock then
+        local gap = U.Clamp(tonumber(FC.P.zoneGuide.dockGap) or 8, 4, 24)
+        local reserve = WIDTH + gap
+        local scale = main:GetScale() or 1
+        local parentScale = UIParent:GetEffectiveScale() or 1
+        local mainScale = main:GetEffectiveScale() or scale
+        local screenW = (UIParent:GetWidth() or 1920) * parentScale / mainScale
+        local screenH = (UIParent:GetHeight() or 1080) * parentScale / mainScale
+        local width, height = main:GetWidth(), main:GetHeight()
+        -- Fit the pair without squeezing any of the journal's inner assets.
+        -- A temporary smaller UI scale is safer than forcing its columns below
+        -- their minimum width on a narrow screen. Preferences are left intact.
+        local fit = math.min(1, (screenW - 16) / (width + reserve), (screenH - 16) / math.max(height, HEIGHT))
+        if fit < 1 then
+            main:SetScale(scale * fit)
+            self.dockAdjusted = true
+            scale = scale * fit
+            mainScale = main:GetEffectiveScale() or scale
+            screenW = (UIParent:GetWidth() or 1920) * parentScale / mainScale
+            screenH = (UIParent:GetHeight() or 1080) * parentScale / mainScale
+        end
+        -- Expand the journal's clamp bounds so dragging keeps the guide on screen.
+        if main.SetClampRectInsets then main:SetClampRectInsets(0, -reserve, 0, 0) end
+        local left, top = main:GetLeft(), main:GetTop()
+        if left and top then
+            local x = U.Clamp(left, 8, math.max(8, screenW - width - reserve - 8))
+            local y = U.Clamp(top, math.max(height, HEIGHT) + 8, screenH - 8)
+            if math.abs(x - left) > 0.5 or math.abs(y - top) > 0.5 then
+                main:ClearAllPoints()
+                main:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, y)
+                self.dockAdjusted = true
+            end
+        end
+        self.docked = true
+        frame:SetScale(scale)
+        frame:SetClampedToScreen(false)
+        frame:ClearAllPoints()
+        frame:SetPoint("TOPLEFT", main, "TOPRIGHT", gap, 0)
+        frame:SetFrameStrata(main:GetFrameStrata() or "HIGH")
+        frame:SetFrameLevel((main:GetFrameLevel() or 1) + 1)
     else
-        self.frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -40, -240)
+        self.docked = nil
+        if main and main.SetClampRectInsets then main:SetClampRectInsets(0, 0, 0, 0) end
+        frame:SetClampedToScreen(true)
+        frame:SetScale(FC.P.appearance.scale or 1)
+        frame:ClearAllPoints()
+        local p = FC.P.zoneGuide.point
+        if type(p) == "table" and U.IsAnchor(p[1]) then
+            frame:SetPoint(p[1], UIParent, p[2] or p[1], p[3] or 0, p[4] or 0)
+        else
+            frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -40, -240)
+        end
+        frame:SetFrameStrata(self.mapID and "FULLSCREEN_DIALOG" or "MEDIUM")
+        if self.dockAdjusted and main then
+            self.dockAdjusted = nil
+            FC.MainWindow:ApplyGeometry()
+        end
     end
-    self.frame:SetScale(FC.P.appearance.scale or 1)
+    self.fcDockLayout = nil
 end
 
 function Guide:RowTooltip(row)
@@ -529,9 +596,9 @@ function Guide:RowTooltip(row)
         if data.title then
             lines[#lines + 1] = { string.format(L.ZONE_GIVEN_BY, U.Escape(data.title)), "muted" }
         elseif start and start.kind == "object" then
-            lines[#lines + 1] = { string.format(L.QUESTLOG_STARTS_OBJECT, U.Escape(start.name or string.format(L.ZONE_OBJECT_ID, start.id))), "muted" }
+            lines[#lines + 1] = { string.format(L.QUESTLOG_STARTS_OBJECT, U.Escape(Locale:ContentName("object", start.name, start.id) or string.format(L.ZONE_OBJECT_ID, start.id))), "muted" }
         elseif start and start.kind == "item" then
-            local name = Compat.GetItemName(start.id) or string.format(L.TIP_ITEM_ID, start.id)
+            local name = Locale:ContentName("item", Compat.GetItemName(start.id), start.id) or string.format(L.TIP_ITEM_ID, start.id)
             lines[#lines + 1] = { string.format(L.QUESTLOG_STARTS_ITEM, U.Escape(name)), "muted" }
         end
         if data.rec or (data.m and data.x) then lines[#lines + 1] = { L.ZONE_ROW_HINT_NPC, "muted" } end
@@ -601,7 +668,17 @@ function Guide:DrawRow(data, depth, y, width)
     row.label:SetText(data.text)
     Theme:Paint(row.label, data.done and "muted" or "text")
     row.right:SetText(data.right or "")
-    return y + ROW
+    row.right:SetWidth(math.min(92, width * 0.38))
+    row.label:SetPoint("RIGHT", row.right, "LEFT", -6, 0)
+    row:SetHeight(math.max(ROW, row.label:GetStringHeight() + 6, row.right:GetStringHeight() + 6))
+    return y + row:GetHeight()
+end
+
+local function allDone(rows)
+    for _, data in ipairs(rows) do
+        if not data.done then return false end
+    end
+    return true
 end
 
 function Guide:Refresh()
@@ -609,7 +686,7 @@ function Guide:Refresh()
     local mapID, zone, fromMap = self:Target()
     local sections, done, total = self:Collect(mapID, zone)
     local header = self.header
-    header.zone:SetText(zone)
+    header.zone:SetText(Locale:Place(zone))
     header.source:SetText(fromMap and L.ZONE_FROM_MAP or L.ZONE_HERE)
     local hideDone = FC.P.zoneGuide.hideDone
     header.hideDone:SetActive(hideDone)
@@ -625,41 +702,54 @@ function Guide:Refresh()
         header.fill:Hide()
         header.track:Hide()
     end
+    header.source:ClearAllPoints()
+    header.source:SetPoint("TOPLEFT", 10, -(10 + math.max(18, header.zone:GetStringHeight()) + 4))
+    local headerHeight = 10 + math.max(18, header.zone:GetStringHeight()) + 4 + header.source:GetStringHeight() + 3 + header.summary:GetStringHeight() + 16
+    header:SetHeight(math.max(HEADER_HEIGHT, headerHeight))
+    self.area:SetPoint("TOPLEFT", 8, -(header:GetHeight() + 4))
 
     self.titles:ReleaseAll()
     self.rows:ReleaseAll()
     local collapsed = FC.P.zoneGuide.collapsed
     local width = self.area:ContentWidth()
-    local y, count = 2, 0
+    local y, count, shown = 2, 0, 0
     for _, section in ipairs(sections) do
-        local title = self.titles:Acquire()
-        title.key = section.key
-        title:SetPoint("TOPLEFT", 0, -y)
-        title:SetWidth(width - 2)
-        title.fold:SetTexture(collapsed[section.key] and FOLDED or UNFOLDED)
-        title.label:SetText(section.title:upper())
-        title.count:SetText(section.total and string.format(L.TIP_PROGRESS, section.done, section.total) or "")
-        y = y + TITLE_ROW + 2
-        if not collapsed[section.key] then
-            for _, data in ipairs(section.rows) do
-                if not (hideDone and data.done) then
-                    y = self:DrawRow(data, 0, y, width)
-                    count = count + 1
-                    if data.children and self:GroupOpen(data) then
-                        for _, child in ipairs(data.children) do
-                            if not (hideDone and child.done) then
-                                y = self:DrawRow(child, 1, y, width)
-                                count = count + 1
+        -- with what is done hidden, a section with nothing left goes as well
+        if not (hideDone and allDone(section.rows)) then
+            shown = shown + 1
+            local title = self.titles:Acquire()
+            title.key = section.key
+            title:SetPoint("TOPLEFT", 0, -y)
+            title:SetWidth(width - 2)
+            title.fold:SetTexture(collapsed[section.key] and FOLDED or UNFOLDED)
+            title.label:SetText(U.Upper(section.title))
+            title.count:SetText(section.total and string.format(L.TIP_PROGRESS, section.done, section.total) or "")
+            title:SetHeight(math.max(TITLE_ROW, title.label:GetStringHeight() + 6, title.count:GetStringHeight() + 6))
+            y = y + title:GetHeight() + 2
+            if not collapsed[section.key] then
+                for _, data in ipairs(section.rows) do
+                    if not (hideDone and data.done) then
+                        y = self:DrawRow(data, 0, y, width)
+                        count = count + 1
+                        if data.children and self:GroupOpen(data) then
+                            for _, child in ipairs(data.children) do
+                                if not (hideDone and child.done) then
+                                    y = self:DrawRow(child, 1, y, width)
+                                    count = count + 1
+                                end
                             end
                         end
                     end
                 end
             end
+            y = y + 6
         end
-        y = y + 6
     end
-    self.empty:SetShown(#sections == 0)
-    self.area:SetContentHeight(math.max(y, 40))
+    -- nothing known here, or everything known is done and hidden
+    self.empty:SetText(#sections > 0 and L.ZONE_ALL_DONE or L.ZONE_EMPTY)
+    self.empty:SetShown(shown == 0)
+    self.empty:SetWidth(width - 8)
+    self.area:SetContentHeight(math.max(y, shown == 0 and self.empty:GetStringHeight() + 20 or 40))
     return count
 end
 
@@ -677,6 +767,7 @@ function Guide:Show(mapID)
     self.frame:SetFrameStrata(mapID and "FULLSCREEN_DIALOG" or "MEDIUM")
     FC.P.zoneGuide.shown = true
     self.frame:Show()
+    self:Place()
     self:Refresh()
 end
 
@@ -684,6 +775,7 @@ function Guide:Hide()
     FC.P.zoneGuide.shown = false
     self.mapID = nil
     if self.frame then self.frame:Hide() end
+    self:Place()
 end
 
 function Guide:Toggle()
@@ -709,7 +801,7 @@ end
 function Guide:OnWorldMapClosed()
     if self.mapID then
         self.mapID = nil
-        if self.frame then self.frame:SetFrameStrata("MEDIUM") end
+        self:Place()
         self:QueueRefresh()
     end
 end
@@ -717,6 +809,7 @@ end
 function Guide:OnEnable()
     if FC.P.zoneGuide.shown then self:Show() end
     local function refresh() self:QueueRefresh() end
+    FC.Bus:On("FONTS_CHANGED", self, refresh)
     for _, message in ipairs({ "DISCOVERY_ADDED", "DISCOVERY_UPDATED", "DISCOVERY_REMOVED", "DISCOVERY_STATE", "STORE_RESET", "QUEST_LORE_CHANGED", "QUEST_TITLE_LOADED", "RARE_DEFEATED" }) do
         FC.Bus:On(message, self, refresh)
     end

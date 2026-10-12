@@ -24,7 +24,7 @@ local CANDIDATE_REFRESH = 2   -- seconds between candidate rebuilds
 local UPDATE_INTERVAL = 0.05  -- seconds between placements while something moves
 local RANGE_FACTOR = 2        -- candidates within this many view radii
 
-Pins.world = {}        -- rec.id -> { m, x, y, instance, north, west } or false
+Pins.world = {}        -- rec.id -> { m, x, y, instance, north, west } or a temporary retry entry
 Pins.candidates = {}
 Pins.frames = {}
 
@@ -34,11 +34,15 @@ Pins.frames = {}
 
 function Pins:WorldOf(rec)
     local cached = self.world[rec.id]
-    if cached and cached.m == rec.m and cached.x == rec.x and cached.y == rec.y then return cached end
-    if cached == false then return nil end
+    if cached and cached.m == rec.m and cached.x == rec.x and cached.y == rec.y then
+        if cached.north then return cached end
+        if GetTime() < (cached.retryAt or 0) then return nil end
+    end
     local north, west, instance = Compat.GetWorldPosition(rec.m, rec.x, rec.y)
     if not north then
-        self.world[rec.id] = false
+        -- Map data can be unavailable just after login or zoning. Retry on
+        -- the next candidate refresh instead of hiding this record forever.
+        self.world[rec.id] = { m = rec.m, x = rec.x, y = rec.y, retryAt = GetTime() + CANDIDATE_REFRESH }
         return nil
     end
     cached = { m = rec.m, x = rec.x, y = rec.y, north = north, west = west, instance = instance }
@@ -72,7 +76,7 @@ function Pins:RebuildCandidates()
     local hiddenType = {} -- category -> whether its map group is hidden (the filters would say no)
     for _, rec in FC.Store:Iterate() do
         if rec.m and rec.x and rec.y and not rec.del then
-            local typeKey = rec.t or "other"
+            local typeKey = Categories:RecordType(rec) or "other"
             local hidden = hiddenType[typeKey]
             if hidden == nil then
                 hidden = hiddenGroups[Categories:Get(typeKey).mapGroup] == true
@@ -105,22 +109,15 @@ local function createPin()
     local C = FC.C
     local pin = CreateFrame("Button", nil, Minimap)
     pin:SetFrameLevel((Minimap:GetFrameLevel() or 1) + 5)
-    pin.shadow = pin:CreateTexture(nil, "BACKGROUND", nil, -1)
-    pin.shadow:SetTexture(C.WHITE)
-    pin.shadow:SetVertexColor(0, 0, 0, 0.65)
-    pin.shadow:SetPoint("CENTER")
-    pin.ring = pin:CreateTexture(nil, "BACKGROUND")
-    pin.ring:SetTexture(C.WHITE)
-    pin.ring:SetPoint("CENTER")
     pin.icon = pin:CreateTexture(nil, "ARTWORK")
     pin.icon:SetPoint("CENTER")
-    for _, tex in ipairs({ pin.shadow, pin.ring, pin.icon }) do
-        if tex.SetMask then pcall(tex.SetMask, tex, C.CIRCLE_MASK) end
-    end
+    -- The source contains real alpha; do not put a white ring or a filled
+    -- square behind it, and do not crop it through a tiny portrait mask.
     pin:SetScript("OnEnter", function(self)
-        if self.rec then ForeverCompanionMapPinMixin.OnMouseEnter(self) end
+        if self.rec then ForeverCompanionMapPinMixin.ShowDiscoveryTooltip(self, true) end
     end)
-    pin:SetScript("OnLeave", function() FC.UI.HideTooltip() end)
+    pin:SetScript("OnLeave", function(self) ForeverCompanionMapPinMixin.OnMouseLeave(self) end)
+    pin:SetScript("OnHide", function(self) if FC.Narrator then FC.Narrator:Leave(self) end end)
     pin:RegisterForClicks("LeftButtonUp")
     pin:SetScript("OnClick", function(self, button)
         if self.rec then ForeverCompanionMapPinMixin.OnClick(self, button) end
@@ -131,22 +128,13 @@ end
 
 function Pins:StylePin(pin, entry)
     local rec = entry.rec
-    local size = BASE_SIZE * (FC.P.map.minimapScale or 1)
-    local inner = math.max(4, size - math.max(2, math.floor(size * 0.2 + 0.5)))
-    pin:SetSize(size, size)
-    pin.shadow:SetSize(size + 2, size + 2)
-    pin.ring:SetSize(size, size)
-    pin.icon:SetSize(inner, inner)
-    local hex = rec.col or FC.Categories:Get(rec.t).color
-    if entry.veiled then
-        pin.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-        pin.icon:SetDesaturated(true)
-        pin.ring:SetVertexColor(0.55, 0.55, 0.6, 1)
-    else
-        pin.icon:SetTexture(rec.ic or FC.Categories:Get(rec.t).icon)
-        pin.icon:SetDesaturated(false)
-        pin.ring:SetVertexColor(U.HexToRGB(hex))
-    end
+    -- Appearance refreshes also happen for unrelated discoveries. Preserve the
+    -- current sentence unless this frame actually changes identity or visibility.
+    if FC.Narrator and (pin.rec ~= rec or pin.veiled ~= entry.veiled) then FC.Narrator:Leave(pin) end
+    local size = FC.PinArt:PixelSize(pin, BASE_SIZE * (FC.P.map.minimapScale or 1))
+    pin:SetSize(math.max(10, size), math.max(10, size))
+    pin.icon:SetSize(size, size)
+    FC.PinArt:ApplyDiscovery(pin.icon, rec, entry.veiled, size)
     pin:SetAlpha(FC.P.map.iconAlpha or 1)
     pin.rec = rec
     pin.veiled = entry.veiled
@@ -183,13 +171,14 @@ function Pins:Place()
         local radius = Compat.GetMinimapViewRadius()
         local facing = GetCVar and GetCVar("rotateMinimap") == "1" and Compat.SafeCall(_G.GetPlayerFacing) or nil
         local shape = GetMinimapShape and GetMinimapShape() or "ROUND"
+        local width, height = Minimap:GetWidth(), Minimap:GetHeight()
         -- nothing moved, turned, zoomed or changed: the pins are where they belong
         local last = self.lastPlace
         if last and last.north == north and last.west == west and last.facing == facing and last.radius == radius
-            and last.shape == shape and last.candidatesAt == self.candidatesAt then
+            and last.shape == shape and last.width == width and last.height == height and last.candidatesAt == self.candidatesAt then
             return
         end
-        self.lastPlace = { north = north, west = west, facing = facing, radius = radius, shape = shape, candidatesAt = self.candidatesAt }
+        self.lastPlace = { north = north, west = west, facing = facing, radius = radius, shape = shape, width = width, height = height, candidatesAt = self.candidatesAt }
         local margin = BASE_SIZE * (FC.P.map.minimapScale or 1) / 2
         for _, entry in ipairs(self.candidates) do
             local x, y = self:Offset(entry.world, north, west, radius, facing, margin)
@@ -263,4 +252,5 @@ function Pins:OnEnable()
         end
     end)
     FC.Events:Register("ZONE_CHANGED_NEW_AREA", self, function() self:Invalidate(false) end)
+    FC.Events:Register("UI_SCALE_CHANGED", self, function() self:Invalidate(false) end)
 end

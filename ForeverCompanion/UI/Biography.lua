@@ -57,8 +57,10 @@ function UI.BiographyPage(parent)
         local items = { { value = ACCOUNT, text = L.BIO_ACCOUNT } }
         local keys = U.SortedKeys(FC.db.bio)
         for _, key in ipairs(keys) do
-            local char = FC.db.characters[key]
-            items[#items + 1] = { value = key, text = (char and char.n or U.ShortName(key)) .. (char and char.l and ("  (" .. char.l .. ")") or "") }
+            if not FC.Progress:IsForgotten(key) then
+                local char = FC.db.characters[key]
+                items[#items + 1] = { value = key, text = FC.Characters:DisplayName(key) .. (char and char.l and ("  (" .. char.l .. ")") or "") }
+            end
         end
         return items
     end, function() return page.selected or FC.Store.me end, function(value)
@@ -70,14 +72,22 @@ function UI.BiographyPage(parent)
     for i = 1, 5 do
         local tile = UI.Panel(content, { bg = "panelAlt", bgAlpha = 1, border = "border", shade = false, skin = "panel", corner = 10 })
         tile:SetHeight(64)
+        tile:EnableMouse(true)
         tile.value = UI.Text(tile, "numeric", "text")
         tile.value:SetPoint("TOPLEFT", 12, -10)
         tile.value:SetPoint("RIGHT", -8, 0)
         tile.label = UI.Text(tile, "meta", "muted")
         tile.label:SetPoint("BOTTOMLEFT", 12, 10)
         tile.label:SetPoint("RIGHT", -8, 0)
+        -- what the number counts, and what it leaves out (Refresh sets the text)
+        UI.AttachTooltip(tile, function(t) return t.tipTitle end, function(t) return t.tipText end)
         page.tiles[i] = tile
     end
+
+    -- the game's /played arrives a moment after login: the open page takes it
+    FC.Bus:On("BIOGRAPHY_PLAYED", page, function()
+        if page:IsVisible() then page:Refresh() end
+    end)
 
     page.headers = UI.Pool(function() return UI.SectionHeader(content) end)
     page.rows = UI.Pool(function()
@@ -119,19 +129,22 @@ function UI.BiographyPage(parent)
         local y = 4
         local gap = 10
         local tileWidth = (width - gap * 4) / 5
+        local since = U.FormatDate(s.started)
+        local played = s.played and U.FormatLongDuration(s.played.total) or L.BIO_PLAYED_UNKNOWN
         local tiles = {
-            { km(Bio:TotalDistance(s)), L.BIO_DISTANCE },
-            { U.FormatNumber(s.deaths), L.BIO_DEATHS },
-            { U.FormatNumber(s.kills), L.BIO_KILLS },
-            { U.FormatNumber(Bio:QuestsCompleted(not account and key or nil)), L.BIO_QUESTS },
-            { U.FormatLongDuration(s.time.online), L.BIO_ONLINE },
+            { km(Bio:TotalDistance(s)), L.BIO_DISTANCE, L.BIO_DISTANCE_TIP },
+            { U.FormatNumber(s.deaths), L.BIO_DEATHS, L.BIO_DEATHS_TIP },
+            { U.FormatNumber(s.kills), L.BIO_KILLS, L.BIO_KILLS_TIP },
+            { U.FormatNumber(Bio:QuestsCompleted(not account and key or nil)), L.BIO_QUESTS, L.BIO_QUESTS_TIP },
+            { U.FormatLongDuration(s.time.online), L.BIO_ONLINE, string.format(account and L.BIO_ONLINE_TIP_ACCOUNT or L.BIO_ONLINE_TIP, since, played) },
         }
         for i, tile in ipairs(self.tiles) do
             tile:ClearAllPoints()
             tile:SetPoint("TOPLEFT", (i - 1) * (tileWidth + gap) + 4, -y)
             tile:SetWidth(tileWidth)
             tile.value:SetText(tiles[i][1])
-            tile.label:SetText(tiles[i][2]:upper())
+            tile.label:SetText(U.Upper(tiles[i][2]))
+            tile.tipTitle, tile.tipText = tiles[i][2], tiles[i][3]
         end
         y = y + 64 + 20
 
@@ -214,7 +227,44 @@ function UI.BiographyPage(parent)
         line(1, L.BIO_XP_QUESTS, n(s.xp.quest))
         line(1, L.BIO_XP_EXPLORE, n(s.xp.explore))
 
-        -- right column: supplies, wealth, items, trades, people, misc
+        -- right column: time, supplies, wealth, items, trades, people, misc
+        section(2, L.BIO_SEC_TIME)
+        line(2, L.BIO_TIME_JOURNAL, time(s.time.online))
+        line(2, L.BIO_TIME_SINCE, since)
+        if account then
+            -- /played of every character on its own (the game tells it only on
+            -- that character), the longest first, then all of them together
+            local each = {}
+            for k, stats in pairs(FC.db.bio) do
+                local c = FC.db.characters[k]
+                if not FC.Progress:IsForgotten(k) then
+                    each[#each + 1] = {
+                        name = FC.Characters:DisplayName(k) .. (c and c.l and ("  (" .. c.l .. ")") or ""),
+                        played = stats.played and stats.played.total or nil,
+                    }
+                end
+            end
+            table.sort(each, function(a, b)
+                if (a.played ~= nil) ~= (b.played ~= nil) then return a.played ~= nil end
+                if a.played and b.played and a.played ~= b.played then return a.played > b.played end
+                return a.name < b.name
+            end)
+            line(2, L.BIO_TIME_PLAYED, " ")
+            for _, entry in ipairs(each) do
+                line(2, "  " .. U.Escape(entry.name), entry.played and time(entry.played) or L.BIO_PLAYED_UNKNOWN_CHAR)
+            end
+            if s.played then line(2, L.BIO_TIME_PLAYED_TOTAL, time(s.played.total) .. string.format(L.BIO_PLAYED_CHARS, s.played.chars)) end
+        elseif s.played then
+            line(2, L.BIO_TIME_PLAYED, time(s.played.total))
+            if s.played.level > 0 then
+                line(2, string.format(L.BIO_TIME_PLAYED_LEVEL, s.played.lvl or (char and char.l) or "?"), time(s.played.level))
+            end
+            line(2, L.BIO_TIME_PLAYED_ASKED, U.TimeAgo(s.played.at))
+        else
+            line(2, L.BIO_TIME_PLAYED, L.BIO_PLAYED_UNKNOWN)
+        end
+        columns[2].y = columns[2].y + 10
+
         section(2, L.BIO_SEC_SUPPLIES)
         for _, kind in ipairs(Bio.SUPPLIES) do line(2, L["BIO_SUPPLY_" .. kind:upper()], n(s.supplies[kind])) end
         local favorite = Bio.Top(s.supplyItems, 1)[1]

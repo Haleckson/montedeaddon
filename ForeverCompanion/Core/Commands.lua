@@ -18,6 +18,7 @@ local HELP = {
     { "/fc zone", "HELP_ZONE" },
     { "/fc quests", "HELP_QUESTS" },
     { "/fc rescan", "HELP_RESCAN" },
+    { "/fc forget <character>", "HELP_FORGET" },
     { "/fc search <text>", "HELP_SEARCH" },
     { "/fc settings", "HELP_SETTINGS" },
     { "/fc sync [status|ping]", "HELP_SYNC" },
@@ -64,6 +65,15 @@ function Commands:Run(input)
     elseif command == "rescan" or command == "repair" or command == "recover" then
         -- reads again what the game remembers; nothing in the journal is deleted
         FC.QuestHistory:Rescan()
+    elseif command == "forget" then
+        local key = FC.Progress:FindKey(rest)
+        if not key then
+            FC:Print(L.MSG_FORGET_UNKNOWN, rest)
+        elseif key == FC.Store.me then
+            FC:Print(L.MSG_FORGET_SELF)
+        elseif FC.Progress:Forget(key) then
+            FC:Print(L.MSG_FORGOTTEN, U.ShortName(key))
+        end
     elseif command == "search" or command == "find" then
         FC.MainWindow:SetSearch(rest)
     elseif command == "settings" or command == "config" or command == "options" then
@@ -100,7 +110,7 @@ function Commands:Run(input)
         end)
     elseif command == "profile" then
         if rest == "" then
-            FC:Print(L.SETTINGS_PROFILE, FC.Profiles:GetActive())
+            FC:Print(L.SETTINGS_PROFILE, FC.Profiles:DisplayName(FC.Profiles:GetActive()))
         elseif FC.Profiles:Exists(rest) then
             FC.Profiles:Activate(rest)
         else
@@ -121,6 +131,21 @@ function Commands:Run(input)
     else
         FC:Print(L.MSG_UNKNOWN_COMMAND, command)
         self:PrintHelp()
+    end
+end
+
+--- The game build the journal runs on is remembered; a change (the release
+--- after the beta, a patch) is told once, so the chat says the addon noticed.
+function Commands:OnEnable()
+    local getter = _G.GetBuildInfo
+    if type(getter) ~= "function" then return end
+    local ok, version, build, _, interface = pcall(getter)
+    if not ok or type(build) ~= "string" or build == "" then return end
+    local meta = FC.db.meta
+    local last = meta.build
+    meta.build, meta.interface = build, tonumber(interface)
+    if last and last ~= build then
+        U.After(6, function() FC:Print(L.MSG_BUILD_CHANGED, tostring(version), build, tostring(interface), last) end)
     end
 end
 

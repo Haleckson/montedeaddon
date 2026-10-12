@@ -25,6 +25,7 @@ local U = FC.Utils
 local L = FC.L
 local Theme = FC.Theme
 local Compat = FC.Compat
+local Locale = FC.Locale
 
 local ROW = 22
 local LEVEL_WIDTH, INFO_WIDTH = 46, 150
@@ -36,7 +37,7 @@ local QUEST_ICON = "Interface\\Icons\\INV_Misc_Note_02"
 UI.QUESTLOG_SORTS = { "zone", "name", "level", "recent" }
 
 local function lowered(text)
-    return type(text) == "string" and text:lower() or ""
+    return U.Lower(text)
 end
 
 local function byTitle(a, b)
@@ -80,7 +81,7 @@ local function newRow(parent, page)
     end)
     row:SetScript("OnLeave", function(self)
         if page.hover == self then page.hover = nil end
-        UI.HideTooltip()
+        UI.HideTooltip(self)
     end)
     row:SetScript("OnClick", function(self) FC:SafeCall("questlog-row", page.RowClick, page, self.item) end)
     return row
@@ -164,7 +165,7 @@ function UI.QuestLogPage(parent)
         local id = tostring(row.questID)
         if id == needle or ("#" .. id) == needle then return true end
         return lowered(row.title):find(needle, 1, true) ~= nil or lowered(row.zone):find(needle, 1, true) ~= nil
-            or lowered(row.giver):find(needle, 1, true) ~= nil
+            or lowered(row.giver):find(needle, 1, true) ~= nil or lowered(row.sourceText):find(needle, 1, true) ~= nil
     end
 
     --- Filters, sorts and groups the quests into the lines to draw.
@@ -245,7 +246,8 @@ function UI.QuestLogPage(parent)
         elseif item.start == "item" and not item.giver then
             item.giver = Compat.GetItemName(item.itemID)
         end
-        return item.giver
+        return item.giver and Locale:ContentName(item.start == "object" and "object" or item.start == "item" and "item" or "npc",
+            item.giver, item.objectID or item.giverID or item.itemID)
     end
 
     local function bind(row, item)
@@ -260,7 +262,7 @@ function UI.QuestLogPage(parent)
         row.line:SetShown(header)
         row.hover:SetShown(not header or item.unnamed == true)
         if header then
-            row.group:SetText(item.header:upper())
+            row.group:SetText(U.Upper(item.header))
             row.count:SetText(U.FormatNumber(item.count))
             return
         end
@@ -431,11 +433,11 @@ function UI.QuestLogPage(parent)
             local m, x, y = self:PlaceOf(item)
             local coords = m and U.FormatCoords(x, y)
             if coords then
-                local zone = Compat.GetMapName(m)
+                local zone = Locale:Place(Compat.GetMapName(m))
                 lines[#lines + 1] = { zone and string.format(L.QUESTLOG_START_PLACE, zone, coords) or coords, "muted" }
             end
             if item.itemID and item.start ~= "item" then
-                local name = Compat.GetItemName(item.itemID) or string.format(L.TIP_ITEM_ID, item.itemID)
+                local name = Locale:ContentName("item", Compat.GetItemName(item.itemID), item.itemID) or string.format(L.TIP_ITEM_ID, item.itemID)
                 lines[#lines + 1] = { string.format(L.QUESTLOG_ALSO_ITEM, U.Escape(name)), "muted" }
             end
         else

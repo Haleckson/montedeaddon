@@ -31,7 +31,10 @@ Categories.GROUPS = {
     vendors = { "vendor" },
     recipes = { "recipe", "profession" },
     items = { "item" },
-    secrets = { "secret", "cave", "path", "landmark", "treasure", "object", "shortcut" },
+    secrets = { "secret" },
+    caves = { "cave" },
+    chests = { "treasure" },
+    exploration = { "landmark", "path", "object", "shortcut", "other" },
     dungeons = { "dungeon", "entrance", "boss", "mechanic", "room" },
     professions = { "recipe", "profession", "trainer" },
     notes = { "note" },
@@ -45,6 +48,7 @@ Categories.MAP_GROUPS = {
     { key = "npc", label = "MAPGROUP_NPC" },
     { key = "creature", label = "MAPGROUP_CREATURE" },
     { key = "secret", label = "MAPGROUP_SECRET" },
+    { key = "cave", label = "MAPGROUP_CAVE" },
     { key = "treasure", label = "MAPGROUP_TREASURE" },
     { key = "explored", label = "MAPGROUP_EXPLORED" },
     { key = "dungeon", label = "MAPGROUP_DUNGEON" },
@@ -70,6 +74,22 @@ end
 function Categories:Get(key)
     return self.types[key] or self.types.other
 end
+
+-- Display classification does not rewrite shared records, IDs or revisions.
+function Categories:RecordType(rec)
+    local t = rec.t
+    local objectID = FC.SecretCatalog:ObjectID(rec)
+    if t == "treasure" and FC.SecretCatalog.nonContainers[objectID] then
+        return FC.SecretCatalog:Contains(rec) and "secret" or "object"
+    end
+    if t == "secret" or t == "object" then
+        if FC.SecretCatalog.containers[objectID] then return "treasure" end
+        return FC.SecretCatalog and FC.SecretCatalog:Contains(rec) and "secret" or "object"
+    end
+    return t
+end
+
+function Categories:ForRecord(rec) return self:Get(self:RecordType(rec)) end
 
 function Categories:IsValid(key)
     return type(key) == "string" and self.types[key] ~= nil
@@ -99,20 +119,20 @@ local defs = {
     { "recipe", "CAT_RECIPE", ICON .. "INV_Scroll_04", "6fd3c2", "recipes", "recipe", "recipe", nil, "it" },
     { "profession", "CAT_PROFESSION", ICON .. "Trade_BlackSmithing", "6fd3c2", "recipes", "profession", "recipe" },
     { "item", "CAT_ITEM", ICON .. "INV_Misc_Gem_01", "b48cf2", "items", "other", "personal", nil, "it" },
-    { "object", "CAT_OBJECT", ICON .. "INV_Misc_Gear_01", "a0a7b4", "secrets", "other", "secret" },
-    { "treasure", "CAT_TREASURE", ICON .. "INV_Box_02", "f0c05a", "secrets", "treasure", "secret" },
+    { "object", "CAT_OBJECT", ICON .. "INV_Misc_Gear_01", "a0a7b4", "exploration", "other", "personal" },
+    { "treasure", "CAT_TREASURE", ICON .. "INV_Box_02", "f0c05a", "chests", "treasure", "secret" },
     { "secret", "CAT_SECRET", ICON .. "INV_Misc_QuestionMark", "e8c35a", "secrets", "secret", "secret", true },
-    { "cave", "CAT_CAVE", ICON .. "INV_Torch_Lit", "c28f5c", "secrets", "secret", "secret", true },
-    { "path", "CAT_PATH", ICON .. "Ability_Tracking", "8fbf6a", "secrets", "path", "explore", true },
-    { "landmark", "CAT_LANDMARK", ICON .. "INV_Misc_Map_01", "a7c4e0", "secrets", "explored", "explore" },
-    { "shortcut", "CAT_SHORTCUT", ICON .. "Ability_Rogue_Sprint", "8fbf6a", "secrets", "secret", "secret", true },
+    { "cave", "CAT_CAVE", ICON .. "INV_Torch_Lit", "c28f5c", "caves", "cave", "secret" },
+    { "path", "CAT_PATH", ICON .. "Ability_Tracking", "8fbf6a", "exploration", "path", "explore" },
+    { "landmark", "CAT_LANDMARK", ICON .. "INV_Misc_Map_01", "a7c4e0", "exploration", "explored", "explore" },
+    { "shortcut", "CAT_SHORTCUT", ICON .. "Ability_Rogue_Sprint", "8fbf6a", "exploration", "path", "explore" },
     { "dungeon", "CAT_DUNGEON", ICON .. "INV_Misc_Key_03", "c77dff", "dungeons", "dungeon", "dungeon", nil, "in" },
     { "entrance", "CAT_ENTRANCE", ICON .. "Spell_Shadow_Teleport", "c77dff", "dungeons", "dungeon", "dungeon" },
     { "boss", "CAT_BOSS", ICON .. "INV_Misc_Bone_HumanSkull_01", "e06060", "dungeons", "dungeon", "dungeon" },
     { "mechanic", "CAT_MECHANIC", ICON .. "INV_Gizmo_02", "c77dff", "dungeons", "dungeon", "dungeon" },
     { "room", "CAT_ROOM", ICON .. "INV_Misc_Key_01", "e8c35a", "dungeons", "dungeon", "dungeon" },
     { "note", "CAT_NOTE", ICON .. "INV_Misc_Note_01", "d8d0b8", "notes", "note", "personal" },
-    { "other", "CAT_OTHER", ICON .. "Spell_Holy_MindVision", "c9b27c", "other", "other", "personal" },
+    { "other", "CAT_OTHER", ICON .. "Spell_Holy_MindVision", "c9b27c", "exploration", "other", "personal" },
 }
 
 for _, d in ipairs(defs) do
@@ -157,9 +177,9 @@ end
 --- Matches a free text (e.g. an NPC subtitle "Alchemy Trainer") to a profession key.
 function Categories:ProfessionFromText(text)
     if type(text) ~= "string" then return nil end
-    local lowered = text:lower()
+    local lowered = FC.Utils.Lower(text)
     for _, p in ipairs(self.PROFESSIONS) do
-        if p.key ~= "other" and lowered:find(L[p.label]:lower(), 1, true) then
+        if p.key ~= "other" and lowered:find(FC.Utils.Lower(L[p.label]), 1, true) then
             return p.key
         end
     end

@@ -41,10 +41,13 @@ function Editor:Build()
     drag:SetHeight(50)
     UI.MakeMovable(frame, drag)
 
-    frame.title = UI.Text(frame, "header", "text")
+    frame.title = UI.WrappedText(frame, "header", "text")
     frame.title:SetPoint("TOPLEFT", EDGE + 2, -EDGE)
-    frame.close = UI.IconButton(frame, "Interface\\Buttons\\UI-StopButton", 22, L.CLOSE, function() self:Close() end)
-    frame.close:SetPoint("TOPRIGHT", -EDGE, -(EDGE - 2))
+    frame.title:SetWidth(CONTENT - 34)
+    -- on the drag strip, not beside it: a sibling of the strip stands at its
+    -- level, and the game gave the strip its clicks (the close did nothing)
+    frame.close = UI.IconButton(drag, "Interface\\Buttons\\UI-StopButton", 22, nil, function() self:Close() end)
+    frame.close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -EDGE, -(EDGE - 2))
 
     -- context strip
     local context = UI.Panel(frame, { bg = "panelAlt", bgAlpha = 1, border = "border", shade = false, skin = "panel", corner = 10 })
@@ -60,6 +63,7 @@ function Editor:Build()
     context.update = UI.Button(context, L.EDITOR_UPDATE_LOCATION, { width = 92, height = 22, style = "ghost", onClick = function()
         self:CaptureLocation()
         self:RenderContext()
+        self:Layout()
     end })
     context.update:SetPoint("TOPRIGHT", -8, -6)
     context.link = UI.Checkbox(context, L.EDITOR_LINK_TARGET, function() return self.linkTarget end, function(v)
@@ -121,7 +125,7 @@ function Editor:Build()
             local current = frame.tags:GetText()
             local tag = value:gsub("^#", "")
             for _, existing in ipairs(U.Split(current, ",")) do
-                if existing:lower() == tag then return end
+                if U.Lower(existing) == tag then return end
             end
             frame.tags:SetText(current ~= "" and (current .. ", " .. tag) or tag)
         end)
@@ -166,9 +170,92 @@ function Editor:Build()
     frame.save:SetPoint("BOTTOMRIGHT", -EDGE, EDGE)
     frame.cancel = UI.Button(frame, L.CANCEL, { width = 100, height = 30, onClick = function() self:Close() end })
     frame.cancel:SetPoint("RIGHT", frame.save, "LEFT", -8, 0)
-    frame.hint = UI.Text(frame, "meta", "muted")
+    frame.hint = UI.WrappedText(frame, "meta", "muted")
     frame.hint:SetPoint("BOTTOMLEFT", EDGE + 2, EDGE + 8)
     frame.hint:SetText(L.EDITOR_HINT)
+    -- Keep the title/actions fixed while the form can grow with translated
+    -- labels and the user's font size. Every field remains reachable.
+    frame.area = UI.ScrollArea(frame)
+    local body = frame.area.content
+    for _, widget in ipairs({ context, frame.typeHeader, frame.more, frame.titleLabel, frame.error,
+        frame.titleBox, frame.descLabel, frame.desc, frame.tagsLabel, frame.tags,
+        frame.tagSuggestions, frame.visLabel, frame.visibility, frame.color, frame.iconLabel, defaultButton }) do
+        widget:SetParent(body)
+    end
+    for _, button in ipairs(self.typeButtons) do button:SetParent(body) end
+    for _, button in ipairs(self.iconButtons) do button:SetParent(body) end
+    for _, label in ipairs({ context.location, context.target, context.link.label, frame.error }) do
+        label:SetWordWrap(true)
+        if label.SetNonSpaceWrap then label:SetNonSpaceWrap(true) end
+    end
+    FC.Bus:On("FONTS_CHANGED", self, function() if self.frame and self.frame:IsShown() then self:Layout() end end)
+end
+
+function Editor:Layout()
+    local f = self.frame
+    if not f then return end
+    f.save:FitLabel(180, 30); f.cancel:FitLabel(160, 30)
+    local footer = math.max(f.save:GetHeight(), f.cancel:GetHeight())
+    f.hint:ClearAllPoints()
+    f.hint:SetWidth(CONTENT)
+    f.hint:SetPoint("BOTTOMLEFT", EDGE, EDGE + footer + 8)
+    f.area:ClearAllPoints()
+    f.area:SetPoint("TOPLEFT", EDGE, -(EDGE + f.title:GetStringHeight() + 12))
+    f.area:SetPoint("BOTTOMRIGHT", -EDGE, EDGE + footer + 8 + f.hint:GetStringHeight() + 12)
+    local width = CONTENT - 10
+    f.area.content:SetWidth(width)
+    local context, side = self.context, math.min(176, width * 0.38)
+    context:ClearAllPoints(); context:SetPoint("TOPLEFT", f.area.content, "TOPLEFT"); context:SetWidth(width)
+    context.update:FitLabel(side, 26)
+    context.link:SetWidth(side)
+    context.link.label:SetWidth(side - 24)
+    context.link:SetHeight(math.max(24, context.link.label:GetStringHeight() + 4))
+    context.location:ClearAllPoints(); context.location:SetPoint("TOPLEFT", 12, -10); context.location:SetWidth(width - side - 32)
+    context.target:ClearAllPoints(); context.target:SetPoint("TOPLEFT", context.location, "BOTTOMLEFT", 0, -5); context.target:SetWidth(width - side - 32)
+    context:SetHeight(math.max(20 + context.location:GetStringHeight() + 5 + context.target:GetStringHeight(), 20 + context.update:GetHeight() + context.link:GetHeight()))
+    f.typeHeader:SetWidth(width)
+    local columns, gap = FC.P.fonts.size >= 16 and 2 or 3, 6
+    local cell, rowHeight = (width - gap * (columns - 1)) / columns, 30
+    for _, b in ipairs(self.typeButtons) do
+        b.fcAutoWidth = cell
+        b:FitLabel(cell, 30)
+        rowHeight = math.max(rowHeight, b:GetHeight())
+    end
+    for i, b in ipairs(self.typeButtons) do
+        b:ClearAllPoints(); b:SetHeight(rowHeight)
+        b:SetPoint("TOPLEFT", f.typeHeader, "BOTTOMLEFT", ((i - 1) % columns) * (cell + gap), -6 - math.floor((i - 1) / columns) * (rowHeight + gap))
+    end
+    f.more:ClearAllPoints()
+    f.more:SetPoint("TOPLEFT", f.typeHeader, "BOTTOMLEFT", 0, -6 - math.ceil(#self.typeButtons / columns) * (rowHeight + gap))
+    f.more:SetWidth(width); f.more:SetHeight(math.max(28, FC.P.fonts.size + 12)); f.more.button:SetHeight(f.more:GetHeight())
+    f.error:ClearAllPoints(); f.error:SetPoint("TOPLEFT", f.titleLabel, "BOTTOMLEFT", 0, -4); f.error:SetWidth(width)
+    f.error:SetHeight(0)
+    f.error:SetHeight(math.max(1, f.error:GetStringHeight()))
+    f.titleBox:ClearAllPoints(); f.titleBox:SetPoint("TOPLEFT", f.error, "BOTTOMLEFT", 0, -5)
+    for _, edit in ipairs({ f.titleBox, f.tags }) do edit:SetWidth(width); edit:SetHeight(math.max(28, FC.P.fonts.size + 12)) end
+    f.desc:SetWidth(width)
+    f.tagSuggestions:SetWidth(width)
+    f.tagSuggestions:SetHeight(math.max(20, FC.P.fonts.size + 8))
+    f.visibility:SetWidth(width)
+    local segment, vh = width / 2, 30
+    for i, b in ipairs(f.visibility.buttons) do
+        b.fcAutoWidth = segment - 2; b:FitLabel(segment - 2, 30)
+        b:ClearAllPoints(); b:SetPoint("LEFT", (i - 1) * segment, 0)
+        vh = math.max(vh, b:GetHeight())
+    end
+    f.visibility:SetHeight(vh)
+    f.color:ClearAllPoints(); f.color:SetPoint("TOPLEFT", f.visibility, "BOTTOMLEFT", 0, -12); f.color:SetWidth(width)
+    f.color:SetHeight(math.max(26, FC.P.fonts.size + 10))
+    f.iconLabel:ClearAllPoints(); f.iconLabel:SetPoint("TOPLEFT", f.color, "BOTTOMLEFT", 0, -12)
+    local iconColumns, last = math.floor(width / 28), self.defaultIconButton
+    for i, b in ipairs(self.iconButtons) do
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", self.defaultIconButton, "TOPLEFT", (i % iconColumns) * 28, -math.floor(i / iconColumns) * 28)
+        last = b
+    end
+    local top, bottom = f.area.content:GetTop(), last:GetBottom()
+    if top and bottom then f.area:SetContentHeight(top - bottom + 12) end
+    UI.FitScale(f, FC.P.appearance.scale)
 end
 
 ------------------------------------------------------------------------
@@ -232,7 +319,7 @@ function Editor:RenderTagSuggestions()
     self.tagChips:ReleaseAll()
     local x = 0
     local usage = FC.Store:TagUsage()
-    local defaults = { "important", "come-back-later", "rare-spawn", "weird", "needs-testing", "raid-prep" }
+    local defaults = { L.TAG_SUGGEST_IMPORTANT, L.TAG_SUGGEST_RETURN, L.TAG_SUGGEST_RARE, L.TAG_SUGGEST_WEIRD, L.TAG_SUGGEST_TEST, L.TAG_SUGGEST_RAID }
     local list, seen = {}, {}
     for _, entry in ipairs(usage) do
         if #list < 8 then list[#list + 1] = entry.tag seen[entry.tag] = true end
@@ -269,6 +356,7 @@ function Editor:Open()
     UI.FitScale(self.frame, FC.P.appearance.scale)
     self:RenderContext()
     self:RenderTagSuggestions()
+    self:Layout()
     UI.FadeIn(self.frame, 0.14)
     self.frame.titleBox:SetFocus()
 end
@@ -342,13 +430,14 @@ function Editor:Save()
     local title = U.CleanText(frame.titleBox:GetText(), C.LIMITS.TITLE)
     if not title or title == "" then
         frame.error:SetText(L.EDITOR_TITLE_REQUIRED)
+        self:Layout()
         UI.SetBorderColor(frame.titleBox, "danger", 1)
         frame.titleBox:SetFocus()
         return
     end
     local tags = {}
     for _, tag in ipairs(U.Split(frame.tags:GetText(), ",")) do
-        tags[#tags + 1] = tag:lower():gsub("^#", "")
+        tags[#tags + 1] = U.Lower(tag):gsub("^#", "")
     end
     local def = Categories:Get(self.type)
     local loc = self.loc or {}
@@ -390,6 +479,7 @@ function Editor:Save()
     local rec, isNew = FC.Store:Create(fields, { source = "local", personal = true })
     if not rec then
         frame.error:SetText(L.EDITOR_SAVE_FAILED)
+        self:Layout()
         return
     end
     if not isNew then
@@ -397,7 +487,7 @@ function Editor:Save()
             FC.Store:MarkSeen(rec.id)
             FC.Store:AddVerification(rec.id, FC.Store.me, U.Now(), "local")
         end
-        FC:Print(L.MSG_ALREADY_KNOWN, U.Escape(rec.n or "?"))
+        FC:Print(L.MSG_ALREADY_KNOWN, U.Escape(FC.Locale:RecordText(rec, "n") or "?"))
     end
     self:Close()
     if FC.MainWindow:IsShown() then FC.MainWindow:ShowDiscovery(rec.id) end

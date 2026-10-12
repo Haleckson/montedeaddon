@@ -11,6 +11,7 @@ local AutoText = {}
 FC.AutoText = AutoText
 
 local L = FC.L
+local U = FC.Utils
 local Categories = FC.Categories
 
 local function levelText(fields)
@@ -51,7 +52,7 @@ local DESCRIBE = {
         return string.format(L.AUTO_RARE, levelText(f), L["CLASS_" .. (f.cls or "rare")], where(f)), { "rare-spawn", f.cls == "rareelite" and "elite" or nil }
     end,
     creature = function(f)
-        return string.format(L.AUTO_CREATURE, levelText(f), f.ct or L.CAT_CREATURE, classification(f.cls), where(f)), { f.ct and f.ct:lower() or nil, (f.cls == "elite") and "elite" or nil }
+        return string.format(L.AUTO_CREATURE, levelText(f), f.ct or L.CAT_CREATURE, classification(f.cls), where(f)), { f.ct and U.Lower(f.ct) or nil, (f.cls == "elite") and "elite" or nil }
     end,
     npc = function(f)
         return string.format(L.AUTO_NPC, where(f)), { f.cls == "worldboss" and "world-boss" or nil }

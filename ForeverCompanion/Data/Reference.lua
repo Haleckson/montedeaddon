@@ -336,7 +336,7 @@ end
 function Ref:DisplayNpcName(npcID)
     local name, source = self:KnownNpcName(npcID)
     if npcID and (not name or (source == "reference" and FC.Locale.client ~= "enUS")) then self:WantNpcName(npcID) end
-    return name, source
+    return name and FC.Locale:ContentName("npc", name, npcID), source
 end
 
 --- An object's name: the main data's, else the English one shipped for the

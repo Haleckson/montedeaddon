@@ -466,14 +466,14 @@ function Lore:NpcIDsByName(name)
         local index = {}
         for id, npc in pairs(self.data.npcs) do
             if npc.n then
-                local key = npc.n:lower()
+                local key = U.Lower(npc.n)
                 index[key] = index[key] or {}
                 table.insert(index[key], id)
             end
         end
         self.byName = index
     end
-    return self.byName[name:lower()] or {}
+    return self.byName[U.Lower(name)] or {}
 end
 
 --- A quest's title as far as it is known right now, and where it comes
@@ -520,7 +520,7 @@ function Lore:Title(questID)
         elseif source == "reference" and FC.Locale.client ~= "enUS" then
             Compat.RequestQuestData(questID) -- the client's title is in the player's language
         end
-        return title
+        return (FC.Locale:ContentName("quest", title, questID))
     end
     Compat.RequestQuestData(questID)
     return string.format(FC.L.TIP_QUEST_ID, tonumber(questID) or 0), true
@@ -657,7 +657,7 @@ function Lore:StarterDrops(npcID)
         local name = Compat.GetItemName(itemID) or item.n or ("item:" .. itemID)
         list[#list + 1] = {
             itemID = itemID,
-            name = name,
+            name = FC.Locale:ContentName("item", name, itemID),
             questID = item.q,
             title = item.q and self:Title(item.q) or nil,
             status = item.q and Compat.GetQuestStatus(item.q) or nil,

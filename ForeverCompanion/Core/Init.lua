@@ -30,7 +30,7 @@ local function readMetadata(field)
     return nil
 end
 
-FC.version = readMetadata("Version") or "0.9.3"
+FC.version = readMetadata("Version") or "3.0.2"
 
 --- Registers a module and returns its table. Modules are initialized in
 --- registration order, which follows the TOC order.

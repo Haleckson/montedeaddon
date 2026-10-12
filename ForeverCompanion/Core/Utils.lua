@@ -11,6 +11,48 @@ FC.Utils = U
 local floor, max, min = math.floor, math.max, math.min
 local format, gsub, lower, sub = string.format, string.gsub, string.lower, string.sub
 
+-- Lua 5.1's case conversion only handles ASCII. These alphabets cover the
+-- shipped European locales without altering the stable, saved record keys.
+local utf8Char = "[%z\1-\127\194-\244][\128-\191]*"
+local lowerChars, upperChars = {}, {}
+local capitals = "ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞŸŒŠŽẞАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+local small = "àáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿœšžßабвгдеёжзийклмнопрстуфхцчшщъыьэюя"
+local letters = {}
+for ch in small:gmatch(utf8Char) do letters[#letters + 1] = ch end
+local letterIndex = 0
+for ch in capitals:gmatch(utf8Char) do
+    letterIndex = letterIndex + 1
+    lowerChars[ch], upperChars[letters[letterIndex]] = letters[letterIndex], ch
+end
+upperChars["ß"] = "SS"
+function U.Lower(s)
+    if type(s) ~= "string" then return "" end
+    -- C's case conversion can also change high bytes on Windows. Restrict
+    -- it to ASCII before converting complete UTF-8 characters.
+    s = s:gsub("[A-Z]", function(ch) return string.char(ch:byte() + 32) end)
+    return (s:gsub("[\194-\244][\128-\191]+", lowerChars))
+end
+function U.Upper(s)
+    if type(s) ~= "string" then return "" end
+    s = s:gsub("[a-z]", function(ch) return string.char(ch:byte() - 32) end)
+    return (s:gsub("[\194-\244][\128-\191]+", upperChars))
+end
+-- Normalize separators for whole-word detection without interpreting UTF-8
+-- bytes as punctuation under the host's C locale.
+function U.WordText(s)
+    return (U.Lower(s):gsub("[%z\1-\47\58-\64\91-\96\123-\127]+", " "):gsub("’", " "):gsub(" +", " "))
+end
+function U.Truncate(s, count)
+    if type(s) ~= "string" then return "" end
+    local out, n = {}, 0
+    for ch in s:gmatch(utf8Char) do
+        n = n + 1
+        if n > count then return table.concat(out) .. "..." end
+        out[#out + 1] = ch
+    end
+    return s
+end
+
 function U.Now()
     if GetServerTime then
         local t = GetServerTime()
@@ -32,7 +74,7 @@ end
 
 function U.Trim(s)
     if type(s) ~= "string" then return "" end
-    return (gsub(s, "^%s*(.-)%s*$", "%1"))
+    return (gsub(s, "^[ \9-\13]*(.-)[ \9-\13]*$", "%1"))
 end
 
 --- Removes control characters and caps the length. Used on every piece of
@@ -268,9 +310,9 @@ end
 
 function U.FormatDuration(seconds)
     seconds = floor(seconds or 0)
-    if seconds < 60 then return format("%ds", seconds) end
-    if seconds < 3600 then return format("%dm", floor(seconds / 60 + 0.5)) end
-    return format("%dh %02dm", floor(seconds / 3600), floor((seconds % 3600) / 60))
+    if seconds < 60 then return format(FC.L.DURATION_SECONDS, seconds) end
+    if seconds < 3600 then return format(FC.L.DURATION_MINUTES, floor(seconds / 60 + 0.5)) end
+    return format(FC.L.DURATION_HOURS, floor(seconds / 3600), floor((seconds % 3600) / 60))
 end
 
 --- 12 h 05 m, or 3 d 4 h for longer spans.

@@ -1,7 +1,8 @@
 --[[
   Forever Companion - UI/Onboarding.lua
-  First-run flow: how progress counts (account-wide or per character), then
-  the sharing choice. Two screens, no wall of settings. The journal starts
+  First-run flow: language, then how progress counts (account-wide or per
+  character), then sharing. The language screen is shared with Settings.
+  The journal starts
   in the painted look; the palette at the top of the journal and
   Settings > Appearance change it.
 
@@ -41,12 +42,13 @@ local function optionCard(parent, title, text, icon, onClick)
     card.icon = UI.Icon(card, 32)
     card.icon:SetPoint("LEFT", 44, 0)
     UI.SetIcon(card.icon, icon)
-    card.title = UI.Text(card, "cardTitle", "text")
-    card.title:SetPoint("TOPLEFT", card.icon, "TOPRIGHT", 12, 0)
+    card.title = UI.WrappedText(card, "cardTitle", "text")
+    card.title:SetPoint("TOPLEFT", 88, -12)
+    card.title:SetWidth(WIDTH - 2 * INSET - 100)
     card.title:SetText(title)
-    card.text = UI.Text(card, "secondary", "muted")
-    card.text:SetPoint("BOTTOMLEFT", card.icon, "BOTTOMRIGHT", 12, 0)
-    card.text:SetPoint("RIGHT", -12, 0)
+    card.text = UI.WrappedText(card, "secondary", "muted")
+    card.text:SetPoint("TOPLEFT", card.title, "BOTTOMLEFT", 0, -5)
+    card.text:SetWidth(WIDTH - 2 * INSET - 100)
     card.text:SetText(text)
     card:SetScript("OnClick", onClick)
     UI.SkinFrame(card, "panel", { corner = 10, tint = 0.72 })
@@ -85,17 +87,19 @@ function Onboarding:Build()
     frame.logo:SetTexture(C.MEDIA .. "Logo")
     frame.logo:SetSize(56, 56)
     frame.logo:SetPoint("CENTER", frame.banner, "CENTER", 0, 0)
-    frame.title = UI.Text(frame, "title", "text")
+    frame.title = UI.WrappedText(frame, "title", "text")
     frame.title:SetPoint("TOP", frame.banner, "BOTTOM", 0, -12)
+    frame.title:SetWidth(WIDTH - 2 * INSET)
+    frame.title:SetJustifyH("CENTER")
     frame.subtitle = UI.WrappedText(frame, "body", "muted")
     frame.subtitle:SetPoint("TOP", frame.title, "BOTTOM", 0, -10)
     frame.subtitle:SetWidth(WIDTH - 80)
     frame.subtitle:SetJustifyH("CENTER")
     frame.step = UI.Text(frame, "meta", "muted")
     frame.step:SetPoint("BOTTOMLEFT", INSET, INSET + 4)
-    frame.next = UI.Button(frame, L.CONTINUE, { style = "primary", width = 140, height = 30, onClick = function() self:Next() end })
+    frame.next = UI.Button(frame, L.CONTINUE, { style = "primary", width = 140, height = 30, autoWidth = true, onClick = function() self:Next() end })
     frame.next:SetPoint("BOTTOMRIGHT", -INSET, INSET - 4)
-    frame.skip = UI.Button(frame, L.SKIP, { style = "ghost", width = 90, height = 30, onClick = function() self:Finish() end })
+    frame.skip = UI.Button(frame, L.SKIP, { style = "ghost", width = 90, height = 30, autoWidth = true, onClick = function() self:Finish() end })
     frame.skip:SetPoint("RIGHT", frame.next, "LEFT", -8, 0)
     self.frame = frame
 
@@ -124,6 +128,33 @@ function Onboarding:Build()
     share.guild = optionCard(share, L.ONBOARD_GUILD, L.ONBOARD_GUILD_TEXT, C.GUILD_ICON, function() self:SetSharing(true) end)
     share.guild:SetPoint("TOPLEFT", share.private, "BOTTOMLEFT", 0, -8)
     self.shareStep = share
+    FC.Bus:On("FONTS_CHANGED", self, function() if self.frame and self.frame:IsShown() then self:Layout() end end)
+end
+
+function Onboarding:Layout()
+    local f = self.frame
+    if not f then return end
+    local maxStepHeight = 0
+    for _, group in ipairs({ self.progressStep, self.shareStep }) do
+        group:ClearAllPoints()
+        group:SetPoint("TOPLEFT", f.subtitle, "BOTTOMLEFT", -(WIDTH - 2 * INSET - f.subtitle:GetWidth()) / 2, -16)
+        group:SetWidth(WIDTH - 2 * INSET)
+        group.label:SetHeight(math.max(22, group.label.label:GetStringHeight() + 8))
+        local cards = group == self.progressStep and { group.account, group.character } or { group.private, group.guild }
+        local h = group.label:GetHeight()
+        for _, card in ipairs(cards) do
+            card:SetHeight(math.max(64, 24 + card.title:GetStringHeight() + 5 + card.text:GetStringHeight()))
+            h = h + 8 + card:GetHeight()
+        end
+        group:SetHeight(h)
+        if group:IsShown() then maxStepHeight = math.max(maxStepHeight, h) end
+    end
+    f.next:FitLabel(220, 30)
+    f.skip:FitLabel(120, 30)
+    f.step:SetWidth(140)
+    local footer = math.max(f.next:GetHeight(), f.skip:GetHeight(), f.step:GetStringHeight())
+    f:SetHeight(INSET + BANNER + 12 + f.title:GetStringHeight() + 10 + f.subtitle:GetStringHeight() + 16 + maxStepHeight + 20 + footer + INSET)
+    UI.FitScale(f, FC.P.appearance.scale)
 end
 
 function Onboarding:SetSharing(enabled)
@@ -162,7 +193,8 @@ function Onboarding:ShowStep(index)
     local key = steps[index]
     self.progressStep:SetShown(key == "progress")
     self.shareStep:SetShown(key == "share")
-    frame.step:SetText(#steps > 1 and string.format(L.ONBOARD_STEP, index, #steps) or "")
+    local offset = self.withLanguage and 1 or 0
+    frame.step:SetText(#steps > 1 and string.format(L.ONBOARD_STEP, index + offset, #steps + offset) or "")
     -- the progress question has to be answered; what comes after it can be skipped
     frame.skip:SetShown(key ~= "progress")
     if index < #steps then
@@ -186,6 +218,7 @@ function Onboarding:ShowStep(index)
         self.shareStep.guild:SetSelected(enabled)
     end
     self:ApplyBanner()
+    self:Layout()
 end
 
 function Onboarding:Next()
@@ -206,15 +239,17 @@ function Onboarding:Finish()
     self.frame:Hide()
     if #self.steps > 1 then
         FC.db.onboarded = true
+        FC.db.languageGuidePending = nil
         FC:Print(L.ONBOARD_DONE)
     end
     local mode = FC.Progress:Mode() == "character" and L.PROGRESS_MODE_CHARACTER or L.PROGRESS_MODE_ACCOUNT
     FC:Print(L.MSG_PROGRESS_MODE, mode)
 end
 
-function Onboarding:Open(steps)
+function Onboarding:Open(steps, withLanguage)
     self:Build()
     self.steps = steps
+    self.withLanguage = withLanguage == true
     self.progressChoice = FC.db.progressMode -- nothing is preselected until the player chose once
     UI.FitScale(self.frame, FC.P.appearance.scale)
     self:ShowStep(1)
@@ -223,7 +258,8 @@ end
 
 --- The whole welcome guide (also Settings > General > Run the welcome guide).
 function Onboarding:Start()
-    self:Open(FULL)
+    if self.frame then self.frame:Hide() end
+    FC.LanguagePicker:Show(true)
 end
 
 --- The progress question alone, for players who had the addon before it asked.
@@ -232,13 +268,13 @@ function Onboarding:AskProgress()
 end
 
 function Onboarding:NeedsAsking()
-    return not FC.db.onboarded or not FC.Progress:IsChosen()
+    return FC.db.languageGuidePending or not FC.db.onboarded or not FC.Progress:IsChosen()
 end
 
 --- New players get the welcome guide; everyone else who never answered the
 --- progress question gets it alone. Never in the middle of a fight.
 function Onboarding:OpenWhenReady()
-    if not self:NeedsAsking() or (self.frame and self.frame:IsShown()) then return end
+    if not self:NeedsAsking() or (self.frame and self.frame:IsShown()) or FC.LanguagePicker:IsShown() then return end
     if InCombatLockdown() then
         FC.Events:Register("PLAYER_REGEN_ENABLED", self, function()
             FC.Events:Unregister("PLAYER_REGEN_ENABLED", self)
@@ -246,7 +282,39 @@ function Onboarding:OpenWhenReady()
         end)
         return
     end
-    if not FC.db.onboarded then self:Start() else self:AskProgress() end
+    if FC.db.languageGuidePending or (not FC.db.onboarded and FC.db.languageChosen) then
+        self:Open(FULL, true)
+    elseif not FC.db.onboarded then self:Start()
+    else self:AskProgress() end
+end
+
+--- A new character took the name of one the journal knew (the release wipes
+--- the beta's characters): asked once, after the guide and out of combat,
+--- whether it continues that character's journal or starts fresh. Closing
+--- the question any other way continues it.
+function Onboarding:AskIdentityWhenReady()
+    local Characters = FC.Characters
+    if not Characters:NeedsIdentityAnswer() then return end
+    if self:NeedsAsking() or (self.frame and self.frame:IsShown()) or FC.LanguagePicker:IsShown() then
+        U.After(10, function() self:AskIdentityWhenReady() end)
+        return
+    end
+    if InCombatLockdown() then
+        self.identityWaiter = self.identityWaiter or {}
+        FC.Events:Register("PLAYER_REGEN_ENABLED", self.identityWaiter, function()
+            FC.Events:Unregister("PLAYER_REGEN_ENABLED", self.identityWaiter)
+            U.After(2, function() self:AskIdentityWhenReady() end)
+        end)
+        return
+    end
+    local name = U.ShortName(FC.Store.me)
+    UI.Confirm(L.IDENTITY_TITLE, string.format(L.IDENTITY_TEXT, name, name), L.IDENTITY_FRESH, function()
+        Characters:ResolveIdentity(true)
+        FC:Print(L.MSG_IDENTITY_FRESH, name)
+    end, true, L.IDENTITY_CONTINUE, function()
+        Characters:ResolveIdentity(false)
+        FC:Print(L.MSG_IDENTITY_CONTINUE, name)
+    end)
 end
 
 function Onboarding:OnEnable()
@@ -254,6 +322,9 @@ function Onboarding:OnEnable()
     FC.Bus:On("THEME_CHANGED", self, function()
         if self.frame and self.frame:IsShown() then self:ApplyBanner() end
     end)
+    if FC.Characters:NeedsIdentityAnswer() then
+        U.After(6, function() self:AskIdentityWhenReady() end)
+    end
     -- players who knew the addon before hear once where the flat themes went
     if FC.db.meta.lookNotice then
         U.After(8, function()

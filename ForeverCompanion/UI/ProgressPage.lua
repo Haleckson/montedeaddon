@@ -99,8 +99,9 @@ local function newTableRow(parent, header)
             if self.tip then UI.ShowTooltip(self, self.tip.title, self.tip.lines) end
         end)
         row:SetScript("OnLeave", UI.HideTooltip)
-        row:SetScript("OnClick", function(self)
-            if self.onClick then FC:SafeCall("progress-row", self.onClick) end
+        row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        row:SetScript("OnClick", function(self, mouseButton)
+            if self.onClick then FC:SafeCall("progress-row", self.onClick, mouseButton) end
         end)
     end
     return row
@@ -179,6 +180,18 @@ function UI.ProgressPage(parent)
             selection[key] = true
         end
         self:Refresh()
+    end
+
+    --- The right-click menu of a character's row: a character you deleted
+    --- (the release wiped the beta's) can be forgotten.
+    function page:RowMenu(row, char)
+        UI.OpenMenu(row, {
+            { text = L.PROGRESS_FORGET, danger = true, disabled = char.current, onClick = function()
+                UI.Confirm(L.PROGRESS_FORGET, string.format(L.PROGRESS_FORGET_CONFIRM, char.name), L.PROGRESS_FORGET_BUTTON, function()
+                    if FC.Progress:Forget(char.key) then FC:Print(L.MSG_FORGOTTEN, char.name) end
+                end, true)
+            end },
+        }, 220)
     end
 
     function page:Refresh()
@@ -260,7 +273,7 @@ function UI.ProgressPage(parent)
             tile:SetPoint("TOPLEFT", (i - 1) * (tileWidth + gap) + 4, -y)
             tile:SetWidth(tileWidth)
             tile.value:SetText(U.FormatNumber(tiles[i][1]))
-            tile.label:SetText(tiles[i][2]:upper())
+            tile.label:SetText(U.Upper(tiles[i][2]))
             Theme:Paint(tile.bar, tiles[i][3], 0.9)
         end
         y = y + TILE + 22
@@ -345,7 +358,11 @@ function UI.ProgressPage(parent)
             local lines = { { L.PROGRESS_ROW_HINT, "muted" } }
             if not char.tracked then table.insert(lines, 1, { L.PROGRESS_NOT_TRACKED, "warning" }) end
             row.tip = { title = char.name, lines = lines }
-            row.onClick = function()
+            row.onClick = function(mouseButton)
+                if mouseButton == "RightButton" then
+                    self:RowMenu(row, char)
+                    return
+                end
                 self.selection = { [char.key] = true }
                 self:Refresh()
                 area:ScrollToTop()

@@ -35,22 +35,67 @@ local function baseDialog(name, width, height)
     dialog:EnableMouse(true)
     dialog:SetClampedToScreen(true)
     dialog.accent = UI.AccentLine(dialog)
-    dialog.title = UI.Text(dialog, "header", "text")
+    dialog.title = UI.WrappedText(dialog, "header", "text")
     dialog.title:SetPoint("TOPLEFT", EDGE + 2, -(EDGE + 2))
     dialog.title:SetPoint("TOPRIGHT", -(EDGE + 2), -(EDGE + 2))
-    dialog.text = UI.WrappedText(dialog, "body", "muted")
-    dialog.text:SetPoint("TOPLEFT", dialog.title, "BOTTOMLEFT", 0, -10)
-    dialog.text:SetPoint("TOPRIGHT", dialog.title, "BOTTOMRIGHT", 0, -10)
-    dialog.accept = UI.Button(dialog, L.OK, { style = "primary", width = 110 })
+    dialog.bodyArea = UI.ScrollArea(dialog)
+    dialog.bodyArea:SetPoint("TOPLEFT", dialog.title, "BOTTOMLEFT", 0, -10)
+    dialog.bodyArea:SetPoint("TOPRIGHT", dialog.title, "BOTTOMRIGHT", 0, -10)
+    dialog.text = UI.WrappedText(dialog.bodyArea.content, "body", "muted")
+    dialog.text:SetPoint("TOPLEFT")
+    dialog.accept = UI.Button(dialog, L.OK, { style = "primary", autoWidth = true, width = 110 })
     dialog.accept:SetPoint("BOTTOMRIGHT", -EDGE, EDGE)
-    dialog.cancel = UI.Button(dialog, L.CANCEL, { width = 100, onClick = function() dialog:Close() end })
+    dialog.cancel = UI.Button(dialog, L.CANCEL, { autoWidth = true, width = 100, onClick = function() dialog:Close() end })
     dialog.cancel:SetPoint("RIGHT", dialog.accept, "LEFT", -8, 0)
     -- Escape closes dialogs through UISpecialFrames (no keyboard capture needed)
     tinsert(UISpecialFrames, name)
-    dialog:SetScript("OnHide", function()
+    dialog:SetScript("OnHide", function(self)
         if dim then dim:Hide() end
+        -- closed without accepting (the cancel button, Escape, a reload)
+        local dismissed = self.onDismiss
+        self.onDismiss = nil
+        if dismissed then FC:SafeCall("dialog:dismiss", dismissed) end
     end)
+    function dialog:Layout()
+        local width = self:GetWidth() - 2 * (EDGE + 2)
+        self.title:SetWidth(width)
+        local maxButton = (width - 8) / 2
+        self.accept:FitLabel(maxButton, 30)
+        self.cancel:FitLabel(maxButton, 30)
+        local footer = math.max(self.accept:GetHeight(), self.cancel:IsShown() and self.cancel:GetHeight() or 0)
+        local bodyWidth = width - 10
+        self.bodyArea.content:SetWidth(bodyWidth)
+        self.text:SetWidth(bodyWidth)
+        local textHeight = math.max(1, self.text:GetStringHeight())
+        local reserve = self.box and 240 or (self.input and 52 or 0)
+        local available = (UIParent:GetHeight() - 80) / math.max(0.6, FC.P.appearance.scale or 1)
+            - 2 * EDGE - self.title:GetStringHeight() - footer - 28 - reserve
+        local bodyHeight = math.min(textHeight, math.max(120, math.min(600, available)))
+        self.bodyArea:SetHeight(bodyHeight)
+        self.bodyArea:SetContentHeight(textHeight)
+        local height = EDGE + 2 + self.title:GetStringHeight() + 10 + bodyHeight
+        if self.input then
+            self.input:ClearAllPoints()
+            self.input:SetPoint("TOPLEFT", self.bodyArea, "BOTTOMLEFT", 0, -12)
+            self.input:SetWidth(width)
+            self.input:SetHeight(math.max(28, FC.P.fonts.size + 12))
+            height = height + 12 + self.input:GetHeight()
+        end
+        if self.box then
+            self.box:ClearAllPoints()
+            self.box:SetPoint("TOPLEFT", self.bodyArea, "BOTTOMLEFT", 0, -12)
+            self.box:SetWidth(width)
+            self.box:SetHeight(190)
+            self.count:ClearAllPoints()
+            self.count:SetPoint("TOPLEFT", self.box, "BOTTOMLEFT", 0, -6)
+            self.count:SetWidth(width)
+            height = height + 12 + self.box:GetHeight() + 6 + self.count:GetStringHeight()
+        end
+        self:SetHeight(math.max(162, height + 18 + footer + EDGE))
+        UI.FitScale(self, FC.P.appearance.scale)
+    end
     function dialog:Open()
+        self:Layout()
         ensureDim():Show()
         UI.FitScale(self, FC.P.appearance.scale)
         UI.FadeIn(self, 0.12)
@@ -58,6 +103,7 @@ local function baseDialog(name, width, height)
     function dialog:Close()
         self:Hide()
     end
+    FC.Bus:On("FONTS_CHANGED", dialog, function() if dialog:IsShown() then dialog:Layout() end end)
     dialog:Hide()
     return dialog
 end
@@ -69,20 +115,24 @@ end
 local confirm
 
 --- Confirmation dialog. danger = true styles the accept button red.
-function UI.Confirm(title, text, acceptLabel, onAccept, danger)
+--- cancelLabel names the other choice; onCancel runs when the dialog closes
+--- any other way than accepting.
+function UI.Confirm(title, text, acceptLabel, onAccept, danger, cancelLabel, onCancel)
     if not confirm then
         confirm = baseDialog("ForeverCompanionConfirm", 432, 182)
     end
+    confirm.onDismiss = nil
     confirm.title:SetText(title or "")
     confirm.text:SetText(text or "")
     confirm.accept:SetLabel(acceptLabel or L.OK)
     confirm.accept:SetStyle(danger and "danger" or "primary")
+    confirm.cancel:SetLabel(cancelLabel or L.CANCEL)
     confirm.accept:SetScript("OnClick", function()
+        confirm.onDismiss = nil
         confirm:Close()
         if onAccept then FC:SafeCall("confirm", onAccept) end
     end)
-    local height = 122 + confirm.text:GetStringHeight()
-    confirm:SetHeight(math.max(162, height))
+    confirm.onDismiss = onCancel
     confirm:Open()
 end
 

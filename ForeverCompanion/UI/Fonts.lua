@@ -34,6 +34,14 @@ Fonts.ROLES = {
 }
 
 Fonts.objects = {}
+Fonts.cyrillic = {}
+
+function Fonts:CyrillicPath()
+    if FC.Locale.client == "ruRU" and type(_G.STANDARD_TEXT_FONT) == "string" then
+        return _G.STANDARD_TEXT_FONT
+    end
+    return "Fonts\\FRIZQT___CYR.TTF"
+end
 
 local function sharedMedia()
     local stub = _G.LibStub
@@ -70,13 +78,41 @@ end
 
 function Fonts:Path(name)
     for _, f in ipairs(self:List()) do
-        if f.name == name then return f.path end
+        if f.name == name then
+            -- Russian can be selected on a client using another language.
+            if FC.Locale.active == "ruRU" then
+                for _, builtin in ipairs(self.BUILTIN) do
+                    if builtin == f then return self:CyrillicPath() end
+                end
+            end
+            return f.path
+        end
     end
-    return self.BUILTIN[1].path
+    return _G.STANDARD_TEXT_FONT or self.BUILTIN[1].path
 end
 
 function Fonts:Get(role)
     return self.objects[role] or self.objects.body
+end
+
+-- Native language names and the picker preview must be readable before Apply.
+function Fonts:ForLocale(role, locale)
+    if FC.Locale:Resolve(locale) ~= "ruRU" then return self:Get(role) end
+    role = self.ROLES[role] and role or "body"
+    local object = self.cyrillic[role]
+    if not object then
+        object = CreateFont("ForeverCompanionFont_Cyrillic_" .. role)
+        self.cyrillic[role] = object
+    end
+    local settings = FC.P.fonts
+    local size = U.Clamp(tonumber(settings.size) or 12, 9, 20) + self.ROLES[role][2]
+    local flags = settings.outline ~= "NONE" and settings.outline or ""
+    local ok, applied = pcall(object.SetFont, object, self:CyrillicPath(), size, flags)
+    if not ok or applied == false then object:SetFont(_G.STANDARD_TEXT_FONT or "Fonts\\ARIALN.TTF", size, flags) end
+    object:SetShadowOffset(settings.shadow and 1 or 0, settings.shadow and -1 or 0)
+    object:SetShadowColor(0, 0, 0, settings.shadow and 0.75 or 0)
+    if object.SetSpacing then object:SetSpacing(settings.spacing or 0) end
+    return object
 end
 
 function Fonts:Apply()
@@ -94,7 +130,7 @@ function Fonts:Apply()
         local path = def[1] == "header" and headerPath or mainPath
         local ok, applied = pcall(object.SetFont, object, path, base + def[2], flags)
         if not ok or applied == false then
-            object:SetFont(self.BUILTIN[1].path, base + def[2], flags)
+            object:SetFont(_G.STANDARD_TEXT_FONT or self.BUILTIN[1].path, base + def[2], flags)
         end
         if settings.shadow then
             object:SetShadowOffset(1, -1)
@@ -104,6 +140,7 @@ function Fonts:Apply()
         end
         if object.SetSpacing then object:SetSpacing(settings.spacing or 0) end
     end
+    for role in pairs(self.cyrillic) do self:ForLocale(role, "ruRU") end
     FC.Bus:Emit("FONTS_CHANGED")
 end
 

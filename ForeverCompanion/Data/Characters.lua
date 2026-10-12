@@ -6,6 +6,8 @@
 
     FC.db.characters["Name-Realm"] = { n, c (class file), l (level), s (last seen),
                                        g (the character's GUID), qs (when the game last listed its quests),
+                                       b (born: a new character of a known name started over then),
+                                       ask (a new character of a known name has not been asked yet),
                                        q = { [questID] = true }, qd = { [questID] = turned in at },
                                        fp = { [nodeID] = true },
                                        rk = { [npcID] = true } (rares and world bosses defeated) }
@@ -28,6 +30,8 @@ local _, FC = ...
 local Characters = FC:NewModule("Characters")
 
 local U = FC.Utils
+local L = FC.L
+local C = FC.C
 local Compat = FC.Compat
 
 local MAX_QUESTS = 20000
@@ -76,6 +80,9 @@ function Characters:Validate(list)
                 s = tonumber(char.s) or 0,
                 g = type(char.g) == "string" and #char.g <= 64 and char.g or nil,
                 qs = tonumber(char.qs),
+                b = tonumber(char.b),
+                ask = char.ask == true or nil,
+                old = type(char.old) == "table" and char.old or nil,
                 q = quests,
                 qd = dates,
                 fp = nodes,
@@ -110,7 +117,7 @@ function Characters:BackupCopy()
     local chars = {}
     for key, char in pairs(self.list) do
         chars[key] = {
-            n = char.n, c = char.c, l = char.l, s = char.s, g = char.g,
+            n = char.n, c = char.c, l = char.l, s = char.s, g = char.g, b = char.b,
             fp = U.CopyTable(char.fp), rk = U.CopyTable(char.rk), q = U.CopyTable(char.q), qd = U.CopyTable(char.qd),
         }
     end
@@ -127,7 +134,7 @@ function Characters:Merge(chars, nodes)
             -- the backup's character of this name is another one: nothing of it is this one's
             mine.c, mine.l = mine.c or char.c, mine.l or char.l
         else
-            mine.c, mine.l = mine.c or char.c, mine.l or char.l
+            mine.c, mine.l, mine.b = mine.c or char.c, mine.l or char.l, mine.b or char.b
             for id in pairs(char.fp) do mine.fp[id] = true end
             for id in pairs(char.rk) do mine.rk[id] = true end
             for id in pairs(char.q) do mine.q[id] = true end
@@ -163,9 +170,11 @@ function Characters:Snapshot()
     char.s = U.Now()
 end
 
---- A deleted character's name can be taken by a new one: the game tells
---- them apart by their GUID. What the old one completed, learned and
---- defeated is not the new one's.
+--- A deleted character's name can be taken by a new one (the release wipes
+--- the beta's characters): the game tells them apart by their GUID. What
+--- the old one completed, learned and defeated is not the new one's; the
+--- rest (its finds, milestones and autobiography) is the player's to keep
+--- or to let go, asked once the UI is up (UI/Onboarding.lua).
 function Characters:CheckIdentity()
     local char = self:Me()
     local guid = Compat.SafeCall(_G.UnitGUID, "player")
@@ -173,10 +182,75 @@ function Characters:CheckIdentity()
     local replaced = char.g ~= nil and char.g ~= guid
     if replaced then
         FC.Log:Info("Another character now has the name %s: its completed quests, flight paths and defeated rares start over", tostring(FC.Store.me))
+        -- the previous character's, kept until the question is answered
+        char.old = { n = char.n, c = char.c, l = char.l, s = char.s, q = char.q, qd = char.qd, fp = char.fp, rk = char.rk }
         char.q, char.qd, char.fp, char.rk, char.qs = {}, {}, {}, {}, nil
+        char.ask = true
     end
     char.g = guid
     return replaced
+end
+
+--- The name a character is listed under: its own, or "First Surname
+--- (previous)" for the previous character of a name.
+function Characters:DisplayName(key)
+    if type(key) ~= "string" then return "?" end
+    local suffix = C.PREVIOUS_SUFFIX
+    local at = key:find(suffix, 1, true)
+    if at and at > 1 then
+        return self:DisplayName(key:sub(1, at - 1)) .. " " .. L.BIO_PREVIOUS .. key:sub(at + #suffix)
+    end
+    local char = self.list and self.list[key]
+    return (char and char.n) or U.ShortName(key)
+end
+
+--- A key for the previous character of a name that no entry holds yet.
+function Characters:PreviousKey(key)
+    local base = key .. C.PREVIOUS_SUFFIX
+    local candidate, n = base, 2
+    local db = FC.db
+    while self.list[candidate] or db.found[candidate] or db.bio[candidate] do
+        candidate = base .. " " .. n
+        n = n + 1
+    end
+    return candidate
+end
+
+--- Whether the character you play is new under a known name and has not
+--- been asked yet what to do with the previous one's journal.
+function Characters:NeedsIdentityAnswer()
+    return self:Me().ask == true
+end
+
+--- The answer: fresh = true starts this character's journal over (what the
+--- previous character of this name found no longer counts for it, its
+--- milestones start again, its autobiography is kept as a previous
+--- chronicle); false continues the previous one's. The journal's entries
+--- stay either way.
+function Characters:ResolveIdentity(fresh)
+    local char, key = self:Me()
+    local old = char.old
+    char.ask, char.old = nil, nil
+    if not fresh then return nil end
+    -- the previous character goes on under its own key, with everything it did
+    local prev = self:PreviousKey(key)
+    old = old or {}
+    self.list[prev] = {
+        n = old.n, c = old.c, l = old.l, s = old.s or 0,
+        q = old.q or {}, qd = old.qd or {}, fp = old.fp or {}, rk = old.rk or {},
+    }
+    char.b = U.Now()
+    FC.db.found[prev], FC.db.found[key] = FC.db.found[key], nil
+    for _, state in pairs(FC.Store.state) do
+        if state.opened then
+            state.opened[prev], state.opened[key] = state.opened[key], nil
+        end
+    end
+    FC.db.charMilestones[prev], FC.db.charMilestones[key] = FC.db.charMilestones[key], nil
+    FC.Biography:Archive(key, prev)
+    FC.Store:MarkDirty()
+    FC.Bus:Emit("STORE_RESET")
+    return prev
 end
 
 --- Reads every quest this character has completed (when the client can list

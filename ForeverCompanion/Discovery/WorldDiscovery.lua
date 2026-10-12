@@ -157,24 +157,24 @@ Engine:RegisterDetector("dungeon-areas", {
 -- Whether a name has one of the words of a comma separated list, as a whole word.
 local function hasWord(name, list)
     if type(name) ~= "string" then return false end
-    local padded = " " .. name:lower():gsub("[%p%s]+", " ") .. " "
+    local padded = " " .. U.WordText(name) .. " "
     for _, word in ipairs(U.Split(list, ",")) do
-        if padded:find(" " .. word:lower() .. " ", 1, true) then return true end
+        if padded:find(" " .. U.Lower(word) .. " ", 1, true) then return true end
     end
     return false
 end
 
 --- A building's name (Main Hall, Northshire Abbey, Tower ...), not a cave's.
 function World:IsBuildingName(name)
-    return hasWord(name, L.BUILDING_WORDS) and not hasWord(name, L.CAVE_WORDS)
+    return hasWord(name, FC.Locale:DetectionWords("BUILDING_WORDS")) and not hasWord(name, FC.Locale:DetectionWords("CAVE_WORDS"))
 end
 
 --- An explored area that is a cave: its name says so (Mine, Cave, Cavern ...),
 --- or you are indoors when the game names it (outside towns and inns) and
 --- the name is not a building's.
 function World:LooksLikeCave(area)
-    if hasWord(area, L.CAVE_WORDS) then return true end
-    if hasWord(area, L.BUILDING_WORDS) or hasWord(area, L.SETTLEMENT_WORDS) then return false end
+    if hasWord(area, FC.Locale:DetectionWords("CAVE_WORDS")) then return true end
+    if hasWord(area, FC.Locale:DetectionWords("BUILDING_WORDS")) or hasWord(area, FC.Locale:DetectionWords("SETTLEMENT_WORDS")) then return false end
     -- indoors, and walked there: below deck on a ship that reaches a harbor,
     -- or in a zeppelin's cabin, the game names the place too
     if Compat.IsTraveling() or Compat.IsMovingOnFoot() == false then return false end
@@ -206,13 +206,13 @@ function World:RecordCave(mapID, x, y, name, route)
     local id = existing and existing.id
         or (name and ("u:cave:" .. mapID .. ":" .. U.NormalizeTitle(name)))
         or ("u:cave:" .. mapID .. ":" .. U.GridKey(x, y, D.OBJECT_GRID))
+    local trail = U.CopyTable(route or FC.Location:RecentRoute(mapID, D.ROUTE_POINTS))
     local rec = Engine:Record({
         t = "cave", n = name or string.format(L.AUTO_CAVE_TITLE, zone ~= "" and zone or "?"),
         m = mapID, x = x, y = y,
         z = zone ~= "" and zone or nil, sz = subzone ~= "" and subzone or nil,
         ic = Categories:Get("cave").icon,
-    }, { id = id })
-    if rec then self:RecordRoute(rec, route) end
+    }, { id = id, onRecorded = function(record) self:RecordRoute(record, trail) end })
     return rec
 end
 
@@ -312,7 +312,7 @@ function World:FileExplored(mapID, area, now)
         store:MarkSeen(existing.id, now, true)
         return "known"
     end
-    local cave = FC.Config:Get("discovery.caves") and hasWord(name, L.CAVE_WORDS) and not hasWord(name, L.BUILDING_WORDS)
+    local cave = FC.Config:Get("discovery.caves") and hasWord(name, FC.Locale:DetectionWords("CAVE_WORDS")) and not hasWord(name, FC.Locale:DetectionWords("BUILDING_WORDS"))
     local typeKey = cave and "cave" or "landmark"
     local zone = Compat.GetMapName(mapID)
     local rec, isNew = store:Create({
@@ -450,7 +450,7 @@ Engine:RegisterDetector("readables", {
             fields.n = title
             if text then
                 text = text:gsub("<[^>]+>", ""):gsub("%s+", " ")
-                fields.d = #text > 400 and (text:sub(1, 397) .. "...") or text
+                fields.d = U.Truncate(text, 397)
             end
             fields.tg = { "lore", "readable" }
             fields.ic = "Interface\\Icons\\INV_Misc_Book_09"

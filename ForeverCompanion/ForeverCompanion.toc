@@ -1,12 +1,23 @@
 ## Interface: 16001
 ## Title: Forever Companion |cffd8b25cDiscovery Journal|r
+## Title-frFR: Forever Companion |cffd8b25cJournal d'exploration|r
+## Title-esES: Forever Companion |cffd8b25cDiario de exploración|r
+## Title-esMX: Forever Companion |cffd8b25cDiario de exploración|r
+## Title-ruRU: Forever Companion |cffd8b25cДневник открытий|r
+## Title-deDE: Forever Companion |cffd8b25cEntdeckungsjournal|r
 ## Notes: A collaborative discovery journal for WoW Forever. Explore, document and share what your guild finds.
 ## Author: Duta
-## Version: 0.9.3
+## Version: 3.0.2
+## Notes-frFR: Journal d'exploration collaboratif. Explorez, consignez et partagez les découvertes de votre guilde.
+## Notes-esES: Diario de exploración colaborativo. Explora, registra y comparte los hallazgos de tu hermandad.
+## Notes-esMX: Diario de exploración colaborativo. Explora, registra y comparte los hallazgos de tu hermandad.
+## Notes-ruRU: Общий дневник исследований. Исследуйте, записывайте и делитесь открытиями гильдии.
+## Notes-deDE: Gemeinsames Erkundungsjournal. Entdecke, dokumentiere und teile die Funde deiner Gilde.
 ## X-Build-Target: World of Warcraft: Forever 1.60.1 (build 70170)
 ## X-License: All Rights Reserved
 ## X-Copyright: Copyright (c) 2026 IAMTHEDOT. All rights reserved.
-## X-Website: https://www.curseforge.com/wow/addons/forever-companion
+## X-Website: https://www.curseforge.com/wow/addons/forever-companion-discovery-journal
+## X-Curse-Project-ID: 1710926
 ## Category: Map & Minimap
 ## IconTexture: Interface\AddOns\ForeverCompanion\Media\Logo
 ## SavedVariables: ForeverCompanionDB
@@ -27,6 +38,18 @@ Core\Log.lua
 Core\Utils.lua
 Localization\Localization.lua
 Localization\enUS.lua
+Localization\frFR.lua
+Localization\esES.lua
+Localization\ruRU.lua
+Localization\deDE.lua
+Localization\Content\place.lua
+Localization\Content\quest.lua
+Localization\Content\npc.lua
+Localization\Content\item.lua
+Localization\Content\object.lua
+Localization\Content\role.lua
+Localization\Content.lua
+Localization\Display.lua
 Core\Compatibility.lua
 Core\Events.lua
 Core\Serializer.lua
@@ -48,8 +71,12 @@ Data\Reference\World.lua
 Data\Reference\Wowhead.lua
 # where the quests start that the files above name no start for, generated from the newer AllTheThings data (MIT License)
 Data\Reference\Starts.lua
+Data\Reference\DiscoveryUpdates.lua
 Data\Reference.lua
+Data\SecretCatalog.lua
 Data\Biography.lua
+Data\DiscoveryLoreData.lua
+Data\DiscoveryLore.lua
 
 # Discovery engine
 Discovery\Location.lua
@@ -75,6 +102,8 @@ Features\ChatLinks.lua
 Features\Milestones.lua
 Features\Progress.lua
 Features\QuestHistory.lua
+Media\Narration\Manifest.lua
+Features\Narrator.lua
 
 # UI framework and journal
 UI\Theme.lua
@@ -97,16 +126,19 @@ UI\QuestMarkers.lua
 UI\ZoneGuide.lua
 UI\MinimapButton.lua
 UI\TargetButton.lua
+UI\LanguagePicker.lua
 UI\Onboarding.lua
 
 # Map
 Map\Waypoints.lua
+Map\PinArt.lua
 Map\Pins.lua
 Map\Pins.xml
 Map\MapIntegration.lua
 Map\MinimapPins.lua
 
 # Settings
+UI\PinStylePicker.lua
 Settings\SettingsSchema.lua
 Settings\SettingsWindow.lua
 

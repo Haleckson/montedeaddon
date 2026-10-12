@@ -195,14 +195,14 @@ local function learnStarterLoot()
         if item.questID then
             local npcID
             for _, source in ipairs(item.sources) do
-                if source.guidType == "Creature" and source.id then npcID = source.id break end
+                if (source.guidType == "Creature" or source.guidType == "Vehicle") and source.id then npcID = source.id break end
             end
             -- a client that names no loot source at all: the dead target is
             -- what was looted. A chest or a herb names itself as the source,
             -- and then a corpse that happens to be targeted dropped nothing.
             if not npcID and #item.sources == 0 then
-                local target = Compat.GetUnitInfo("target")
-                if target and target.isDead and target.npcID then npcID = target.npcID end
+                local target = Compat.GetLootCreatureFallback()
+                if target then npcID = target.npcID end
             end
             local npcName
             if npcID then

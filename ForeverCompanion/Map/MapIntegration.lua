@@ -38,7 +38,7 @@ function MapIntegration:PassesFilters(rec)
     if not FC.Store:IsKnown(rec) then return false end
     local state = FC.Store:GetState(rec.id)
     if state and state.arch and not FC.P.journal.showArchived then return false end
-    local group = Categories:Get(rec.t).mapGroup
+    local group = Categories:ForRecord(rec).mapGroup
     if P.hiddenGroups[group] == true then return false end
     if not P.showDeaths and type(rec.id) == "string" and rec.id:find("^u:death:") then return false end
     local mine = FC.Store:IsMine(rec)
@@ -59,32 +59,61 @@ local function createProvider()
     end
 
     function provider:RefreshAllData()
-        self:RemoveAllData()
         local map = self:GetMap()
         local mapID = map and map:GetMapID()
-        if not mapID then return end
+        if not mapID then self:RemoveAllData(); return end
+        -- Releasing every pin also ends its hover and cuts narration short.
+        -- Reuse unchanged records; remove only pins that no longer belong here.
+        local existing, unused = {}, {}
+        local function positionKey(x, y)
+            return x ~= nil and (tostring(x) .. ":" .. tostring(y)) or "main"
+        end
+        if type(map.EnumeratePinsByTemplate) == "function" and type(map.RemovePin) == "function" then
+            for pin in map:EnumeratePinsByTemplate(TEMPLATE) do
+                unused[pin] = true
+                if pin.rec then
+                    existing[pin.rec] = existing[pin.rec] or {}
+                    existing[pin.rec][positionKey(pin.fcDotX, pin.fcDotY)] = pin
+                end
+            end
+        else
+            self:RemoveAllData()
+        end
+        local function acquire(rec, veiled, x, y)
+            local pin = existing[rec] and existing[rec][positionKey(x, y)]
+            if pin and unused[pin] and pin.veiled == veiled then
+                unused[pin] = nil
+                pin:ApplyAppearance()
+                pin:SetPosition(x or rec.x, y or rec.y)
+            else
+                map:AcquirePin(TEMPLATE, rec, veiled, x, y)
+            end
+        end
         FC.ZoneGuide:OnWorldMapChanged(mapID)
         for _, rec in ipairs(FC.Store:ForMap(mapID)) do
             local visible, veiled = MapIntegration:IsVisible(rec)
             if visible then
-                map:AcquirePin(TEMPLATE, rec, veiled)
-                if not veiled then MapIntegration:AcquireDots(map, rec) end
+                acquire(rec, veiled)
+                if not veiled then MapIntegration:AcquireDots(map, rec, acquire) end
             end
         end
+        for pin in pairs(unused) do map:RemovePin(pin) end
     end
 
     return provider
 end
 
 --- Route points (paths, shortcuts) and extra spots (gathering nodes).
-function MapIntegration:AcquireDots(map, rec)
+function MapIntegration:AcquireDots(map, rec, acquire)
+    if FC.P.map.routeDots == false then return end
     local list = rec.tr or rec.pts
     if not list then return end
     for i, packed in ipairs(list) do
         local x, y = U.UnpackPoint(packed)
         local isMain = math.abs(x - rec.x) < 0.0005 and math.abs(y - rec.y) < 0.0005
         if not isMain and i <= 60 then
-            map:AcquirePin(TEMPLATE, rec, false, x, y)
+            if acquire then acquire(rec, false, x, y)
+            else map:AcquirePin(TEMPLATE, rec, false, x, y) end
         end
     end
 end
@@ -99,12 +128,30 @@ function MapIntegration:QueueRefresh()
     U.Debounce("map-refresh", 0.2, function() self:Refresh() end)
 end
 
+-- Apply visual sliders immediately, without rebuilding data or recycling pins
+-- on every step of a drag. Hidden maps pick up the profile on their next refresh.
+function MapIntegration:RefreshPinAppearance()
+    local map = WorldMapFrame
+    if not (map and map:IsShown() and map.EnumeratePinsByTemplate) then return end
+    for pin in map:EnumeratePinsByTemplate(TEMPLATE) do
+        if pin.ApplyAppearance then pin:ApplyAppearance() end
+    end
+end
+
+local PIN_APPEARANCE = {
+    ["map.iconScale"] = true, ["map.iconAlpha"] = true,
+    ["map.pinArtwork"] = true, ["map.dotScale"] = true,
+    ["map.pinBackdrop"] = true, ["map.pinOutlineAlpha"] = true,
+}
+
 function MapIntegration:Highlight(id)
     C_Timer.After(0.3, function()
         if not (WorldMapFrame and WorldMapFrame.EnumeratePinsByTemplate) then return end
-        local ok, iterator = pcall(WorldMapFrame.EnumeratePinsByTemplate, WorldMapFrame, TEMPLATE)
+        local ok, iterator, state, key = pcall(WorldMapFrame.EnumeratePinsByTemplate, WorldMapFrame, TEMPLATE)
         if not ok or not iterator then return end
-        for pin in iterator do
+        -- Pool iterators may return a function, state and initial key (pairs),
+        -- rather than a self-contained closure. Preserve the complete result.
+        for pin in iterator, state, key do
             if pin.rec and pin.rec.id == id and pin.Pulse then pin:Pulse(4) end
         end
     end)
@@ -147,26 +194,148 @@ end
 -- Filter button on the world map
 ------------------------------------------------------------------------
 
+-- Store fractions of the usable map area, not screen coordinates. This
+-- keeps the button on the map when its size, position or UI scale changes.
+local function buttonFraction(value, fallback)
+    if type(value) ~= "number" or value ~= value then return fallback end
+    return math.max(0, math.min(1, value))
+end
+
+local function buttonPosition()
+    local saved = FC.P.map.menuButton
+    if type(saved) ~= "table" then return 0, 1 end
+    return buttonFraction(saved.x, 0), buttonFraction(saved.y, 1)
+end
+
+local function buttonBounds(button)
+    local parent = button:GetParent()
+    local scale = button:GetScale() or 1
+    local width = math.max(0, parent:GetWidth() - button:GetWidth() * scale)
+    local height = math.max(0, parent:GetHeight() - button:GetHeight() * scale)
+    local padX, padY = math.min(8, width / 2), math.min(8, height / 2)
+    return parent, padX, padY, width - 2 * padX, height - 2 * padY
+end
+
+local function anchorButton(button, x, y)
+    local parent, padX, padY, width, height = buttonBounds(button)
+    button:ClearAllPoints()
+    button:SetPoint("TOPLEFT", parent, "TOPLEFT", padX + width * x, -padY - height * y)
+end
+
+function MapIntegration:PlaceFilterButton()
+    local button = self.filterButton
+    if not button or button.fcMapDrag then return end
+    local x, y = buttonPosition()
+    anchorButton(button, x, y)
+end
+
+function MapIntegration:UpdateFilterButtonDrag()
+    local button = self.filterButton
+    local drag = button and button.fcMapDrag
+    if not drag then return end
+    local parent, padX, padY, width, height = buttonBounds(button)
+    local left, top = parent:GetLeft(), parent:GetTop()
+    local scale = parent:GetEffectiveScale()
+    if not left or not top or not scale or scale <= 0 then return end
+    local cursorX, cursorY = GetCursorPosition()
+    drag.x = width > 0 and buttonFraction((cursorX / scale - left - drag.grabX - padX) / width, drag.x) or 0
+    drag.y = height > 0 and buttonFraction((top - cursorY / scale - drag.grabY - padY) / height, drag.y) or 0
+    anchorButton(button, drag.x, drag.y)
+end
+
+function MapIntegration:StopFilterButtonDrag(save)
+    local button = self.filterButton
+    local drag = button and button.fcMapDrag
+    if not drag then return end
+    button:SetScript("OnUpdate", nil)
+    button.fcMapDrag = nil
+    if save then
+        FC.Config:Set("map.menuButton", { x = drag.x, y = drag.y })
+    end
+    self:PlaceFilterButton()
+end
+
 function MapIntegration:BuildFilterButton()
     local parent = WorldMapFrame.ScrollContainer or WorldMapFrame
-    local button = UI.IconButton(parent, FC.C.MEDIA .. "Logo", 30, nil, function(b, mouseButton)
+    local button = UI.IconButton(parent, FC.C.MEDIA .. "Logo", 24, nil, function(b, mouseButton)
+        -- A move must not also open the zone guide or the filter menu.
+        if b.fcMapDrag or b.fcMapDragClick or IsShiftKeyDown() then return end
         if mouseButton == "RightButton" then
             self:OpenFilterMenu(b)
         else
             FC.ZoneGuide:ToggleForMap(WorldMapFrame:GetMapID())
         end
     end)
-    button:SetPoint("TOPLEFT", parent, "TOPLEFT", 8, -8)
     button:SetFrameLevel((parent:GetFrameLevel() or 1) + 20)
+    button:EnableMouse(true)
+    button:RegisterForDrag("LeftButton")
+    button:SetHitRectInsets(-4, -4, -4, -4)
+
+    -- Make the map button cleaner and less intrusive: smaller footprint,
+    -- sharper logo, soft round backing for contrast, no opaque square fill.
     FC.Theme:Forget(button.bg)
-    button.bg:SetColorTexture(0, 0, 0, 0.55)
+    button.bg:SetAlpha(0)
+    button.hover:SetAlpha(0.14)
+    button.icon:SetSize(20, 20)
+    button.icon:SetPoint("CENTER")
+    if button.icon.SetTexelSnappingBias then pcall(button.icon.SetTexelSnappingBias, button.icon, 0) end
+
+    button.shadow = button:CreateTexture(nil, "BACKGROUND", nil, -2)
+    button.shadow:SetTexture(FC.C.WHITE)
+    if button.shadow.SetMask then pcall(button.shadow.SetMask, button.shadow, FC.C.CIRCLE_MASK) end
+    button.shadow:SetPoint("CENTER")
+    button.shadow:SetSize(22, 22)
+    button.shadow:SetVertexColor(0, 0, 0, 0.22)
+
+    button.backdrop = button:CreateTexture(nil, "BACKGROUND", nil, -1)
+    button.backdrop:SetTexture(FC.C.WHITE)
+    if button.backdrop.SetMask then pcall(button.backdrop.SetMask, button.backdrop, FC.C.CIRCLE_MASK) end
+    button.backdrop:SetPoint("CENTER")
+    button.backdrop:SetSize(20, 20)
+    button.backdrop:SetVertexColor(0.04, 0.06, 0.09, 0.18)
+
+    button:SetScript("OnMouseDown", function(b) b.fcMapDragClick = nil end)
+    button:SetScript("OnDragStart", function(b)
+        if not IsShiftKeyDown() then return end
+        local map, padX, padY, width, height = buttonBounds(b)
+        local left, top = map:GetLeft(), map:GetTop()
+        local scale = map:GetEffectiveScale()
+        if not left or not top or not scale or scale <= 0 then return end
+        local x, y = buttonPosition()
+        local cursorX, cursorY = GetCursorPosition()
+        b.fcMapDrag = {
+            x = x, y = y,
+            grabX = cursorX / scale - left - padX - width * x,
+            grabY = top - padY - height * y - cursorY / scale,
+        }
+        b.fcMapDragClick = true
+        UI.HideTooltip(b)
+        UI.CloseMenu()
+        -- Move only this button, always anchored to its map parent. Avoid
+        -- StartMoving's screen anchors and never drag the world map itself.
+        b:SetScript("OnUpdate", function() self:UpdateFilterButtonDrag() end)
+    end)
+    button:SetScript("OnDragStop", function()
+        self:UpdateFilterButtonDrag()
+        self:StopFilterButtonDrag(true)
+    end)
+    button:SetScript("OnHide", function() self:StopFilterButtonDrag(true) end)
+    button:SetScript("OnShow", function() self:PlaceFilterButton() end)
+    if parent.HookScript then
+        parent:HookScript("OnSizeChanged", function() self:PlaceFilterButton() end)
+    end
     button:SetScript("OnEnter", function(b)
-        UI.ShowTooltip(b, L.ADDON_NAME, { { L.MAP_ZONE_TIP, "text" }, { L.MAP_FILTER_TIP, "muted" }, { L.MAP_NOTE_TIP, "muted" } }, FC.C.MEDIA .. "Logo")
+        UI.ShowTooltip(b, L.ADDON_NAME, {
+            { L.MAP_ZONE_TIP, "text" },
+            { L.MAP_FILTER_TIP, "muted" },
+            { L.MAP_BUTTON_MOVE_TIP, "muted" },
+            { L.MAP_NOTE_TIP, "muted" },
+        }, FC.C.MEDIA .. "Logo")
     end)
     button:SetScript("OnLeave", UI.HideTooltip)
     self.filterButton = button
+    self:PlaceFilterButton()
 end
-
 function MapIntegration:OpenFilterMenu(anchor)
     local P = FC.P.map
     local function toggle(path)
@@ -243,8 +412,16 @@ function MapIntegration:OnEnable()
         FC.Bus:On(message, self, refresh)
     end
     FC.Bus:On("SETTINGS_CHANGED", self, function(_, path)
-        if path == "*" or path:find("^map") or path:find("^knowledge") or path:find("^discovery%.verify") then
+        if path == "*" or path == "map" or path == "map.*" or path:find("^map%.menuButton") then
+            -- A profile switch or settings reset takes precedence over a drag.
+            self:StopFilterButtonDrag(false)
+            self:PlaceFilterButton()
+        end
+        if PIN_APPEARANCE[path] then
+            self:RefreshPinAppearance()
+        elseif path == "*" or path:find("^map") or path:find("^knowledge") or path:find("^discovery%.verify") then
             self:QueueRefresh()
         end
     end)
+    FC.Events:Register("UI_SCALE_CHANGED", self, self.RefreshPinAppearance)
 end

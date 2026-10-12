@@ -27,14 +27,17 @@ local EVENTS = {
 
 --- Plain-text link for a record (what is typed into chat).
 function ChatLinks:Build(rec)
-    local title = (rec.n or "?"):gsub("[%[%]|]", "")
-    if #title > 40 then title = title:sub(1, 40) end
+    local title = (FC.Locale:RecordText(rec, "n") or "?"):gsub("[%[%]|]", "")
+    title = U.CleanText(title, 80)
     return "[FC:" .. rec.id .. " " .. title .. "]"
 end
 
 function ChatLinks:Insert(rec)
-    if not rec then return false end
-    return Compat.InsertChatLink(self:Build(rec))
+    if not rec or rec.del or FC.UI.Display(rec).rumored then return false end
+    local text = self:Build(rec)
+    if Compat.InsertChatLink(text) then return true end
+    FC.UI.TextDialog(FC.L.ACTION_LINK, text, true, nil, FC.L.CHAT_LINK_COPY_HINT)
+    return true
 end
 
 local function validID(id)

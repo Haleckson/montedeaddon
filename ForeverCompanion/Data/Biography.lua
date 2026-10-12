@@ -6,8 +6,12 @@
 
     travel     distance in yards (shown in km) on foot, mounted, swimming, on
                flights and as a ghost; per zone; flights taken, hearthstones
-    time       online, in combat, dead, AFK, resting, grouped, on flights;
-               per zone
+    time       with the journal running (sampled every second while the addon
+               is loaded and the autobiography is on; a gap longer than a few
+               seconds, a loading screen, is not counted), of it in combat,
+               dead, AFK, resting, grouped, on flights; per zone. The game's
+               own count, /played, is asked for at login and kept beside it
+               (played: total, at the current level, when it was asked).
     life       deaths (by killer and zone), longest life without dying
     fights     creatures killed (from experience messages: the combat log is
                closed to addons on this client), experience by source
@@ -22,7 +26,10 @@
                rares, skill milestones, duels, guild changes, first epic item
 
   Stored per character in ForeverCompanionDB.bio["Name-Realm"]; every map is
-  bounded so a long life never grows the SavedVariables without limit.
+  bounded so a long life never grows the SavedVariables without limit. An
+  update of the addon never touches it: the file lives in WTF, no migration
+  rewrites it, and ValidateStats keeps what it does not know (a field a newer
+  version added), so going back and forth between versions loses nothing.
 ]]
 
 local _, FC = ...
@@ -110,13 +117,21 @@ function Bio:ValidateStats(s)
         levels = numberMap(s.levels, 200, true),
         timeline = {},
     }
+    -- the game's own count (/played), when it was asked: total, at that level
+    if type(s.played) == "table" and tonumber(s.played.total) then
+        out.played = { total = tonumber(s.played.total), level = tonumber(s.played.level) or 0, lvl = tonumber(s.played.lvl), at = tonumber(s.played.at) or 0 }
+    end
     if type(s.timeline) == "table" then
         for _, e in ipairs(s.timeline) do
             if type(e) == "table" and type(e.t) == "number" and type(e.k) == "string" then
-                out.timeline[#out.timeline + 1] = { t = e.t, k = e.k:sub(1, 16), v = type(e.v) == "string" and e.v:sub(1, 120) or e.v, z = type(e.z) == "string" and e.z:sub(1, 64) or nil, l = tonumber(e.l) }
+                out.timeline[#out.timeline + 1] = { t = e.t, k = e.k:sub(1, 16), v = type(e.v) == "string" and U.CleanText(e.v, 120) or e.v, z = type(e.z) == "string" and U.CleanText(e.z, 64) or nil, l = tonumber(e.l) }
             end
             if #out.timeline >= LIMITS.timeline then break end
         end
+    end
+    -- what this version does not know (a newer one wrote it) is kept as it is
+    for key, value in pairs(s) do
+        if out[key] == nil and type(key) == "string" then out[key] = value end
     end
     return out
 end
@@ -135,6 +150,23 @@ function Bio:Get(key)
     local all = FC.db.bio
     if not all[key] then all[key] = self:NewStats() end
     return all[key]
+end
+
+--- A character's story goes on under the previous character's key when a
+--- new character takes its name and starts over; the new one begins a
+--- fresh chronicle.
+function Bio:Archive(key, previousKey)
+    local all = FC.db.bio
+    local old = all[key]
+    if not old then return nil end
+    all[previousKey] = old
+    all[key] = nil
+    return previousKey
+end
+
+--- The name a chronicle is listed under (Characters:DisplayName).
+function Bio:DisplayName(key)
+    return FC.Characters:DisplayName(key)
 end
 
 --- Sums of every character (account view).
@@ -160,6 +192,12 @@ function Bio:Account()
         end
         for name in pairs(stats.grouped) do total.grouped[name] = true end
         for id in pairs(stats.seen) do total.seen[id] = true end
+        -- /played, added up over the characters the game was asked about
+        if stats.played then
+            local played = total.played or { total = 0, level = 0, at = 0, chars = 0 }
+            played.total, played.chars, played.at = played.total + stats.played.total, played.chars + 1, math.max(played.at, stats.played.at or 0)
+            total.played = played
+        end
     end
     total.started = oldest
     total.items.unique = U.Count(total.seen)
@@ -193,6 +231,9 @@ local function mergeField(into, field, value)
     local mine = into[field]
     if type(value) == "number" and type(mine) == "number" then
         into[field] = math.max(mine, value)
+    elseif field == "played" then
+        -- the game's count: the one asked for last
+        if type(value) == "table" and (type(mine) ~= "table" or (value.at or 0) > (mine.at or 0)) then into[field] = value end
     elseif field == "timeline" then
         local seen = {}
         for _, e in ipairs(mine) do seen[e.t .. e.k] = true end
@@ -234,8 +275,8 @@ function Bio:Merge(key, from)
         FC.db.bio[key] = from
         return true
     end
-    -- the current life is measured in time online: it follows whichever
-    -- side has the longer time online
+    -- the current life is measured in time with the journal: it follows
+    -- whichever side has the longer time
     local lifeStart = from.time.online > into.time.online and from.lifeStart or into.lifeStart
     local started = math.min(into.started, from.started)
     for field, value in pairs(from) do mergeField(into, field, value) end
@@ -342,6 +383,49 @@ function Bio:Sample()
     local mode = travelMode()
     s.dist[mode] = s.dist[mode] + step
     if zoneStats then zoneStats.d = (zoneStats.d or 0) + step end
+end
+
+------------------------------------------------------------------------
+-- The game's own count: /played
+------------------------------------------------------------------------
+
+local ASK_PLAYED_AFTER = 12   -- seconds after login; the answer comes with TIME_PLAYED_MSG
+local ASK_PLAYED_GRACE = 8    -- seconds the chat line stays quiet, for an answer that never comes
+
+--- TIME_PLAYED_MSG: the game's total time played and the time at the
+--- current level, whoever asked (the addon at login, or /played).
+function Bio:OnTimePlayed(total, level)
+    total, level = tonumber(Compat.Safe(total)), tonumber(Compat.Safe(level))
+    if not total or total < 0 then return end
+    local s = self:Get()
+    s.played = { total = total, level = math.max(0, level or 0), lvl = Compat.SafeCall(_G.UnitLevel, "player"), at = U.Now() }
+    -- the chat frames hear the same event; their line is kept quiet a moment longer
+    U.After(0.5, function() self:QuietChatLine(false) end)
+    FC.Bus:Emit("BIOGRAPHY_PLAYED", s.played)
+end
+
+--- The chat line /played prints ("Total time played: ...") is kept quiet
+--- while the addon asks on its own; a request the player makes prints it.
+function Bio:QuietChatLine(quiet)
+    if quiet then
+        if self.quietPlayed or type(_G.ChatFrame_DisplayTimePlayed) ~= "function" then return end
+        self.quietPlayed = _G.ChatFrame_DisplayTimePlayed
+        _G.ChatFrame_DisplayTimePlayed = function() end
+        U.After(ASK_PLAYED_GRACE, function() self:QuietChatLine(false) end)
+    elseif self.quietPlayed then
+        _G.ChatFrame_DisplayTimePlayed = self.quietPlayed
+        self.quietPlayed = nil
+    end
+end
+
+--- Asks the game for /played without a line in the chat. Returns whether
+--- the client could be asked.
+function Bio:AskTimePlayed()
+    if type(_G.RequestTimePlayed) ~= "function" then return false end
+    self:QuietChatLine(true)
+    local ok = pcall(_G.RequestTimePlayed)
+    if not ok then self:QuietChatLine(false) end
+    return ok
 end
 
 ------------------------------------------------------------------------
@@ -628,6 +712,8 @@ function Bio:OnEnable()
     on("CHAT_MSG_COMBAT_FACTION_CHANGE", function(_, text) self:OnFactionMessage(text) end)
     on("CHAT_MSG_LOOT", function(_, text) self:OnLootMessage(text) end)
     on("PLAYER_LEVEL_UP", function(_, level) self:OnLevelUp(level) end)
+    on("TIME_PLAYED_MSG", function(_, total, level) self:OnTimePlayed(total, level) end)
+    U.After(ASK_PLAYED_AFTER, function() if self:Enabled() then self:AskTimePlayed() end end)
     on("QUEST_TURNED_IN", function(_, _, xp, money)
         local s = self:Get()
         s.quests = s.quests + 1

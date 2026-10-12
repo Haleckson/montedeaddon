@@ -2,6 +2,9 @@
 
 **A collaborative exploration journal for World of Warcraft: Forever.**
 
+Current release: **3.0.2**, for **WoW Forever 1.60.1** (interface 16001).
+[Official CurseForge project](https://www.curseforge.com/wow/addons/forever-companion-discovery-journal).
+
 Your journal holds what you, or a guild member who chose to share it, discovered: rares, vendors, recipes, caves, hidden paths, dungeon secrets. It grows with you, and your guild writes its own guide to Azeroth together. Alongside it, the addon ships a reference of the whole world of WoW Forever (every quest and who gives it, the creatures quests need, treasure, flight paths, dungeons and what each zone holds), so tooltips and the zone guide know every NPC and every zone from the first day.
 
 > This is deliberately not Questie. The addon never reveals the world before someone discovers it.
@@ -17,9 +20,57 @@ Your journal holds what you, or a guild member who chose to share it, discovered
 
 ## Features
 
+### Languages
+
+- Choose **English, French, Spanish, Russian or German** in the illustrated first-run language window or the separate **Language** category in the settings sidebar. All options are visible directly on that page. The choice is saved for the whole account, independently of profiles.
+- Both language panels use their dedicated illustration of weathered journals, maps and a compass in an Azeroth inn.
+- **Game language** follows the client automatically. Both Spanish client locales (`esES` and `esMX`) use the Spanish translation; unsupported client locales fall back to English. An explicit selection can differ from the game's language.
+- Every one of the 1,325 interface strings is translated in each of the four new languages: journal pages, settings, pin styles, notifications, progress, autobiography, onboarding, tooltips, help and player-facing error messages.
+- Search supports accented and Cyrillic capitals. Russian uses a Cyrillic font for built-in font choices and for its language preview, including on non-Russian clients. Long settings labels, headings, tooltips and profile buttons adapt to the available space. Dialogs and onboarding resize with translated text; the discovery editor scrolls while its actions remain accessible.
+- Recognized automatic discovery titles and descriptions display in the reader's language, including older English entries and entries shared by another supported language. Saved discoveries, personal notes, profile identifiers, import codes and guild messages keep their data and format.
+- An offline name dictionary translates supported quests, NPCs, items, objects, zones and subzones into the selected addon language even on an English game client. Toasts, map tooltips, NPC/item tooltip additions, completed quests, the zone guide and journal details use these display names. No other addon is required.
+- Map tooltips wrap the complete discovery description. NPC/item tooltip additions keep the same sections, quest progress, status icons, coordinates and character names in every language. Native tooltip measurements are checked for protected values before use.
+- Personal notes, edited titles, character names and arbitrary server dialogue remain as written. Names missing from the dictionary retain the available original name; this also covers some custom server content. Translation never rewrites saved discoveries, quest IDs or guild payloads.
+- Selecting a language previews it without saving. **Apply and reload** saves a different display language and reloads the UI; first-run setup then continues with progress and sharing. The same display language can be saved without a reload. Existing users keep their automatic language until they choose another in Settings. NPC and area recognition still follows the game client's language.
+
+### Map and journal narration
+
+- Narration starts **enabled in new profiles**, at **50% volume**. Saved on/off preferences are preserved. Use the visible **Narrator** checkbox below the journal logo to turn it on or off for the world map and journal entries. Select **English** in the Language page for this first audio pack.
+- An original deep, warm male chronicler reads a pin's name and description. Catalog rares, dungeons and caves use their canonical name and brief lore or field notes. The coordinates, discovery credit, date and mouse instructions are excluded.
+- Hover a world-map pin or the description or lore in an open journal entry. Speech starts after an adjustable delay and stops when you leave, close the relevant window, switch entries or turn narration off. Returning to the pin or description restarts the recording after the same delay, without reopening the window. Only one recording plays at a time, and it does not loop while the pointer stays over the entry. Minimap pins show a compact name-and-icon tooltip without narration or lore. Hidden discovery details remain silent.
+- Adjust **Narrator volume** directly in **Settings > Narrator**: 0%, 25%, 50%, 75% or 100%. The default is 50%; 0% mutes narration. This changes only the narrator. The game's Dialog and Master settings also affect playback.
+- Audio plays locally through the game's **Dialog** channel. The addon needs no ElevenLabs account, API key or internet connection for playback.
+- This release includes **1,188 English recordings**, covering every category represented in the current discovery collection, **370 rares, 30 dungeons/raids and 106 cave, mine, den and underground entrance entries**. Catalog recordings work for future discoveries too. Other interface languages have translated text but no audio pack yet. Other new or edited descriptions need a matching recording. Personal notes are excluded from the distributed pack.
+- **Read discoveries aloud**, **Listen to a sample**, **Stop narration** and the hover delay are available in **Settings > Narrator** (`/fc settings narrator`). The settings checkbox and journal switch stay synchronized.
+- After installing the audio files for the first time, fully restart WoW so the client can find them.
+
+### Brief discovery lore
+
+- Every catalog rare, dungeon and cave has concise context in English, French, Spanish, Russian and German, shown in world-map tooltips and journal details. Minimap tooltips show just the discovery name and icon.
+- The cave catalog covers 106 named entries, including mines, burrows, silithid hives, druid barrows and cave entrances to dungeons. Coverage was checked against Classic/Forever area names and manually reviewed locations whose names do not include "cave". Unused beta area names are excluded. New custom locations may need an additional catalog entry.
+- Known cave lore replaces the repetitive automatic "A large indoor area entered from..." line. Personal notes remain alongside the sourced account. Where no specific history was confirmed, regional context is used without inventing inhabitants or events.
+- All 30 dungeon/raid entries and 32 rare entries have short sourced stories or background. The remaining 338 rares have factual field notes about their creature type, location and, where confirmed, affiliation; no invented biographies are presented as lore.
+- **Sources** in the journal opens the entry's source links for copying into a browser. The catalog was checked on 11 October 2026 and keeps Classic context separate from later expansions.
+- Entrance pins share their dungeon's account and recording. Lower/Upper Blackrock Spire and Dire Maul wings use their shared instance account.
+- The catalog does not mark places as discovered, add pins, reveal fog or rewrite saved discoveries.
+
+### Link discoveries in chat
+
+- **Link in chat** and journal **Shift-click** insert a discovery link into an already open, focused chat box when the client permits it.
+- Otherwise, a copy window opens: press **Ctrl+C**, close it, open chat with **Enter**, and paste with **Ctrl+V**. This avoids activating protected Blizzard chat controls from addon code.
+
+### Choose your pin style
+
+- **Settings > Map > Pin appearance** shows clickable examples for Dark Warcraft, Cartographer's Engravings, Painted Adventure (the previous Midjourney artwork), Heraldic Emblems and Original game icons. **Browse pin styles** opens a larger gallery with its own illustrated header.
+- Each custom style includes all 26 map symbols, including caves, rares, treasure, quests, NPCs, vendors, professions, dungeon areas and unknown discoveries. The three examples on each card represent the complete set.
+- A selection applies immediately to the world map, minimap, journal entries, tooltips and notifications, and is saved per profile. Existing users keep their current Dark or Original choice.
+- World-map and minimap pin sizes remain independent, from **25% to 500%**, under Map settings. Artwork changes keep the selected sizes and all discovery data.
+
 ### Discovery Journal
 - An adventurer's expedition journal: leather and brass, cards and details on parchment, a painting at the top of every page (or a flat look in color themes). Sidebar navigation, rich discovery cards, a full detail page.
-- Pages: Overview, Recent, Quests, Completed quests, NPCs, Rares, Bestiary, Vendors, Recipes, Items, Secrets, Dungeons, Professions, Guild discoveries, Favorites, My notes, Archived, Progress, Statistics, Autobiography.
+- Pages: Overview, Recent, Quests, Completed quests, NPCs, Rares, Bestiary, Vendors, Recipes, Items, Secrets, Explored caves, Opened chests, Exploration, Dungeons, Professions, Guild discoveries, Favorites, My notes, Archived, Progress, Statistics, Autobiography.
+- **Secrets** uses a reviewed catalogue of 14 hidden activities matched by explicit IDs, with source links on each matching entry. Ordinary caves, chests, paths and interactive objects have separate pages. Unsupported older secret entries remain in Exploration, preserving their saved data.
+- **Opened chests** requires a confirmed, identifiable world-container loot window and tracks openings per character. **All recorded** also shows sightings and older records without proof of opening. `is:secret` searches the catalogue across quests, items and objects; `is:opened` finds confirmed openings.
 - Cards show icon, type, zone, coordinates, discoverer, time, tags, favorite, verification count and a status badge (icon + text + color, never color alone). Compact and comfortable density.
 - Detail page: location, discoverer and dates, NPC data, **vendor inventory** (limited stock and recipes marked, flag items as interesting), **rare respawn observations** with clearly labelled estimates, **dungeon hierarchy** (entrance, bosses, NPCs, quests, secrets, recipes, loot, mechanics, shortcuts, notes), related discoveries, tags, personal note, guild notes and verification history.
 - Actions: show on map, waypoint, favorite (with groups), share, link in chat, edit, note, tag, confirm, archive, export, delete.
@@ -38,9 +89,9 @@ You never have to type anything. Every category of the journal is filled from wh
 | Open a vendor, a trainer or a flight map | **Vendor** with stock (limited items and recipes marked), **Trainer** with profession, **Flight master** |
 | Explore a new area ("Discovered: ...") | **Landmark** (or a dungeon area inside instances) |
 | Reach a mine or cave (the game names it: "Discovered: Echo Ridge Mine"), or go indoors outside a town and move deep inside | **Cave** at its entrance, plus the **route** that led you there, drawn on the map |
-| Open a chest or cache | **Treasure** (and its route); herbs, ore veins and fishing spots are told apart by the gathering spell and by what they give, and quest-only objects are ignored |
+| Open a chest or cache | **Treasure**, with private opening evidence when the loot source is identifiable; verified chest IDs override misleading herbs/ore-only loot, while ordinary quest props remain objects |
 | Gather herbs, ore or fish | **Gathering spots** per resource and zone (up to 40 spots each) |
-| Use a strange object, read a book or plaque | **Secret** (in the wild) or **World object**, with the text |
+| Use an object, read a book or plaque | **World object**, or **Secret** only when its ID belongs to a documented hidden activity |
 | Loot unusual items or recipes | **Item** / **Recipe** with source, profession and required skill |
 | Learn a recipe | **Profession** entry (private) |
 | Accept quests, especially in a row | **Quest** with giver; follow-up quests are linked into a **Quest chain** |
@@ -67,11 +118,13 @@ Every detector can be switched off in *Settings > Discovery*. Quick Capture (`/f
 ### Autobiography
 - A page in the journal with each character's story: distance travelled in km (on foot, mounted, swimming, flying, as a ghost), deaths and their killers, kills, quests, food and potions used, money earned and spent, items, gathering, duels, time spent, and a timeline of level ups, deaths, first visits, bosses and more.
 - Recorded quietly in the background; nothing is on screen unless you open the page. *All characters* adds up your account.
+- How it counts, also in the tooltip of each headline number: distance and time are sampled once a second while the journal runs (loading screens and teleports are left out); *With the journal* is that time, not `/played`. The game's own `/played` is asked for at login without a line in the chat and shown beside it in the *Time* section, with the time at the current level; typing `/played` refreshes it. *All characters* lists each character's `/played` on its own, then all together. Kills come from the experience messages (kills that give no experience are not counted), quests from the game's own list of completed quests, money from what was open when it changed (loot, a vendor, mail, the auction house, a trade, a trainer, a flight master), supplies from the consumables used out of your bags.
+- The autobiography lives in the saved variables (`WTF`), per character; an update of the addon never touches it, and a backup (Settings > Data) carries it along.
 
 ### Zone guide
-- A zone at a glance, with your progress: the zone's done / total and percentage on a thin bar, then foldable sections with their own counts. Quests are grouped under the quest giver (done / total per giver), with each quest's state: done, ready to turn in, in progress, not done. Rares count as done once this character defeated them (with respawn estimate or last kill), treasure, secrets and caves once you found them, flight paths once this character learned them; dungeons and exploration too. Vendors with recipes are listed for reference.
+- A zone at a glance, with foldable sections and progress counts. Quests are grouped by quest giver and live status. Rares track defeats; caves, documented secrets and chests have separate sections. Journal chests require confirmed openings for completion, while other discoveries track encounters. Flight paths, dungeons, exploration and recipe vendors are included too.
 - Click the addon's button on the world map to open it for the zone the map shows; it follows the map while you browse it, and goes back to your zone when the map closes. `/fc zone` or a middle-click on the minimap button opens it for the zone you are in.
-- Click a section title to fold it, a quest giver to fold its quests; one button hides everything already done. Click a line for a waypoint, right-click to open it in the journal. It can open by itself when you enter a zone.
+- Click a section title to fold it, a quest giver to fold its quests; one button hides everything already done, and a section with nothing left goes with it. Click a line for a waypoint, right-click to open it in the journal. It can open by itself when you enter a zone.
 
 ### Tooltips
 - NPC tooltips in the style of a collection addon: the quests the NPC gives with your progress on each (done, ready to turn in, in progress, not done) and a done / total count, the quests you turn in to it, the quest items it drops and the quest each one starts, plus what the journal knows (vendor stock, trainer, flight master, rare respawn, bestiary level and loot, notes, who found it) and the NPC ID.
@@ -101,8 +154,10 @@ Every detector can be switched off in *Settings > Discovery*. Quick Capture (`/f
 - **The guild's quest database, built together**: what any member learns about quests (which NPC gives and takes which quest, which creatures a quest needs, which items start a quest) reaches everyone, live and when they come online. Tooltips and the zone guide then show it for every NPC someone in the guild has met. Nothing personal travels; *Settings > Guild sync* can turn it off.
 
 ### Map integration
-- Discovery pins on the world map with category rings, guild markers and rich tooltips. Only the finds that matter by default (rares, secrets, caves, treasure, dungeons, your notes), so the map stays readable; everything else can be switched on.
+- Discovery pins on the world map with dark, transparent category artwork, guild markers and rich tooltips. Only the finds that matter by default (rares, secrets, caves, treasure, dungeons, your notes), so the map stays readable; everything else can be switched on.
 - Small pins on the minimap for the finds around you, with the same filters; they rotate with a rotating minimap and work on round and square minimaps.
+- World-map and minimap pin sizes are adjustable separately from **25% to 500%** in the journal's **Map** page or **Settings > Map**. Changes appear immediately.
+- **Map > Pin appearance > Transparent symbols** selects the 26 dark category icons across maps, journal cards/details, tooltips and discovery notifications. **Original game icons** selects the game artwork. Known caves have a cave symbol; veiled discoveries keep the unknown symbol.
 - The addon's button on the map: click for the zone at a glance, right-click for the filters (my / guild discoveries, per-category toggles).
 - **Discovery Fog**: show only what you found, yours plus verified guild discoveries, or everything your guild knows; optionally veil guild discoveries until you get close.
 - Waypoints through the game's own waypoint system, or TomTom if installed and preferred.
@@ -111,7 +166,7 @@ Every detector can be switched off in *Settings > Discovery*. Quick Capture (`/f
 - Two styles: the painted expedition journal (default) or flat, one click apart (the palette button at the top of the journal; Settings > Appearance). The flat style has 8 themes (Forever Dark, Classic, Midnight, Minimal, Horde, Alliance, Forest, Arcane), custom colors per role, custom themes with copy, export and import.
 - Font selection (client fonts, plus LibSharedMedia fonts if installed), size, outline, shadow, spacing, with a live preview.
 - UI scale, opacity, background opacity, border size, panel style, button style, card density, tooltip style, animations, high contrast mode.
-- Resizable journal with a draggable split between list and detail.
+- Resizable journal with a draggable split between list and detail. Drag the journal by any part that is not a button or a list (its frame, header, sidebar or footer) to move it; *Settings > Appearance > Window* can lock it in place.
 - ElvUI-style profiles: shared default, per character, per class, or custom; create, copy, rename, delete, reset, export, import.
 - Everything applies instantly. No reload needed.
 
@@ -139,9 +194,21 @@ Aliases: `/fcj`, `/forevercompanion`. Minimap button: left-click journal, right-
 
 ## Installation
 
-1. Download from CurseForge (or the CurseForge app, game version *WoW Forever*).
-2. Extract the `ForeverCompanion` folder to `World of Warcraft\_classic_beta_\Interface\AddOns\` (the Forever client folder).
-3. Start the game. A short welcome guide asks how progress counts and how you want to share. The journal starts in the painted look; the palette button at its top switches to a flat color theme.
+1. Download from the [official CurseForge project](https://www.curseforge.com/wow/addons/forever-companion-discovery-journal) or install through the CurseForge app for **WoW Forever 1.60.1**.
+2. For a manual install, close the game and extract the `ForeverCompanion` folder into the Forever client's `Interface\AddOns\` folder. On the beta client, that is `World of Warcraft\_classic_beta_\Interface\AddOns\`. The resulting path must be `Interface\AddOns\ForeverCompanion\ForeverCompanion.toc`.
+3. For an update, replace the addon files and keep the existing `WTF` folder and SavedVariables; your discoveries and settings stay there.
+4. Start the game and open the journal with `/fc`. A first-time welcome guide asks for your language, how progress counts and how you want to share. The journal starts in the painted look; the palette button at its top switches to a flat color theme.
+
+## Moving from the beta to the release
+
+Your journal is a file on your computer, not on the server. The release client has its own folder, so nothing moves by itself.
+
+1. Before the first login on the release client, copy `World of Warcraft\_classic_beta_\WTF\Account\<your account>\SavedVariables\ForeverCompanion.lua` to the same place under the release client's folder (the account folder has the same name). This file holds the whole journal: every discovery, the guild's shared entries, your characters' progress, autobiographies and settings. The per-character files (`WTF\Account\<account>\<realm>\<character>\SavedVariables\ForeverCompanion.lua`) hold only quest chains and a last position; they can stay behind.
+2. A text backup works as well: `/fc export` on the beta, `/fc import` on the release (Settings > Data). Importing merges and never deletes.
+3. If the game marks the addon *out of date* on the first day of the release, tick *Load out of date AddOns* in the addon list; an update with the new interface number follows (the first line of `ForeverCompanion.toc`).
+4. A character you create again with the same name is recognized as new (the game tells characters apart by their GUID): its completed quests, flight paths and defeated rares start over from what the game lists, and the journal asks once whether it continues the previous character's journal (finds, milestones, autobiography) or starts fresh. Fresh keeps the previous character on the Progress and Autobiography pages as "(previous)", with everything it did; the new one starts at nothing. The journal's entries stay either way.
+5. Characters you do not create again can be forgotten (right-click their row on the Progress page, or `/fc forget <name>`): they leave the lists; what they found stays in the journal.
+6. Realm names may change: a character's profile follows it to the renamed realm. Guild members who did not copy their file get the shared entries back from yours through guild sync.
 
 ## Privacy and guild sharing
 
@@ -156,7 +223,7 @@ Aliases: `/fcj`, `/forevercompanion`. Minimap button: left-click journal, right-
 
 - **World of Warcraft: Forever runs the Retail (12.x) client engine** while reporting interface 16001. Forever Companion targets that API; it does not load on Classic Era.
 - Tooltip quest lists only contain what one of your characters saw an NPC offer (or what your guild shared); talk to an NPC once and its quests are known. When the client keeps a unit's GUID secret, the NPC is recognized by its name if the journal knows only one NPC with that name.
-- Some categories are detected by heuristics, because no addon API names them directly: unusual NPCs (quest givers, services, guards and everyone in towns and inns are left out; guards and service roles are recognized by English names and subtitles), caves (a long indoor stretch outside towns; halls, abbeys, towers and other buildings are left out by their English names), routes (your last minutes of movement before a hidden place), secrets (objects you use out in the wild) and mechanics (boss emotes and yells). They can produce the occasional odd entry; archive or hide it.
+- Some categories are detected by heuristics, because no addon API names them directly: unusual NPCs (quest givers, services, guards and everyone in towns and inns are left out; guards and service roles are recognized with localized keywords), caves (a long indoor stretch outside towns; halls, abbeys, towers and other buildings are left out by localized keywords), routes (your last minutes of movement before a hidden place), secrets (objects you use out in the wild) and mechanics (boss emotes and yells). English recognition words stay available on localized clients for custom-server names. These heuristics can produce the occasional odd entry; archive or hide it.
 - Hidden paths that are not caves, and shortcuts, cannot be recognized automatically; Quick Capture covers them.
 - Respawn times are never claimed as exact. The journal shows observed intervals and labels any range as an estimate.
 - Midnight-era restrictions apply: some unit values are hidden in combat or restricted content, so automatic detection waits until combat ends, and addon messages pause while the client locks communication.
@@ -164,7 +231,7 @@ Aliases: `/fcj`, `/forevercompanion`. Minimap button: left-click journal, right-
 - Guild sync reaches only guild members who run Forever Companion. Chat links become clickable only for them; others see readable text.
 - The combat log is closed to addons on this client, so the autobiography counts kills from the experience messages (kills that give no experience are not counted) and does not track damage or healing.
 - Addons cannot read screenshots or reach the internet. The text export format is the bridge for future external tools.
-- The Forever beta build 69913 had a client bug that did not reload SavedVariables; it is fixed in 1.60.1.70009. Version 0.7.3 targets build 1.60.1.70170. Keep a text backup (`/fc export`) during the beta anyway.
+- The Forever beta build 69913 had a client bug that did not reload SavedVariables; it is fixed in 1.60.1.70009. The addon is built against build 1.60.1.70170 and says so once in the chat when the game moves to another build. Keep a text backup (`/fc export`) during the beta anyway.
 - In a few caves (and at a new character's first login) the game names the continent as your map. Discoveries made there are filed on the zone map they lie in, so they show on the zone map, the minimap and in the zone guide.
 
 ## Roadmap
@@ -184,6 +251,6 @@ Please open an issue on the project page with:
 
 ## Credits and license
 
-Created by Duta. Copyright (c) 2026 IAMTHEDOT, all rights reserved: IAMTHEDOT owns every right in the addon, and modifying it (or redistributing it) requires IAMTHEDOT's written permission. See `LICENSE` for the full terms (`LICENSE.txt` holds the short notice: all rights reserved unless otherwise explicitly stated); your own journal data stays yours. The emblem and the quest marker are original artwork, and all fonts and icons are loaded from the game client.
+Created by Duta. Copyright (c) 2026 IAMTHEDOT, all rights reserved: IAMTHEDOT owns every right in the addon, and modifying it (or redistributing it) requires IAMTHEDOT's written permission. See `LICENSE` for the full terms (`LICENSE.txt` holds the short notice: all rights reserved unless otherwise explicitly stated); your own journal data stays yours. The addon includes custom interface artwork and 26 category icons created with an AI image generator. Fonts and fallback game icons are loaded from the game client.
 
 The WoW Forever reference data in `Data/Reference/` is derived from the database of AllTheThings (MIT License, Copyright (c) 2026 AllTheThings WoW Addon) by `tools/import_att.lua`, which reads it as text; that data keeps its MIT license, see `THIRD_PARTY_NOTICES.md`. Quest titles and levels, the quests and rares AllTheThings does not list yet, and the English names of the creatures and objects that give quests are facts taken from the listings and the tooltip service of Wowhead's WoW Forever database by `Tools/import_wowhead.py` and `Tools/fetch_wowhead_names.py`. No third-party code or libraries are bundled.

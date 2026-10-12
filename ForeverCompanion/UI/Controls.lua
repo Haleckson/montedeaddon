@@ -40,7 +40,7 @@ local function ensureMenu()
     menu.rows = {}
     menu.offset = 0
     menu:SetScript("OnMouseWheel", function(self, delta)
-        local maxOffset = math.max(0, #self.items - MENU_MAX_ROWS)
+        local maxOffset = math.max(0, #self.items - (self.visibleRows or MENU_MAX_ROWS))
         self.offset = U.Clamp(self.offset - delta, 0, maxOffset)
         UI.RenderMenu()
     end)
@@ -68,7 +68,8 @@ local function menuRow(index)
     Theme:Tint(row.check, "accent")
     row.icon = UI.Icon(row, 14)
     row.icon:SetPoint("LEFT", 24, 0)
-    row.label = UI.Text(row, "body", "text")
+    row.label = UI.WrappedText(row, "body", "text")
+    row.label:SetJustifyV("MIDDLE")
     row.label:SetPoint("LEFT", 24, 0)
     row.label:SetPoint("RIGHT", -8, 0)
     row.divider = UI.Divider(row, "border")
@@ -87,14 +88,17 @@ end
 function UI.RenderMenu()
     local items = menu.items
     local count = math.min(#items, MENU_MAX_ROWS)
+    count = math.min(count, #items - menu.offset)
+    local pad = menu.fcPainted and 7 or 4
+    local y, shown = pad, 0
+    local maxHeight = math.max(80, (UIParent:GetHeight() - 30) / math.max(0.4, menu:GetScale()))
     for i = 1, count do
         local item = items[i + menu.offset]
         local row = menuRow(i)
         row.item = item
         row:ClearAllPoints()
-        local pad = menu.fcPainted and 7 or 4
-        row:SetPoint("TOPLEFT", pad, -pad - (i - 1) * MENU_ROW)
-        row:SetPoint("TOPRIGHT", -pad, -pad - (i - 1) * MENU_ROW)
+        row:SetPoint("TOPLEFT", pad, -y)
+        row:SetPoint("TOPRIGHT", -pad, -y)
         row:Show()
         row.divider:SetShown(item.divider == true)
         row.check:SetShown(item.checked == true)
@@ -116,9 +120,14 @@ function UI.RenderMenu()
             row.label:SetFontObject(FC.Fonts:Get("body"))
         end
         row.hover:SetShown(not (item.isTitle or item.divider or item.disabled))
+        local height = item.divider and 10 or math.max(MENU_ROW, row.label:GetStringHeight() + 8)
+        if shown > 0 and y + height + pad > maxHeight then row:Hide(); break end
+        row:SetHeight(height)
+        y, shown = y + height, shown + 1
     end
-    for i = count + 1, #menu.rows do menu.rows[i]:Hide() end
-    menu:SetHeight(count * MENU_ROW + (menu.fcPainted and 14 or 8))
+    for i = shown + 1, #menu.rows do menu.rows[i]:Hide() end
+    menu.visibleRows = shown
+    menu:SetHeight(y + pad)
 end
 
 --- items: { { text, value, icon, checked, disabled, danger, isTitle, divider, onClick(value, item) } }
@@ -243,6 +252,10 @@ function UI.Slider(parent, label, minValue, maxValue, step, get, set, formatter)
     frame.value = UI.Text(frame, "body", "accent")
     frame.value:SetPoint("TOPRIGHT")
     local slider = CreateFrame("Slider", nil, frame)
+    -- A bare Slider has no template enabling clicks/dragging. Mouse-wheel
+    -- input alone leaves the thumb unresponsive on the journal's Map page.
+    slider:EnableMouse(true)
+    slider:SetHitRectInsets(0, 0, -3, -3)
     slider:SetOrientation("HORIZONTAL")
     slider:SetPoint("BOTTOMLEFT", 0, 4)
     slider:SetPoint("BOTTOMRIGHT", 0, 4)
@@ -277,7 +290,7 @@ function UI.Slider(parent, label, minValue, maxValue, step, get, set, formatter)
         end
     end
     slider:SetScript("OnValueChanged", function(self, v)
-        v = math.floor(v / step + 0.5) * step
+        v = U.Clamp(minValue + math.floor((v - minValue) / step + 0.5) * step, minValue, maxValue)
         frame.value:SetText(format(v))
         updateFill(v)
         if frame.fcUpdating then return end
@@ -294,6 +307,20 @@ function UI.Slider(parent, label, minValue, maxValue, step, get, set, formatter)
         self.value:SetText(format(v))
         updateFill(v)
         self.fcUpdating = false
+    end
+    -- Settings can grow the caption row when a translation or larger font
+    -- would put the label underneath the value. Keep the slider below both.
+    function frame:Layout(width)
+        self:SetWidth(width)
+        self.value:SetWidth(0)
+        self.value:SetWordWrap(false)
+        local valueWidth = math.min(width * 0.45, math.ceil(self.value:GetStringWidth()) + 2)
+        self.value:SetWidth(valueWidth)
+        self.value:SetWordWrap(true)
+        self.label:SetWidth(math.max(40, width - valueWidth - 12))
+        self.label:SetWordWrap(true)
+        self:SetHeight(math.max(40, math.max(self.label:GetStringHeight(), self.value:GetStringHeight()) + 26))
+        return self:GetHeight()
     end
     frame:Refresh()
     return frame
@@ -416,7 +443,9 @@ function UI.ColorSwatch(parent, label, getHex, setHex, onReset)
     row.label:SetPoint("LEFT", swatch, "RIGHT", 10, 0)
     row.label:SetText(label or "")
     row.hex = UI.Text(row, "meta", "muted")
-    row.hex:SetPoint("LEFT", row.label, "RIGHT", 8, 0)
+    row.hex:SetPoint("RIGHT", onReset and -26 or 0, 0)
+    row.label:SetPoint("RIGHT", row.hex, "LEFT", -8, 0)
+    UI.AttachTooltip(row, label)
     if onReset then
         row.reset = UI.IconButton(row, "Interface\\Buttons\\UI-RefreshButton", 18, FC.L.RESET, function()
             onReset()

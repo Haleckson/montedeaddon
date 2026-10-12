@@ -37,7 +37,6 @@ end
 --- Returns value, or nil when the client marks it secret. Must be applied
 --- before any comparison, arithmetic or string operation.
 function Compat.Safe(value)
-    if value == nil then return nil end
     if Compat.IsSecret(value) then return nil end
     return value
 end
@@ -896,8 +895,37 @@ end
 -- Loot
 ------------------------------------------------------------------------
 
+--- A selected corpse is a fallback only when this loot is not known to
+--- come from an opened world object, fishing or a gathering action.
+function Compat.GetLootCreatureFallback()
+    local source = Compat.GetUnitInfo("npc")
+    local guidType = Compat.ParseGUID(source and source.guid)
+    local gathering = FC.GatheringDiscovery
+    local cast = gathering and gathering:RecentCast()
+    if guidType == "GameObject" or Compat.IsFishingLoot() == true
+        or (cast and cast.profession) then return nil end
+    local target = Compat.GetUnitInfo("target")
+    if target and not target.isPlayer and target.isDead and target.npcID then return target end
+    return nil
+end
+
 --- Returns { { link, itemID, quality, icon, name, isQuestItem, questID, sources = { {guidType, id} } } }.
 --- questID is set for items that start a quest.
+-- Money-only loot has no item link, but can still name the opened chest.
+function Compat.GetLootObjectID()
+    if not GetLootSourceInfo then return nil end
+    local count = safeCall(GetNumLootItems) or 0
+    for slot = 1, count do
+        local sources = pack(pcall(GetLootSourceInfo, slot))
+        if sources[1] then
+            for i = 2, sources.n, 2 do
+                local kind, id = Compat.ParseGUID(sources[i])
+                if kind == "GameObject" and id then return id end
+            end
+        end
+    end
+end
+
 function Compat.GetLootItems()
     local items = {}
     local count = safeCall(GetNumLootItems) or 0
@@ -1073,19 +1101,22 @@ function Compat.AddChatFilter(event, fn)
     return false
 end
 
---- Puts text into the chat box being typed in, or opens the chat box with
---- it. The Forever client only has the ChatFrameUtil functions; the
---- ChatEdit_ / ChatFrame_ globals belong to older clients.
+--- Only insert into chat that the player has already opened. OpenChat and
+--- InsertLink can activate protected Blizzard UI; pcall cannot prevent the
+--- blocked-action dialog. The caller offers its own copy window otherwise.
 function Compat.InsertChatLink(text)
-    if type(text) ~= "string" or text == "" then return false end
-    local insert = (ChatFrameUtil and ChatFrameUtil.InsertLink) or _G.ChatEdit_InsertLink
-    if type(insert) == "function" then
-        local ok, inserted = pcall(insert, text)
-        if ok and inserted then return true end
-    end
-    local open = (ChatFrameUtil and ChatFrameUtil.OpenChat) or _G.ChatFrame_OpenChat
-    if type(open) == "function" then return (pcall(open, text)) end
-    return false
+    if Compat.IsSecret(text) or type(text) ~= "string" or text == "" then return false end
+    if InCombatLockdown and safeCall(InCombatLockdown) ~= false then return false end
+    local lockdown = C_ChatInfo and C_ChatInfo.InChatMessagingLockdown
+    if lockdown and safeCall(lockdown) ~= false then return false end
+    local getActive = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow) or _G.ChatEdit_GetActiveWindow
+    local edit = safeCall(getActive)
+    if not edit or (type(edit) ~= "table" and type(edit) ~= "userdata") then return false end
+    if edit.IsForbidden and safeCall(edit.IsForbidden, edit) ~= false then return false end
+    if edit.IsProtected and safeCall(edit.IsProtected, edit) ~= false then return false end
+    if safeCall(edit.IsShown, edit) ~= true or safeCall(edit.HasFocus, edit) ~= true then return false end
+    if type(edit.Insert) ~= "function" then return false end
+    return (pcall(edit.Insert, edit, text))
 end
 
 --- Registers a post-call for unit or item tooltips. fn(tooltip, data).

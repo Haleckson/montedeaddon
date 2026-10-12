@@ -412,6 +412,13 @@ function History:Describe(questID)
         end
         if not row.zone then row.mapID, row.zone = rec.m, rec.z or (rec.m and Compat.GetMapName(rec.m)) end
     end
+    -- Presentation rows are copies: keep stored quest titles and giver matching
+    -- in the client's language while the completed-quests page is translated.
+    row.sourceText = (row.title or "") .. "\n" .. (row.zone or "") .. "\n" .. (row.giver or "")
+    row.title = row.title and FC.Locale:ContentName("quest", row.title, questID)
+    row.zone = FC.Locale:Place(row.zone)
+    row.giver = row.giver and FC.Locale:ContentName(row.start == "object" and "object" or row.start == "item" and "item" or "npc",
+        row.giver, row.objectID or row.giverID or row.itemID)
     return row
 end
 
@@ -502,14 +509,14 @@ function History:SyncJournal()
             end
         elseif rec.t == "questchain" and store:IsMine(rec) then
             local root = tonumber(id:match("^chain:(%d+)$"))
-            if root and rec.n == string.format(L.AUTO_CHAIN_TITLE, "#" .. root) then chains[#chains + 1] = { rec = rec, root = root } end
+            if root and FC.Locale:RecordText(rec, "n") == string.format(L.AUTO_CHAIN_TITLE, "#" .. root) then chains[#chains + 1] = { rec = rec, root = root } end
         end
     end
     for _, chain in ipairs(chains) do
         local id, root = chain.rec.id, chain.root
         local fix = function(title)
             local rec = store:Get(id)
-            if rec and rec.n == string.format(L.AUTO_CHAIN_TITLE, "#" .. root) then return nameChain(store, rec, root, title) end
+            if rec and FC.Locale:RecordText(rec, "n") == string.format(L.AUTO_CHAIN_TITLE, "#" .. root) then return nameChain(store, rec, root, title) end
             return false
         end
         local title = FC.QuestLore:KnownTitle(root)

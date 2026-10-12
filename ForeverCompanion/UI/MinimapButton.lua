@@ -31,15 +31,36 @@ local function onClick(button)
     end
 end
 
+local function tooltipAnchor()
+    local angle = (FC.P and FC.P.general and FC.P.general.minimap and FC.P.general.minimap.angle) or 215
+    angle = angle % 360
+    if angle >= 45 and angle < 135 then return "ANCHOR_TOP" end
+    if angle >= 135 and angle < 225 then return "ANCHOR_LEFT" end
+    if angle >= 225 and angle < 315 then return "ANCHOR_BOTTOM" end
+    return "ANCHOR_RIGHT"
+end
+
 local function showTooltip(owner)
     local stats = FC.Store:Stats()
-    UI.ShowTooltip(owner, L.ADDON_NAME, {
-        { string.format(L.FOOTER_ENTRIES, U.FormatNumber(stats.total)), "text" },
-        { L.MINIMAP_LEFT, "muted" },
-        { L.MINIMAP_RIGHT, "muted" },
-        { L.MINIMAP_SHIFT, "muted" },
-        { L.MINIMAP_MIDDLE, "muted" },
-    }, C.MEDIA .. "Logo", "cursor")
+    if not GameTooltip then
+        UI.ShowTooltip(owner, L.ADDON_NAME, {
+            { string.format(L.FOOTER_ENTRIES, U.FormatNumber(stats.total)), "text" },
+            { L.MINIMAP_LEFT, "muted" },
+            { L.MINIMAP_RIGHT, "muted" },
+            { L.MINIMAP_SHIFT, "muted" },
+            { L.MINIMAP_MIDDLE, "muted" },
+        }, nil)
+        return
+    end
+    UI.SetTooltipOwner(owner, tooltipAnchor())
+    GameTooltip:ClearLines()
+    UI.AddTooltipLine(GameTooltip, L.ADDON_NAME, 1, 0.82, 0)
+    UI.AddTooltipLine(GameTooltip, string.format(L.FOOTER_ENTRIES, U.FormatNumber(stats.total)), 0.92, 0.92, 0.92)
+    UI.AddTooltipLine(GameTooltip, L.MINIMAP_LEFT, 0.75, 0.75, 0.75, true)
+    UI.AddTooltipLine(GameTooltip, L.MINIMAP_RIGHT, 0.75, 0.75, 0.75, true)
+    UI.AddTooltipLine(GameTooltip, L.MINIMAP_SHIFT, 0.75, 0.75, 0.75, true)
+    UI.AddTooltipLine(GameTooltip, L.MINIMAP_MIDDLE, 0.75, 0.75, 0.75, true)
+    GameTooltip:Show()
 end
 
 function MinimapButton:UpdatePosition()
@@ -100,6 +121,10 @@ function MinimapButton:Apply()
     if FC.P.general.minimap.show then
         self:Build()
         if self.button then
+            local clean = FC.PinArt and FC.PinArt:Launcher(self.button.icon, 24)
+            self.button.icon:SetSize(clean and 24 or 20, clean and 24 or 20)
+            self.button.background:SetShown(not clean)
+            self.button.border:SetShown(not clean)
             self.button:Show()
             self:UpdatePosition()
         end
@@ -111,7 +136,7 @@ end
 function MinimapButton:OnEnable()
     self:Apply()
     FC.Bus:On("SETTINGS_CHANGED", self, function(_, path)
-        if path == "*" or path:find("^general%.minimap") then self:Apply() end
+        if path == "*" or path == "map" or path == "map.pinArtwork" or path:find("^general%.minimap") then self:Apply() end
     end)
 end
 
@@ -124,6 +149,6 @@ function ForeverCompanion_OnAddonCompartmentEnter(_, owner)
     if FC.enabled and owner then showTooltip(owner) end
 end
 
-function ForeverCompanion_OnAddonCompartmentLeave()
-    UI.HideTooltip()
+function ForeverCompanion_OnAddonCompartmentLeave(_, owner)
+    UI.HideTooltip(owner)
 end

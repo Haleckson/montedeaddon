@@ -19,54 +19,66 @@ local Categories = FC.Categories
 
 function UI.EmptyState(parent)
     local frame = CreateFrame("Frame", nil, parent)
-    frame.icon = UI.Icon(frame, 48)
+    frame.area = UI.ScrollArea(frame)
+    frame.area:SetPoint("TOPLEFT")
+    local content = frame.area.content
+    frame.icon = UI.Icon(content, 48)
     frame.icon:SetAlpha(0.85)
     -- journal style: a painting instead of the icon (empty journal, spyglass)
-    frame.art = frame:CreateTexture(nil, "ARTWORK")
+    frame.art = content:CreateTexture(nil, "ARTWORK")
     frame.art:SetSize(112, 112)
     frame.art:SetPoint("TOP", 0, 0)
-    frame.title = UI.Text(frame, "header", "text")
+    frame.title = UI.WrappedText(content, "header", "text")
     frame.title:SetJustifyH("CENTER")
-    frame.text = UI.WrappedText(frame, "body", "muted")
+    frame.text = UI.WrappedText(content, "body", "muted")
     frame.text:SetPoint("TOP", frame.title, "BOTTOM", 0, -8)
     frame.text:SetWidth(360)
     frame.text:SetJustifyH("CENTER")
     frame.button = UI.Button(frame, "", { style = "primary", autoWidth = true, width = 150, height = 28 })
-    frame.button:SetPoint("TOP", frame.text, "BOTTOM", 0, -16)
+    frame.button:SetPoint("BOTTOM", 0, 4)
     frame:SetSize(400, 280)
     -- Fits whatever space it is given: the painting when there is room,
     -- else the small icon, else the words alone; centered vertically and
     -- never wider or taller than its frame.
     function frame:Arrange()
+        if self.fcArranging then return end
+        self.fcArranging = true
         local w, h = self:GetWidth() or 0, self:GetHeight() or 0
         if w <= 0 then w = 400 end
         if h <= 0 then h = 280 end
-        self.text:SetWidth(math.max(120, math.min(360, w - 20)))
-        self.title:SetWidth(math.max(120, w - 20))
-        local words = 20 + 8 + self.text:GetStringHeight() + (self.button:IsShown() and 44 or 0)
+        self.button:FitLabel(math.max(40, w - 20), 28)
+        local footer = self.button:IsShown() and self.button:GetHeight() + 16 or 0
+        self.area:SetPoint("BOTTOMRIGHT", 0, footer)
+        self.area.content:SetWidth(math.max(1, w - 10))
+        local available = math.max(1, h - footer)
+        self.text:SetWidth(math.max(1, math.min(360, w - 30)))
+        self.title:SetWidth(math.max(1, w - 30))
+        local words = self.title:GetStringHeight() + 8 + self.text:GetStringHeight() + 8
         local picture
-        if self.hasArt and h >= words + 118 then
+        if self.hasArt and available >= words + 118 then
             picture = self.art
-        elseif h >= words + 62 then
+        elseif available >= words + 62 then
             picture = self.icon
         end
         self.art:SetShown(picture == self.art)
         self.icon:SetShown(picture == self.icon)
         local pictureHeight = picture == self.art and 118 or (picture == self.icon and 62 or 0)
-        local top = math.max(0, math.floor((h - words - pictureHeight) / 2))
+        local top = math.max(0, math.floor((available - words - pictureHeight) / 2))
         self.art:ClearAllPoints()
         self.art:SetPoint("TOP", 0, -top)
         self.icon:ClearAllPoints()
         self.icon:SetPoint("TOP", 0, -(top + 10))
         self.title:ClearAllPoints()
         self.title:SetPoint("TOP", 0, -(top + pictureHeight))
+        self.area:SetContentHeight(math.max(available, top + pictureHeight + words))
+        self.fcArranging = nil
     end
     frame:SetScript("OnSizeChanged", function(self) self:Arrange() end)
     function frame:SetContent(icon, title, text, buttonLabel, onClick, artKey)
         local Skin = FC.Skin
         self.hasArt = (artKey and Skin:Has(artKey) and Skin:SetFile(self.art, Skin.ASSETS[artKey].path)) and true or false
         UI.SetIcon(self.icon, icon)
-        self.title:SetText(title and title:upper() or "")
+        self.title:SetText(title and U.Upper(title) or "")
         self.text:SetText(text or "")
         if buttonLabel then
             self.button:Show()
@@ -99,7 +111,7 @@ local function statTile(parent)
     tile.bar:SetHeight(2)
     function tile:Set(value, label, role)
         self.value:SetText(U.FormatNumber(value))
-        self.label:SetText(label:upper())
+        self.label:SetText(U.Upper(label))
         Theme:Paint(self.bar, role or "accent", 0.9)
     end
     return tile
@@ -262,7 +274,7 @@ function UI.OverviewPage(parent)
             row:SetPoint("TOPLEFT", 4, -feedY)
             row:SetWidth(leftWidth)
             row.time:SetText(U.ShortAgo(event.ts))
-            UI.SetIcon(row.icon, info.icon)
+            UI.SetIcon(row.icon, info.icon, info.iconFallback)
             row.text:SetText(text)
             row.sub:SetText(UI.MetaLine(info))
             row.id = event.rec.id

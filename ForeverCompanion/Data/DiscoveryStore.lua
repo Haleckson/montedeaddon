@@ -72,7 +72,7 @@ local function vTags(v)
     if type(v) ~= "table" then return nil end
     local out, seen = {}, {}
     for i = 1, math.min(#v, LIM.TAGS) do
-        local tag = type(v[i]) == "string" and U.CleanText(v[i]:lower(), LIM.TAG)
+        local tag = type(v[i]) == "string" and U.CleanText(U.Lower(v[i]), LIM.TAG)
         if tag and tag ~= "" and not seen[tag] then
             seen[tag] = true
             out[#out + 1] = tag
@@ -303,6 +303,7 @@ local STATE_SPEC = {
     note = vString(LIM.NOTE),
     tags = vTags,
     seen = vTime,
+    opened = vVerifiers, -- private, per-character proof from a world-container loot event
 }
 
 local function validateState(state)
@@ -347,6 +348,7 @@ end
 function Store:OnEnable()
     self.me = U.PlayerFullName()
     FC.db.myChars[self.me] = true
+    FC.db.forgotten[self.me] = nil -- a character that logs in is not deleted
     -- what this character found used to live in its own SavedVariables; it is
     -- account-wide now, so every character's progress can be shown on any of them
     local found = self:FoundSet()
@@ -358,7 +360,7 @@ function Store:OnEnable()
     -- that was kept (or one the guild gave back) is not a new find the next time
     -- the character comes across it
     for id, rec in pairs(self.records) do
-        if rec.a == self.me and not rec.del and found[id] == nil then found[id] = rec.c or U.Now() end
+        if self:AuthoredBy(rec, self.me) and not rec.del and found[id] == nil then found[id] = rec.c or U.Now() end
     end
 end
 
@@ -410,7 +412,14 @@ end
 
 function Store:DedupeKey(rec)
     if not rec.id:find("^u:") then return nil end
-    return table.concat({ rec.t, rec.m or 0, U.GridKey(rec.x, rec.y, C.DISCOVERY.OBJECT_GRID), U.NormalizeTitle(rec.n) }, "|")
+    local key = table.concat({ rec.t, rec.m or 0, U.GridKey(rec.x, rec.y, C.DISCOVERY.OBJECT_GRID), U.NormalizeTitle(rec.n) }, "|")
+    -- Automatically identified world objects may share a generic title and
+    -- the same map grid. Their different object IDs must never be merged.
+    local kind, objectID = rec.id:match("^u:(%a+):(%d+):")
+    if kind == "obj" or kind == "go" or kind == "read" then
+        key = key .. "|" .. kind .. ":" .. objectID
+    end
+    return key
 end
 
 function Store:Index(rec)
@@ -422,7 +431,7 @@ function Store:Index(rec)
     addToSet(self.children, rec.pa, id)
     if rec.t == "quest" then
         -- entries written before the giver's NPC ID was kept are found by name
-        addToSet(self.byGiver, rec.gvi or (rec.gv and rec.gv:lower()), id)
+        addToSet(self.byGiver, rec.gvi or (rec.gv and U.Lower(rec.gv)), id)
     end
     for _, itemID in ipairs(rec.dr or {}) do addToSet(self.byDrop, itemID, id) end
     for _, item in ipairs(rec.inv or {}) do addToSet(self.bySold, item.i, id) end
@@ -436,7 +445,7 @@ function Store:Unindex(rec)
     removeFromSet(self.byNpc, rec.npc, id)
     removeFromSet(self.byItem, rec.it, id)
     removeFromSet(self.children, rec.pa, id)
-    if rec.t == "quest" then removeFromSet(self.byGiver, rec.gvi or (rec.gv and rec.gv:lower()), id) end
+    if rec.t == "quest" then removeFromSet(self.byGiver, rec.gvi or (rec.gv and U.Lower(rec.gv)), id) end
     for _, itemID in ipairs(rec.dr or {}) do removeFromSet(self.byDrop, itemID, id) end
     for _, item in ipairs(rec.inv or {}) do removeFromSet(self.bySold, item.i, id) end
     local key = self:DedupeKey(rec)
@@ -541,7 +550,7 @@ end
 --- Quest entries given by this NPC (by NPC ID, or by name for older entries).
 function Store:QuestsByGiver(npcID, name)
     local out, seen = {}, {}
-    for _, key in ipairs({ npcID or false, type(name) == "string" and name:lower() or false }) do
+    for _, key in ipairs({ npcID or false, type(name) == "string" and U.Lower(name) or false }) do
         for id in pairs(key and self.byGiver[key] or {}) do
             local rec = self:Get(id)
             if rec and not seen[id] and (key == npcID or not rec.gvi) then
@@ -610,11 +619,27 @@ function Store:FoundAt(id, key)
     return set and set[id] or nil
 end
 
+--- The character of yours a discovery is credited to: its author, or, for
+--- one recorded before a new character of that name started its journal over
+--- (born at characters[key].b), the previous character "<key> (previous)".
+function Store:AuthorKey(rec)
+    local key = rec.a
+    local chars = FC.db.characters
+    local char = chars and key and chars[key]
+    if char and char.b and (rec.c or 0) < char.b then return key .. C.PREVIOUS_SUFFIX end
+    return key
+end
+
+--- Whether a character of yours recorded a discovery.
+function Store:AuthoredBy(rec, key)
+    return self:AuthorKey(rec) == key
+end
+
 --- Whether a character of yours found a discovery: it recorded it first, or
 --- came across it later.
 function Store:IsFoundBy(rec, key)
     key = key or self.me
-    return rec.a == key or self:FoundAt(rec.id, key) ~= nil
+    return self:AuthorKey(rec) == key or self:FoundAt(rec.id, key) ~= nil
 end
 
 function Store:IsPersonal(rec)
@@ -1135,6 +1160,13 @@ function Store:MergeInto(id, keepID)
         local kept = self:EnsureState(keepID)
         kept.seen = math.min(kept.seen or state.seen, state.seen)
     end
+    if state and state.opened then
+        local kept = self:EnsureState(keepID)
+        kept.opened = kept.opened or {}
+        for key, ts in pairs(state.opened) do
+            kept.opened[key] = math.min(kept.opened[key] or ts, ts)
+        end
+    end
     return self:Withdraw(id)
 end
 
@@ -1190,6 +1222,28 @@ end
 local function emitState(id)
     Store:MarkDirty()
     FC.Bus:Emit("DISCOVERY_STATE", id)
+end
+
+function Store:HasOpened(rec)
+    if not rec or FC.Categories:RecordType(rec) ~= "treasure" then return false end
+    local state = self.state[rec.id]
+    local opened = state and state.opened
+    if not opened then return false end
+    if self:PerCharacter() then return opened[self.me] ~= nil end
+    return next(opened) ~= nil
+end
+
+function Store:MarkOpened(id, ts)
+    local rec = self:Get(id)
+    if not rec or FC.Categories:RecordType(rec) ~= "treasure" or not self.me then return false end
+    ts = vTime(ts or U.Now())
+    if not ts then return false end
+    local state = self:EnsureState(id)
+    state.opened = state.opened or {}
+    if state.opened[self.me] then return false end
+    state.opened[self.me] = ts
+    emitState(id)
+    return true
 end
 
 --- The character you play has this discovery now. Returns changed,
@@ -1259,7 +1313,7 @@ function Store:SetDone(id, on)
 end
 
 function Store:AddUserTag(id, tag)
-    tag = type(tag) == "string" and U.CleanText(tag:lower(), LIM.TAG)
+    tag = type(tag) == "string" and U.CleanText(U.Lower(tag), LIM.TAG)
     if not tag or tag == "" or not self:Get(id) then return false end
     local state = self:EnsureState(id)
     state.tags = state.tags or {}
@@ -1328,7 +1382,7 @@ function Store:Stats()
         total = 0, personal = 0, guild = 0, verified = 0, private = 0, favorites = 0,
         character = 0, alts = 0, -- found by the character you play / only by your other characters
         byType = {}, zones = {}, zoneCount = 0, explorers = {}, today = 0, week = 0,
-        secrets = 0, recipes = 0, rares = 0, notes = 0, hidden = 0,
+        secrets = 0, openedChests = 0, recipes = 0, rares = 0, notes = 0, hidden = 0,
     }
     for _, rec in self:Iterate() do
         local state = self.state[rec.id]
@@ -1346,7 +1400,8 @@ function Store:Stats()
             if self:IsVerified(rec) then stats.verified = stats.verified + 1 end
             if rec.v == "p" then stats.private = stats.private + 1 end
             if state and state.fav then stats.favorites = stats.favorites + 1 end
-            stats.byType[rec.t] = (stats.byType[rec.t] or 0) + 1
+            local recordType = Categories:RecordType(rec)
+            stats.byType[recordType] = (stats.byType[recordType] or 0) + 1
             local zone = rec.z or (rec.m and tostring(rec.m))
             if zone and not stats.zones[zone] then
                 stats.zones[zone] = true
@@ -1359,8 +1414,8 @@ function Store:Stats()
                 if at >= dayStart then stats.today = stats.today + 1 end
                 if at >= now - 7 * 86400 then stats.week = stats.week + 1 end
             end
-            local group = Categories:Get(rec.t).group
-            if group == "secrets" then stats.secrets = stats.secrets + 1 end
+            if FC.SecretCatalog:Contains(rec) then stats.secrets = stats.secrets + 1 end
+            if self:HasOpened(rec) then stats.openedChests = stats.openedChests + 1 end
             if rec.t == "recipe" or rec.t == "profession" then stats.recipes = stats.recipes + 1 end
             if rec.t == "rare" then stats.rares = stats.rares + 1 end
             if rec.t == "note" then stats.notes = stats.notes + 1 end

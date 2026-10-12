@@ -50,26 +50,30 @@ end
 --- seen (last login), current, tracked }. tracked is false for a character
 --- that has not logged in since its finds are counted account-wide; until
 --- then only what it recorded first counts for it. The character you play
---- comes first, then by last login.
-function Progress:Characters()
+--- comes first, then by last login. Characters you forgot (deleted) are left
+--- out unless asked for.
+function Progress:Characters(includeForgotten)
     local chars = FC.db.characters or {}
     local keys = {}
     for key in pairs(FC.db.myChars) do keys[key] = true end
     for key in pairs(chars) do keys[key] = true end
     for key in pairs(FC.db.found) do keys[key] = true end
     local me = FC.Store.me
+    local forgotten = FC.db.forgotten or {}
     local list = {}
     for key in pairs(keys) do
-        local char = chars[key] or {}
-        list[#list + 1] = {
-            key = key,
-            name = U.ShortName(key),
-            class = char.c,
-            level = char.l,
-            seen = char.s or 0,
-            current = key == me,
-            tracked = FC.db.found[key] ~= nil,
-        }
+        if includeForgotten or key == me or not forgotten[key] then
+            local char = chars[key] or {}
+            list[#list + 1] = {
+                key = key,
+                name = FC.Characters:DisplayName(key),
+                class = char.c,
+                level = char.l,
+                seen = char.s or 0,
+                current = key == me,
+                tracked = FC.db.found[key] ~= nil,
+            }
+        end
     end
     table.sort(list, function(a, b)
         if a.current ~= b.current then return a.current end
@@ -79,11 +83,40 @@ function Progress:Characters()
     return list
 end
 
---- All of your characters, { [key] = true }.
+--- All of your characters, { [key] = true }, the forgotten ones too: what
+--- they found is the account's.
 function Progress:AllKeys()
     local set = {}
-    for _, char in ipairs(self:Characters()) do set[char.key] = true end
+    for _, char in ipairs(self:Characters(true)) do set[char.key] = true end
     return set
+end
+
+--- A character you deleted (the release wipes the beta's): it leaves the
+--- lists of your characters; what it found stays in the journal and in the
+--- account's totals. Logging in with a character of that name brings it back.
+function Progress:Forget(key)
+    if type(key) ~= "string" or key == FC.Store.me then return false end
+    FC.db.forgotten[key] = U.Now()
+    FC.Store:MarkDirty()
+    FC.Bus:Emit("STORE_RESET")
+    return true
+end
+
+function Progress:IsForgotten(key)
+    return FC.db.forgotten[key] ~= nil
+end
+
+--- The key of the character of yours a name means ("First Surname",
+--- "First-Surname" or the key itself, any case), or nil.
+function Progress:FindKey(name)
+    if type(name) ~= "string" or name == "" then return nil end
+    name = U.Trim(name)
+    local plain, wanted = U.Lower(name), U.Lower(U.CharacterKey(name))
+    for _, char in ipairs(self:Characters(true)) do
+        local shown = U.Lower(char.name)
+        if U.Lower(char.key) == wanted or shown == wanted or shown == plain then return char.key end
+    end
+    return nil
 end
 
 --- The characters whose finds are "yours" in the current mode: the one you
@@ -95,8 +128,8 @@ end
 
 --- Whether one of these characters ({ [key] = true }) found a discovery.
 function Progress:FoundByAny(rec, keys)
-    if keys[rec.a] then return true end
     local store = FC.Store
+    if keys[store:AuthorKey(rec)] then return true end
     for key in pairs(keys) do
         if store:FoundAt(rec.id, key) then return true end
     end
@@ -116,8 +149,9 @@ function Progress:FoundCounts()
         return not (state and state.hidden)
     end
     for _, rec in store:Iterate() do
-        if chars[rec.a] and visible(rec) then
-            byChar[rec.a] = (byChar[rec.a] or 0) + 1
+        local who = store:AuthorKey(rec)
+        if chars[who] and visible(rec) then
+            byChar[who] = (byChar[who] or 0) + 1
             union[rec.id] = true
         end
     end
@@ -150,7 +184,8 @@ function Progress:Compute(keys, withMilestones)
         local state = store:GetState(rec.id)
         if state and state.hidden then return end
         result.found = result.found + 1
-        result.byType[rec.t] = (result.byType[rec.t] or 0) + 1
+        local recordType = FC.Categories:RecordType(rec)
+        result.byType[recordType] = (result.byType[recordType] or 0) + 1
         local zone = rec.z or (rec.m and tostring(rec.m))
         if zone and not zones[zone] then
             zones[zone] = true
@@ -158,7 +193,7 @@ function Progress:Compute(keys, withMilestones)
         end
     end
     for _, rec in store:Iterate() do
-        if keys[rec.a] then add(rec) end
+        if keys[store:AuthorKey(rec)] then add(rec) end
     end
     for key in pairs(keys) do
         for id in pairs(FC.db.found[key] or {}) do

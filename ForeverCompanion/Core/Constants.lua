@@ -15,6 +15,7 @@ C.COMM_PREFIX = "FCJ1"
 C.EXPORT_PREFIX = "FC1"
 C.THEME_EXPORT_PREFIX = "FCT1"
 C.PROFILE_EXPORT_PREFIX = "FCP1"
+C.PREVIOUS_SUFFIX = " (previous)" -- key of the previous character of a name (a new one started over)
 C.MEDIA = "Interface\\AddOns\\ForeverCompanion\\Media\\"
 C.WHITE = "Interface\\Buttons\\WHITE8X8"
 C.CIRCLE_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
@@ -121,7 +122,7 @@ FC.Defaults = {
         tooltipStyle = "addon",  -- "addon" | "blizzard"
         animations = true,
         highContrast = false,
-        window = { width = 1100, height = 660, detailWidth = 340 },
+        window = { width = 1100, height = 660, detailWidth = 340, locked = false },  -- locked: dragging does not move it
     },
     fonts = {
         main = "Friz Quadrata",
@@ -156,8 +157,15 @@ FC.Defaults = {
         minimapScale = 1.0,
         iconScale = 1.0,
         iconAlpha = 1.0,
+        pinArtwork = "transparent", -- presentation only; originals remain selectable
+        routeDots = true,        -- extra route / cluster points beyond the main icon
+        dotScale = 1.0,          -- scale of those extra points
+        pinBackdrop = false,     -- soft backdrop behind world-map icons
+        pinOutlineAlpha = 0.0,   -- dark icon outline strength (0 = none)
         altClickNotes = true,
         preferTomTom = false,
+        -- Relative position inside the world map; not the minimap launcher.
+        menuButton = { x = 0, y = 1 }, -- left to right / top to bottom (0..1)
     },
     discovery = {
         -- every category has an automatic source; each can be switched off
@@ -235,6 +243,11 @@ FC.Defaults = {
             note = false,
         },
     },
+    narration = {
+        enabled = true,         -- new profiles start enabled; saved choices are preserved
+        delay = 0.5,            -- seconds of hovering before the chronicler speaks
+        volume = 50,            -- narrator only: 0, 25, 50, 75 or 100 percent
+    },
     tooltips = {
         unit = true,
         item = true,
@@ -250,6 +263,8 @@ FC.Defaults = {
         screenshots = false,     -- take a screenshot at level ups and boss kills
     },
     zoneGuide = {
+        dockToJournal = true,
+        dockGap = 8,             -- outside the journal's decorative frame
         shown = false,           -- stays open across sessions once opened
         autoOpen = false,        -- open it when entering a new zone
         point = nil,

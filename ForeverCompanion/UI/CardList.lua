@@ -26,7 +26,7 @@ local GAP = 4 -- empty strip at the bottom of every row (the card background sto
 --- Presentation data for a record.
 function UI.Display(rec)
     local store = FC.Store
-    local def = Categories:Get(rec.t)
+    local def = Categories:ForRecord(rec)
     local status = store:GetStatus(rec)
     -- who found it and when, as the journal tells it (per character: this character)
     local by, at = store:Credit(rec)
@@ -35,8 +35,8 @@ function UI.Display(rec)
         def = def,
         status = status,
         typeLabel = L[def.label],
-        zone = rec.z or (rec.m and FC.Compat.GetMapName(rec.m)) or L.UNKNOWN_ZONE,
-        subzone = rec.sz,
+        zone = FC.Locale:Place(rec.z or (rec.m and FC.Compat.GetMapName(rec.m))) or L.UNKNOWN_ZONE,
+        subzone = FC.Locale:Place(rec.sz),
         coords = U.FormatCoords(rec.x, rec.y),
         author = U.ShortName(by),
         time = at,
@@ -49,9 +49,9 @@ function UI.Display(rec)
         info.description = L.RUMORED_DESC
         info.rumored = true
     else
-        info.title = rec.n or "?"
+        info.title = FC.Locale:RecordText(rec, "n") or "?"
         info.icon = rec.ic or def.icon
-        info.description = rec.d
+        info.description = FC.Locale:RecordText(rec, "d")
         if rec.t == "vendor" and rec.inv then
             local recipes, limited = 0, 0
             for _, item in ipairs(rec.inv) do
@@ -62,10 +62,16 @@ function UI.Display(rec)
             parts[#parts + 1] = string.format(L.VENDOR_ITEMS, #rec.inv)
             if recipes > 0 then parts[#parts + 1] = string.format(L.VENDOR_RECIPES, recipes) end
             if limited > 0 then parts[#parts + 1] = string.format(L.VENDOR_LIMITED, limited) end
-            info.description = table.concat(parts, "  \194\183  ") .. (rec.d and ("  \194\183  " .. rec.d) or "")
+            info.description = table.concat(parts, "  \194\183  ") .. (info.description and ("  \194\183  " .. info.description) or "")
         elseif rec.src and not rec.d then
-            info.description = string.format(L.SOURCE_FORMAT, rec.src)
+            info.description = string.format(L.SOURCE_FORMAT, FC.Locale:ContentName("npc", rec.src))
         end
+        if FC.DiscoveryLore then info.lore, info.loreEntry = FC.DiscoveryLore:Get(rec) end
+        info.secretEntry = FC.SecretCatalog:Entry(rec)
+        if info.lore and FC.Locale:IsGeneratedCaveDescription(rec) then info.description = nil end
+    end
+    if FC.PinArt then
+        info.icon, info.iconFallback = FC.PinArt:Icon(rec, info.rumored, 48 * (FC.P.appearance.scale or 1))
     end
     return info
 end
@@ -155,11 +161,12 @@ local function createCard(parent, owner)
         local lines = { { UI.MetaLine(info), "muted" } }
         if info.subzone and not info.rumored then lines[#lines + 1] = { info.subzone, "muted" } end
         if info.description then lines[#lines + 1] = { info.description, "text" } end
+        if info.lore then lines[#lines + 1] = { U.Escape(info.lore), "text" } end
         lines[#lines + 1] = { UI.DiscoveredLine(info), "accent" }
         local count = FC.Store:VerifyCount(self.rec)
         if count > 1 then lines[#lines + 1] = { string.format(L.CONFIRMED_BY_N, count), UI.STATUS.verified.color } end
         lines[#lines + 1] = { L.CARD_HINT, "muted" }
-        UI.ShowTooltip(self, info.title, lines, info.icon)
+        UI.ShowTooltip(self, info.title, lines, info.icon, nil, info.iconFallback)
     end)
     card:SetScript("OnLeave", UI.HideTooltip)
     return card
@@ -205,18 +212,20 @@ local function bindCard(card, rec, selected)
     local info = UI.Display(rec)
     card.info = info
     local status = info.status
-    UI.SetIcon(card.icon, info.icon)
+    local artwork = UI.SetIcon(card.icon, info.icon, info.iconFallback)
+    card.iconBorder:SetShown(not artwork)
     card.icon:SetDesaturated(info.rumored and true or false)
-    card.iconBorder:SetColorTexture(Theme:CategoryColor(rec.t))
+    card.iconBorder:SetColorTexture(Theme:CategoryColor(Categories:RecordType(rec)))
     card.title:SetText(U.Escape(info.title))
     if info.rumored then Theme:Paint(card.title, "muted") else Theme:Paint(card.title, "text") end
     card.meta:SetText(UI.MetaLine(info, true))
-    local desc = info.description and U.Escape(info.description:gsub("\n", " ")) or ""
+    local prose = info.description or info.lore
+    local desc = prose and U.Escape(prose:gsub("\n", " ")) or ""
     local tags = FC.Store:AllTags(rec)
     if #tags > 0 and not info.rumored then
         local accent = Theme:Hex("accent")
         local tagText = {}
-        for i = 1, math.min(3, #tags) do tagText[i] = "#" .. U.Escape(tags[i]) end
+        for i = 1, math.min(3, #tags) do tagText[i] = "#" .. U.Escape(FC.Locale:TagLabel(rec, tags[i])) end
         desc = (desc ~= "" and desc .. "   " or "") .. U.Colorize(table.concat(tagText, " "), accent)
     end
     card.desc:SetText(desc)

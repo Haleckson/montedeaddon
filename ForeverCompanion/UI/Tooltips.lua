@@ -26,6 +26,7 @@ local U = FC.Utils
 local L = FC.L
 local Compat = FC.Compat
 local Categories = FC.Categories
+local Locale = FC.Locale
 
 local MAX_QUESTS = 8
 local MAX_ENDS = 4
@@ -86,14 +87,14 @@ end
 function Block:Line(text, color, wrap)
     text = self:Prefix(text)
     local r, g, b = rgb(color or TEXT)
-    self.tooltip:AddLine(text, r, g, b, wrap and true or false)
+    UI.AddTooltipLine(self.tooltip, text, r, g, b, wrap)
 end
 
 function Block:Pair(left, right, leftColor, rightColor)
     left = self:Prefix(left)
     local r, g, b = rgb(leftColor or TEXT)
     local r2, g2, b2 = rgb(rightColor or TEXT)
-    self.tooltip:AddDoubleLine(left, right or " ", r, g, b, r2, g2, b2)
+    UI.AddTooltipDoubleLine(self.tooltip, left, right or " ", r, g, b, r2, g2, b2)
 end
 
 function Block:Section(text, right)
@@ -116,7 +117,7 @@ function Block:QuestLine(entry, prefix)
     local alts = entry.status ~= "done" and altsSuffix(entry.questID) or ""
     local right = statusRight(entry.status)
     if entry.progress then right = U.Colorize(entry.progress, "b3b3b3") .. "  " .. right end
-    self:Pair("  " .. (prefix and (prefix .. " ") or "") .. U.Escape(entry.title) .. alts, right, style.color, TEXT)
+    self:Pair("  " .. (prefix and (prefix .. " ") or "") .. U.Escape(Locale:ContentName("quest", entry.title, entry.questID)) .. alts, right, style.color, TEXT)
 end
 
 ------------------------------------------------------------------------
@@ -205,7 +206,7 @@ local function itemLabel(itemID)
         if C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, itemID) end
         return nil
     end
-    return (info.icon and (icon(info.icon, 14) .. " ") or "") .. U.Colorize(U.Escape(info.name), Compat.GetQualityHex(info.quality))
+    return (info.icon and (icon(info.icon, 14) .. " ") or "") .. U.Colorize(U.Escape(Locale:ContentName("item", info.name, itemID)), Compat.GetQualityHex(info.quality))
 end
 
 local function moreLine(block, extra)
@@ -306,7 +307,7 @@ local function recordLines(block, rec)
         block:Pair(L.CAT_TRAINER, profession, SECTION)
     elseif t == "travel" then
         local known = FC.Characters:KnowsFlightPath(rec.npc)
-        local right = known == true and L.TIP_FLIGHT_KNOWN or (known == false and U.Colorize(L.TIP_FLIGHT_UNKNOWN, "e6a23c")) or (rec.z or " ")
+        local right = known == true and L.TIP_FLIGHT_KNOWN or (known == false and U.Colorize(L.TIP_FLIGHT_UNKNOWN, "e6a23c")) or (Locale:Place(rec.z) or " ")
         block:Pair(L.CAT_TRAVEL, right, SECTION, MUTED)
     elseif t == "rare" or (t == "npc" and rec.cls == "worldboss") then
         local estimate = store:RespawnEstimate(rec)
@@ -319,7 +320,7 @@ local function recordLines(block, rec)
         block:Pair(t == "rare" and L.CAT_RARE or L.CLASS_worldboss, right, SECTION)
     elseif t == "creature" then
         local level = FC.AutoText.LevelText(rec)
-        local kind = rec.ct or L.CAT_CREATURE
+        local kind = Locale:ContentName("creature", rec.ct) or L.CAT_CREATURE
         local right = string.format(L.TIP_LEVEL, level) .. " " .. kind
         block:Pair(L.NAV_BESTIARY, right, SECTION)
         if rec.dr and #rec.dr > 0 then
@@ -333,11 +334,10 @@ local function recordLines(block, rec)
     local state = store:GetState(rec.id)
     local note = state and state.note
     if note then
-        if #note > 90 then note = note:sub(1, 87) .. "..." end
+        note = U.Truncate(note, 87)
         block:Line("  " .. U.Escape(note), { 0.8, 0.8, 0.8 }, true)
     elseif t == "npc" and rec.d then
-        local text = rec.d
-        if #text > 90 then text = text:sub(1, 87) .. "..." end
+        local text = U.Truncate(FC.Locale:RecordText(rec, "d"), 87)
         block:Line("  " .. U.Escape(text), MUTED, true)
     end
 end
@@ -424,7 +424,7 @@ function Tooltips:OnItem(tooltip, data)
         block:Pair(QUEST_ICON .. " " .. U.Escape(FC.QuestLore:Title(starter.questID)), statusRight(status), style.color, TEXT)
         if #starter.droppers > 0 then
             local names = {}
-            for i = 1, math.min(3, #starter.droppers) do names[i] = U.Escape(starter.droppers[i]) end
+            for i = 1, math.min(3, #starter.droppers) do names[i] = U.Escape(Locale:ContentName("npc", starter.droppers[i])) end
             local more = #starter.droppers > 3 and (" " .. string.format(L.TIP_MORE, #starter.droppers - 3)) or ""
             block:Pair(L.TIP_DROPPED_BY, table.concat(names, ", ") .. more, MUTED, TEXT)
         end
@@ -436,8 +436,8 @@ function Tooltips:OnItem(tooltip, data)
     local shown = 0
     for _, rec in ipairs(FC.Store:ForItem(itemID)) do
         if FC.Store:IsKnown(rec) and not FC.Store:IsRumored(rec) and shown < 2 then
-            local where = rec.z and (rec.z .. (rec.x and (" " .. U.FormatCoords(rec.x, rec.y)) or "")) or ""
-            local source = rec.src and string.format(L.SOURCE_FORMAT, rec.src) or Categories:Label(rec.t)
+            local where = rec.z and (Locale:Place(rec.z) .. (rec.x and (" " .. U.FormatCoords(rec.x, rec.y)) or "")) or ""
+            local source = rec.src and string.format(L.SOURCE_FORMAT, Locale:ContentName("npc", rec.src)) or Categories:Label(rec.t)
             block:Pair(source, where, TEXT, MUTED)
             shown = shown + 1
         end
@@ -480,15 +480,15 @@ end
 local function referenceSource(npcID)
     local Ref = FC.Reference
     local npc = Ref:Npc(npcID)
-    local name = Ref:NpcName(npcID) or string.format(L.TIP_NPC_ID, npcID)
-    local place = npc and npc.m and Compat.GetMapName(npc.m) or ""
+    local name = Locale:ContentName("npc", Ref:NpcName(npcID), npcID) or string.format(L.TIP_NPC_ID, npcID)
+    local place = Locale:Place(npc and npc.m and Compat.GetMapName(npc.m)) or ""
     if npc and npc.x then place = place .. "  " .. U.FormatCoords(npc.x / 100, npc.y / 100) end
     return U.Escape(name), place
 end
 
 local function sourcePlace(rec)
-    if rec.z and rec.x then return rec.z .. "  " .. U.FormatCoords(rec.x, rec.y) end
-    return rec.z or rec.inn or ""
+    if rec.z and rec.x then return Locale:Place(rec.z) .. "  " .. U.FormatCoords(rec.x, rec.y) end
+    return Locale:Place(rec.z or rec.inn) or ""
 end
 
 --- Where an item comes from, as far as the journal knows: creatures seen
@@ -536,14 +536,14 @@ function Tooltips:ItemSources(block, itemID)
     end
     section(L.TIP_DROPPED_BY, drops, refDrops, function(rec)
         local level = rec.lvl and (" " .. U.Colorize(string.format(L.TIP_LEVEL, FC.AutoText.LevelText(rec)), "999999")) or ""
-        block:Pair("  " .. U.Escape(rec.n or "?") .. level, sourcePlace(rec), TEXT, MUTED)
+        block:Pair("  " .. U.Escape(Locale:RecordText(rec, "n") or "?") .. level, sourcePlace(rec), TEXT, MUTED)
     end)
     section(L.TIP_SOLD_BY, sellers, refSellers, function(rec)
         local limited = ""
         for _, item in ipairs(rec.inv or {}) do
             if item.i == itemID and item.l then limited = " " .. U.Colorize(string.format(L.ITEM_LIMITED, item.l), "e6a23c") end
         end
-        block:Pair("  " .. U.Escape(rec.n or "?") .. limited, sourcePlace(rec), TEXT, MUTED)
+        block:Pair("  " .. U.Escape(Locale:RecordText(rec, "n") or "?") .. limited, sourcePlace(rec), TEXT, MUTED)
     end)
 end
 

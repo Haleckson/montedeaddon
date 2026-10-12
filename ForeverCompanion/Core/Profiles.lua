@@ -74,9 +74,30 @@ function Profiles:Resolve()
     local db = FC.db
     local name = db.profileKeys[key]
     if name == nil and self.legacyKey ~= key then name = db.profileKeys[self.legacyKey] end
+    -- the same character on a realm with a new name (the release renames the
+    -- beta's realms): its profile follows it
+    if name == nil then name = self:ProfileOnOtherRealm(key) end
     if type(name) ~= "string" or type(db.profiles[name]) ~= "table" then name = DEFAULT end
     db.profileKeys[key] = name
     return name
+end
+
+--- The profile a character of this name has on another realm (Forever has
+--- no realms at the release: the realm part may then be another word, or
+--- nothing), when every realm that knows it agrees on one; nil otherwise.
+function Profiles:ProfileOnOtherRealm(key)
+    local who, realm = key:match("^(.-) %- (.*)$")
+    if not who or who == "" then return nil end
+    local db = FC.db
+    local found
+    for other, name in pairs(db.profileKeys) do
+        local w, r = other:match("^(.-) %- (.*)$")
+        if w == who and r ~= realm and type(name) == "string" and type(db.profiles[name]) == "table" then
+            if found and found ~= name then return nil end
+            found = name
+        end
+    end
+    return found
 end
 
 function Profiles:OnInitialize()
@@ -148,6 +169,16 @@ end
 
 function Profiles:GetActive()
     return self.active
+end
+
+-- These labels are display-only. Profile keys and custom names stay stable.
+function Profiles:DisplayName(name)
+    if name == DEFAULT then return FC.L.PROFILE_DEFAULT_NAME end
+    local who = type(name) == "string" and name:match("^Character: (.+)$")
+    if who then return string.format(FC.L.PROFILE_CHARACTER_NAME, who) end
+    local class = type(name) == "string" and name:match("^Class: (.+)$")
+    if class then return string.format(FC.L.PROFILE_CLASS_NAME, class) end
+    return name
 end
 
 function Profiles:List()

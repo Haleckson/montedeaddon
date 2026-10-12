@@ -32,7 +32,7 @@ end
 local function themes()
     local items = {}
     for _, name in ipairs(FC.Theme:List()) do
-        items[#items + 1] = { value = name, text = FC.Theme:IsPreset(name) and name or (name .. "  (" .. L.CUSTOM .. ")") }
+        items[#items + 1] = { value = name, text = FC.Theme:IsPreset(name) and FC.Locale:ThemeName(name) or (name .. "  (" .. L.CUSTOM .. ")") }
     end
     return items
 end
@@ -128,13 +128,47 @@ end
 
 FC.SettingsSchema = {
     {
+        key = "language", label = "SET_LANGUAGE", icon = ICON .. "INV_Misc_Book_09",
+        sections = {
+            { title = "LANGUAGE_TITLE", controls = {
+                { type = "custom", reflow = true, build = function(parent, width)
+                    return FC.LanguagePicker:CreateSettingsControl(parent, width)
+                end },
+            } },
+        },
+    },
+    {
+        key = "narrator", label = "SET_NARRATOR", icon = ICON .. "INV_Misc_Book_06",
+        sections = {
+            { title = "NARRATOR_TITLE", controls = {
+                { type = "note", text = "NARRATOR_DESCRIPTION" },
+                { type = "checkbox", path = "narration.enabled", label = "NARRATOR_ENABLE", tip = "NARRATOR_ENABLE_TIP" },
+                { type = "slider", path = "narration.volume", label = "NARRATOR_VOLUME", min = 0, max = 100, step = 25,
+                    format = function(value) return string.format("%d%%", value) end },
+                { type = "note", text = "NARRATOR_VOLUME_TIP" },
+                { type = "slider", path = "narration.delay", label = "NARRATOR_DELAY", min = 0.1, max = 2, step = 0.1,
+                    format = function(value) return string.format(FC.L.NARRATOR_SECONDS, value) end },
+                { type = "note", text = "NARRATOR_CHANNEL" },
+            } },
+            { title = "NARRATOR_AUDIO", controls = {
+                { type = "custom", reflow = true, build = function(parent, width)
+                    return FC.Narrator:CreateStatusControl(parent, width)
+                end },
+                { type = "button", label = "NARRATOR_PREVIEW", disabled = function() return not FC.Narrator:HasSample() end,
+                    onClick = function() FC.Narrator:Preview() end },
+                { type = "button", label = "NARRATOR_STOP", onClick = function() FC.Narrator:Stop() end },
+                { type = "note", text = "NARRATOR_COVERAGE" },
+            } },
+        },
+    },
+    {
         key = "general", label = "SET_GENERAL", icon = ICON .. "INV_Misc_Gear_01",
         sections = {
             -- first: what players look for (account-wide, kept in the
             -- database, not in the profile; the Progress page has it too)
             { title = "SET_SEC_PROGRESS", controls = {
                 { type = "dropdown", label = "SET_PROGRESS_MODE", items = {
-                    { value = "account", text = L.PROGRESS_MODE_ACCOUNT }, { value = "character", text = L.PROGRESS_MODE_CHARACTER } },
+                    { value = "account", textKey = "PROGRESS_MODE_ACCOUNT" }, { value = "character", textKey = "PROGRESS_MODE_CHARACTER" } },
                     get = function() return FC.Progress:Mode() end,
                     set = function(value) FC.Progress:SetMode(value) end },
                 { type = "note", text = "SET_PROGRESS_NOTE" },
@@ -160,7 +194,7 @@ FC.SettingsSchema = {
         sections = {
             { title = "SET_SEC_THEME", controls = {
                 { type = "dropdown", path = "appearance.style", label = "SET_STYLE", items = {
-                    { value = "journal", text = L.SET_STYLE_JOURNAL }, { value = "flat", text = L.SET_STYLE_FLAT } } },
+                    { value = "journal", textKey = "SET_STYLE_JOURNAL" }, { value = "flat", textKey = "SET_STYLE_FLAT" } } },
                 { type = "note", text = "SET_STYLE_NOTE" },
                 { type = "dropdown", path = "appearance.theme", label = "SET_THEME", items = themes, set = function(value) FC.Theme:Select(value) end },
                 { type = "checkbox", path = "appearance.highContrast", label = "SET_HIGH_CONTRAST", tip = "SET_HIGH_CONTRAST_TIP" },
@@ -171,6 +205,7 @@ FC.SettingsSchema = {
                 { type = "slider", path = "appearance.bgAlpha", label = "SET_BG_ALPHA", min = 0.5, max = 1, step = 0.01, format = percent },
                 { type = "slider", path = "appearance.window.width", label = "SET_WINDOW_WIDTH", min = 860, max = 1800, step = 10 },
                 { type = "slider", path = "appearance.window.height", label = "SET_WINDOW_HEIGHT", min = 500, max = 1200, step = 10 },
+                { type = "checkbox", path = "appearance.window.locked", label = "SET_LOCK_WINDOW", tip = "SET_LOCK_WINDOW_TIP" },
                 { type = "button", label = "SET_RESET_WINDOW", onClick = function()
                     local w = FC.P.appearance.window
                     w.point, w.relPoint, w.x, w.y = nil, nil, nil, nil
@@ -181,13 +216,13 @@ FC.SettingsSchema = {
             { title = "SET_SEC_STYLE", controls = {
                 { type = "slider", path = "appearance.borderSize", label = "SET_BORDER_SIZE", min = 0, max = 3, step = 1 },
                 { type = "dropdown", path = "appearance.corners", label = "SET_CORNERS", items = {
-                    { value = "sharp", text = L.SET_CORNERS_SHARP }, { value = "soft", text = L.SET_CORNERS_SOFT } } },
+                    { value = "sharp", textKey = "SET_CORNERS_SHARP" }, { value = "soft", textKey = "SET_CORNERS_SOFT" } } },
                 { type = "dropdown", path = "appearance.buttonStyle", label = "SET_BUTTON_STYLE", items = {
-                    { value = "filled", text = L.SET_BUTTON_FILLED }, { value = "outlined", text = L.SET_BUTTON_OUTLINED } } },
+                    { value = "filled", textKey = "SET_BUTTON_FILLED" }, { value = "outlined", textKey = "SET_BUTTON_OUTLINED" } } },
                 { type = "dropdown", path = "appearance.cardDensity", label = "SET_CARD_DENSITY", items = {
-                    { value = "comfortable", text = L.SET_DENSITY_COMFORTABLE }, { value = "compact", text = L.SET_DENSITY_COMPACT } } },
+                    { value = "comfortable", textKey = "SET_DENSITY_COMFORTABLE" }, { value = "compact", textKey = "SET_DENSITY_COMPACT" } } },
                 { type = "dropdown", path = "appearance.tooltipStyle", label = "SET_TOOLTIP_STYLE", items = {
-                    { value = "addon", text = L.SET_TOOLTIP_ADDON }, { value = "blizzard", text = L.SET_TOOLTIP_BLIZZARD } } },
+                    { value = "addon", textKey = "SET_TOOLTIP_ADDON" }, { value = "blizzard", textKey = "SET_TOOLTIP_BLIZZARD" } } },
                 { type = "checkbox", path = "appearance.animations", label = "SET_ANIMATIONS", tip = "SET_ANIMATIONS_TIP" },
             } },
         },
@@ -200,7 +235,7 @@ FC.SettingsSchema = {
                 { type = "dropdown", path = "fonts.header", label = "SET_FONT_HEADER", items = fonts },
                 { type = "slider", path = "fonts.size", label = "SET_FONT_SIZE", min = 9, max = 18, step = 1 },
                 { type = "dropdown", path = "fonts.outline", label = "SET_FONT_OUTLINE", items = {
-                    { value = "NONE", text = L.SET_OUTLINE_NONE }, { value = "OUTLINE", text = L.SET_OUTLINE_THIN }, { value = "THICKOUTLINE", text = L.SET_OUTLINE_THICK } } },
+                    { value = "NONE", textKey = "SET_OUTLINE_NONE" }, { value = "OUTLINE", textKey = "SET_OUTLINE_THIN" }, { value = "THICKOUTLINE", textKey = "SET_OUTLINE_THICK" } } },
                 { type = "checkbox", path = "fonts.shadow", label = "SET_FONT_SHADOW" },
                 { type = "slider", path = "fonts.spacing", label = "SET_FONT_SPACING", min = 0, max = 6, step = 1 },
                 { type = "custom", build = function(parent, width)
@@ -289,7 +324,7 @@ FC.SettingsSchema = {
             { title = "SET_SEC_KNOWLEDGE", controls = {
                 { type = "note", text = "SET_KNOWLEDGE_NOTE" },
                 { type = "dropdown", path = "knowledge.mode", label = "SET_KNOWLEDGE_MODE", items = {
-                    { value = "mine", text = L.KNOWLEDGE_MINE }, { value = "verified", text = L.KNOWLEDGE_VERIFIED }, { value = "all", text = L.KNOWLEDGE_ALL } } },
+                    { value = "mine", textKey = "KNOWLEDGE_MINE" }, { value = "verified", textKey = "KNOWLEDGE_VERIFIED" }, { value = "all", textKey = "KNOWLEDGE_ALL" } } },
                 { type = "checkbox", path = "knowledge.veil", label = "KNOWLEDGE_VEIL", tip = "SET_VEIL_TIP" },
                 { type = "slider", path = "discovery.verifyThreshold", label = "SET_VERIFY_THRESHOLD", min = 2, max = 6, step = 1 },
             } },
@@ -300,21 +335,11 @@ FC.SettingsSchema = {
         sections = {
             { title = "SET_SEC_MAP", controls = {
                 { type = "checkbox", path = "map.enabled", label = "MAP_SHOW_PINS" },
+                { type = "slider", path = "map.iconScale", label = "SET_ICON_SCALE", min = 0.25, max = 5, step = 0.05, format = percent },
                 { type = "checkbox", path = "map.showMine", label = "MAP_SHOW_MINE" },
                 { type = "checkbox", path = "map.showGuild", label = "MAP_SHOW_GUILD" },
-                { type = "slider", path = "map.iconScale", label = "SET_ICON_SCALE", min = 0.6, max = 2, step = 0.05, format = percent },
-                { type = "slider", path = "map.iconAlpha", label = "SET_ICON_ALPHA", min = 0.3, max = 1, step = 0.05, format = percent },
                 { type = "checkbox", path = "map.altClickNotes", label = "SET_ALT_CLICK", tip = "SET_ALT_CLICK_TIP" },
                 { type = "checkbox", path = "map.preferTomTom", label = "SET_TOMTOM", tip = "SET_TOMTOM_TIP", disabled = function() return not FC.Waypoints:HasTomTom() end },
-            } },
-            { title = "SET_SEC_MINIMAP", controls = {
-                { type = "checkbox", path = "map.minimap", label = "SET_MINIMAP_PINS", tip = "SET_MINIMAP_PINS_TIP" },
-                { type = "slider", path = "map.minimapScale", label = "SET_MINIMAP_PIN_SIZE", min = 0.6, max = 2, step = 0.05, format = percent },
-            } },
-            { title = "SET_SEC_ZONE_GUIDE", controls = {
-                { type = "note", text = "SET_ZONE_GUIDE_NOTE" },
-                { type = "button", label = "SET_ZONE_GUIDE_OPEN", onClick = function() FC.ZoneGuide:Toggle() end },
-                { type = "checkbox", path = "zoneGuide.autoOpen", label = "SET_ZONE_GUIDE_AUTO" },
             } },
             { title = "SET_SEC_MAP_WHAT", controls = {
                 { type = "note", text = "SET_MAP_WHAT_NOTE" },
@@ -323,6 +348,38 @@ FC.SettingsSchema = {
                 { type = "button", label = "SET_MAP_IMPORTANT", onClick = mapPreset(false) },
                 { type = "button", label = "SET_MAP_EVERYTHING", onClick = mapPreset(true) },
             } },
+            { title = "SET_SEC_MAP_PINS", controls = {
+                { type = "note", text = "SET_MAP_PINS_NOTE" },
+                { type = "button", label = "PIN_STYLE_OPEN", onClick = function() FC.PinStylePicker:Show() end },
+                { type = "custom", path = "map.pinArtwork", reflow = true, build = function(parent, width)
+                    return FC.PinStylePicker:CreateSelector(parent, width)
+                end },
+                { type = "slider", path = "map.iconAlpha", label = "SET_ICON_ALPHA", min = 0.3, max = 1, step = 0.05, format = percent },
+                { type = "checkbox", path = "map.routeDots", label = "SET_MAP_ROUTE_DOTS", tip = "SET_MAP_ROUTE_DOTS_TIP" },
+                { type = "slider", path = "map.dotScale", label = "SET_MAP_DOT_SCALE", min = 0.5, max = 1.8, step = 0.05, format = percent },
+                { type = "checkbox", path = "map.pinBackdrop", label = "SET_MAP_PIN_BACKDROP", tip = "SET_MAP_PIN_BACKDROP_TIP" },
+                { type = "slider", path = "map.pinOutlineAlpha", label = "SET_MAP_PIN_OUTLINE", min = 0, max = 0.8, step = 0.05, format = percent },
+            } },
+            { title = "SET_SEC_MAP_BUTTON", controls = {
+                { type = "note", text = "SET_MAP_BUTTON_NOTE" },
+                { type = "slider", path = "map.menuButton.x", label = "SET_MAP_BUTTON_X", min = 0, max = 1, step = 0.01, format = percent },
+                { type = "slider", path = "map.menuButton.y", label = "SET_MAP_BUTTON_Y", min = 0, max = 1, step = 0.01, format = percent },
+                { type = "button", label = "SET_MAP_BUTTON_RESET", onClick = function()
+                    FC.Config:Set("map.menuButton", FC.Utils.CopyTable(FC.Defaults.map.menuButton))
+                end },
+            } },
+            { title = "SET_SEC_MINIMAP", controls = {
+                { type = "checkbox", path = "map.minimap", label = "SET_MINIMAP_PINS", tip = "SET_MINIMAP_PINS_TIP" },
+                { type = "slider", path = "map.minimapScale", label = "SET_MINIMAP_PIN_SIZE", min = 0.25, max = 5, step = 0.05, format = percent },
+            } },
+            { title = "SET_SEC_ZONE_GUIDE", controls = {
+                { type = "note", text = "SET_ZONE_GUIDE_NOTE" },
+                { type = "button", label = "SET_ZONE_GUIDE_OPEN", onClick = function() FC.ZoneGuide:Toggle() end },
+                { type = "checkbox", path = "zoneGuide.autoOpen", label = "SET_ZONE_GUIDE_AUTO" },
+                { type = "checkbox", path = "zoneGuide.dockToJournal", label = "SET_ZONE_GUIDE_DOCK", tip = "SET_ZONE_GUIDE_DOCK_TIP" },
+                { type = "slider", path = "zoneGuide.dockGap", label = "SET_ZONE_GUIDE_GAP", min = 4, max = 24, step = 1 },
+            } },
+
         },
     },
     {
@@ -352,7 +409,7 @@ FC.SettingsSchema = {
             { title = "SET_SEC_AUTO_ITEMS", controls = {
                 { type = "checkbox", path = "discovery.loot", label = "SET_DETECT_LOOT" },
                 { type = "dropdown", path = "discovery.lootQuality", label = "SET_LOOT_QUALITY", items = {
-                    { value = 2, text = L.QUALITY_UNCOMMON }, { value = 3, text = L.QUALITY_RARE }, { value = 4, text = L.QUALITY_EPIC } } },
+                    { value = 2, textKey = "QUALITY_UNCOMMON" }, { value = 3, textKey = "QUALITY_RARE" }, { value = 4, textKey = "QUALITY_EPIC" } } },
                 { type = "checkbox", path = "discovery.recipes", label = "SET_DETECT_RECIPES" },
                 { type = "checkbox", path = "discovery.recipesLearned", label = "SET_DETECT_LEARNED" },
                 { type = "checkbox", path = "discovery.gathering", label = "SET_DETECT_GATHERING", tip = "SET_DETECT_GATHERING_TIP" },
@@ -373,8 +430,8 @@ FC.SettingsSchema = {
             { title = "SET_SEC_SHARING", controls = {
                 { type = "checkbox", path = "sync.enabled", label = "SET_SYNC_ENABLED", tip = "SET_SYNC_ENABLED_TIP" },
                 { type = "dropdown", path = "sync.channel", label = "SET_SYNC_CHANNEL", items = {
-                    { value = "GUILD", text = L.CHANNEL_GUILD }, { value = "PARTY", text = L.CHANNEL_PARTY },
-                    { value = "RAID", text = L.CHANNEL_RAID }, { value = "NONE", text = L.CHANNEL_NONE } }, disabled = syncOff },
+                    { value = "GUILD", textKey = "CHANNEL_GUILD" }, { value = "PARTY", textKey = "CHANNEL_PARTY" },
+                    { value = "RAID", textKey = "CHANNEL_RAID" }, { value = "NONE", textKey = "CHANNEL_NONE" } }, disabled = syncOff },
                 { type = "checkbox", path = "sync.autoShare", label = "SET_AUTO_SHARE", tip = "SET_AUTO_SHARE_TIP", disabled = syncOff },
                 { type = "checkbox", path = "sync.shareQuests", label = "SET_SHARE_QUESTS", disabled = syncOff },
                 { type = "checkbox", path = "sync.shareQuestKnowledge", label = "SET_SHARE_QUEST_KNOWLEDGE", tip = "SET_SHARE_QUEST_KNOWLEDGE_TIP", disabled = syncOff },
@@ -483,3 +540,21 @@ FC.SettingsSchema = {
     { key = "about", label = "SET_ABOUT", icon = FC.C.MEDIA .. "Logo", custom = "about" },
 }
 
+-- Resolve static dropdown captions after the saved language is loaded. Lua
+-- files run before SavedVariables, so storing L.KEY here would keep client text.
+for _, category in ipairs(FC.SettingsSchema) do
+    for _, section in ipairs(category.sections or {}) do
+        for _, control in ipairs(section.controls) do
+            if type(control.items) == "table" then
+                local options = control.items
+                control.items = function()
+                    local items = {}
+                    for i, option in ipairs(options) do
+                        items[i] = { value = option.value, text = option.textKey and L[option.textKey] or option.text, icon = option.icon }
+                    end
+                    return items
+                end
+            end
+        end
+    end
+end

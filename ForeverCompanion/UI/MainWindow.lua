@@ -4,7 +4,8 @@
   pages); on the right each page's illustrated header, a row with search,
   the page's own controls and "New discovery", the filter chips, then the
   page itself (card list + detail panel, or a full page). A footer shows the
-  sync status; the window resizes from its corner.
+  sync status; the window resizes from its corner and moves when dragged by
+  any part that is not a control (unless locked in the settings).
 
   It reads everything through the Store and Query and reacts to bus
   messages with a coalesced refresh, so heavy sync bursts cost one redraw.
@@ -36,7 +37,7 @@ local ICON = "Interface\\Icons\\"
 MainWindow.PAGES = {
     { key = "overview", label = "NAV_OVERVIEW", icon = ICON .. "INV_Misc_Book_09", kind = "overview", section = "NAVSECTION_JOURNAL" },
     { key = "recent", label = "NAV_RECENT", icon = ICON .. "INV_Misc_PocketWatch_01", kind = "list", spec = { sort = "recent" } },
-    { key = "map", label = "NAV_MAP", icon = ICON .. "INV_Misc_Map_01", kind = "action", action = "OpenMap" },
+    { key = "map", label = "NAV_MAP", icon = ICON .. "INV_Misc_Map_01", kind = "mapsettings" },
     { key = "zone", label = "NAV_ZONE_GUIDE", icon = ICON .. "INV_Misc_Spyglass_02", kind = "action", action = "ToggleZoneGuide" },
     { key = "quests", label = "NAV_QUESTS", icon = ICON .. "INV_Misc_Note_02", kind = "list", group = "quests", section = "NAVSECTION_CATEGORIES" },
     -- every quest the game says a character completed, also without the journal watching
@@ -47,7 +48,10 @@ MainWindow.PAGES = {
     { key = "vendors", label = "NAV_VENDORS", icon = ICON .. "INV_Misc_Bag_10", kind = "list", group = "vendors" },
     { key = "recipes", label = "NAV_RECIPES", icon = ICON .. "INV_Scroll_04", kind = "list", group = "recipes" },
     { key = "items", label = "NAV_ITEMS", icon = ICON .. "INV_Misc_Gem_01", kind = "list", group = "items" },
-    { key = "secrets", label = "NAV_SECRETS", icon = ICON .. "INV_Misc_QuestionMark", kind = "list", group = "secrets" },
+    { key = "secrets", label = "NAV_SECRETS", icon = ICON .. "INV_Misc_QuestionMark", kind = "list", spec = { secrets = true } },
+    { key = "caves", label = "NAV_CAVES", icon = ICON .. "INV_Torch_Lit", kind = "list", group = "caves" },
+    { key = "chests", label = "NAV_CHESTS", icon = ICON .. "INV_Box_02", kind = "list", group = "chests", spec = { opened = true } },
+    { key = "exploration", label = "NAV_EXPLORATION", icon = ICON .. "INV_Misc_Map_01", kind = "list", group = "exploration", spec = { excludeSecrets = true } },
     { key = "dungeons", label = "NAV_DUNGEONS", icon = ICON .. "INV_Misc_Key_03", kind = "list", group = "dungeons" },
     { key = "professions", label = "NAV_PROFESSIONS", icon = ICON .. "Trade_BlackSmithing", kind = "list", group = "professions", professionChips = true },
     { key = "guild", label = "NAV_GUILD", icon = C.GUILD_ICON, kind = "list", spec = { scope = "guild" }, section = "NAVSECTION_COLLECTIONS" },
@@ -75,6 +79,11 @@ local function savePosition()
     w.point, w.relPoint, w.x, w.y = point, relPoint, x, y
 end
 
+-- Settings > Appearance > Window can lock the journal in place
+local function canMove()
+    return not FC.P.appearance.window.locked
+end
+
 function MainWindow:Build()
     if self.frame then return self.frame end
     local frame = UI.Panel(UIParent, { name = "ForeverCompanionMainWindow", strata = "HIGH", bg = "bg", skin = "window", corner = CORNER })
@@ -89,6 +98,9 @@ function MainWindow:Build()
         frame:SetMinResize(MIN_W, MIN_H)
     end
     tinsert(UISpecialFrames, "ForeverCompanionMainWindow")
+    -- dragged by any part that is not a control: the frame, the sidebar,
+    -- the footer, the empty parts of a page; also by the brand and the header
+    UI.MakeMovable(frame, frame, savePosition, canMove)
     frame:Hide()
 
     self:BuildSidebar()
@@ -100,13 +112,16 @@ function MainWindow:Build()
     frame:HookScript("OnSizeChanged", function() self:Layout() end)
 
     frame:SetScript("OnShow", function()
+        self:RefreshNarratorToggle()
         if self.dirty then self:Refresh() end
         FC.Compat.PlaySoundKit("IG_SPELLBOOK_OPEN")
+        if FC.ZoneGuide then FC.ZoneGuide:Place() end
     end)
     frame:SetScript("OnHide", function()
         UI.CloseMenu()
         UI.HideTooltip()
         FC.Compat.PlaySoundKit("IG_SPELLBOOK_CLOSE")
+        if FC.ZoneGuide then FC.ZoneGuide:Place() end
     end)
     return frame
 end
@@ -133,13 +148,13 @@ function MainWindow:BuildSidebar()
     brand.logo:SetSize(36, 36)
     brand.logo:SetPoint("LEFT", 8, 0)
     brand.title = UI.Text(brand, "cardTitle", "text")
-    brand.title:SetPoint("TOPLEFT", brand.logo, "TOPRIGHT", 8, -2)
+    brand.title:SetPoint("TOPLEFT", 52, -10)
     brand.title:SetPoint("RIGHT", -6, 0)
     brand.title:SetText("Forever Companion")
     brand.subtitle = UI.Text(brand, "meta", "accent")
-    brand.subtitle:SetPoint("BOTTOMLEFT", brand.logo, "BOTTOMRIGHT", 8, 1)
+    brand.subtitle:SetPoint("TOPLEFT", brand.title, "BOTTOMLEFT", 0, -4)
     brand.subtitle:SetPoint("RIGHT", -6, 0)
-    brand.subtitle:SetText(L.DISCOVERY_JOURNAL:upper())
+    brand.subtitle:SetText(U.Upper(L.DISCOVERY_JOURNAL))
     brand.rule = CreateFrame("Frame", nil, brand)
     brand.rule:SetPoint("BOTTOMLEFT", 6, -2)
     brand.rule:SetPoint("BOTTOMRIGHT", -8, -2)
@@ -148,11 +163,22 @@ function MainWindow:BuildSidebar()
     brand.rule.flat:SetPoint("LEFT")
     brand.rule.flat:SetPoint("RIGHT")
     brand.rule.art = Skin:Divider(brand.rule, { layer = "ARTWORK" })
-    UI.MakeMovable(frame, brand, savePosition)
+    UI.MakeMovable(frame, brand, savePosition, canMove)
     self.brand = brand
 
+    -- Outside the scrolling navigation: one shared switch for maps and journal.
+    self.narratorToggle = UI.Checkbox(sidebar, L.SET_NARRATOR,
+        function() return FC.Config:Get("narration.enabled") end,
+        function(value) FC.Config:Set("narration.enabled", value) end,
+        L.NARRATOR_ENABLE_TIP)
+    self.narratorToggle:SetPoint("TOPLEFT", brand, "BOTTOMLEFT", 8, -10)
+    self.narratorToggle:SetWidth(SIDEBAR_WIDTH - 20)
+    self.narratorToggle.label:SetWordWrap(true)
+    self.narratorToggle.label:SetNonSpaceWrap(true)
+    self:RefreshNarratorToggle()
+
     local area = UI.ScrollArea(sidebar)
-    area:SetPoint("TOPLEFT", brand, "BOTTOMLEFT", 0, -8)
+    area:SetPoint("TOPLEFT", self.narratorToggle, "BOTTOMLEFT", -8, -8)
     area:SetPoint("BOTTOMRIGHT", -2, 6)
     self.navArea = area
     local content = area.content
@@ -161,7 +187,7 @@ function MainWindow:BuildSidebar()
     for _, page in ipairs(self.PAGES) do
         if page.section then
             local label = UI.Text(content, "meta", "muted")
-            label:SetText(L[page.section]:upper())
+            label:SetText(U.Upper(L[page.section]))
             self.navSections[page.key] = label
         end
         self.navItems[page.key] = UI.NavItem(content, page.icon, L[page.label], function()
@@ -175,9 +201,22 @@ function MainWindow:BuildSidebar()
     self:LayoutNav()
 end
 
+function MainWindow:RefreshNarratorToggle()
+    local toggle = self.narratorToggle
+    if not toggle then return end
+    if self.brand then
+        self.brand:SetHeight(math.max(58, self.brand.title:GetStringHeight() + self.brand.subtitle:GetStringHeight() + 24))
+    end
+    toggle.label:SetWidth(toggle:GetWidth() - 24)
+    toggle.label:SetHeight(0)
+    toggle:SetHeight(math.max(26, toggle.label:GetStringHeight() + 8))
+    toggle:Refresh()
+end
+
 --- Navigation rows grow with the font size, so labels never overlap.
 function MainWindow:LayoutNav()
     if not self.navItems then return end
+    self:RefreshNarratorToggle()
     local content = self.navArea.content
     local itemHeight = math.max(28, math.floor((tonumber(FC.P.fonts.size) or 12) + 16))
     local y = 0
@@ -225,9 +264,10 @@ function MainWindow:BuildHeader()
 
     header.title = UI.Text(header, "title", "text")
     header.subtitle = UI.Text(header, "body", "muted")
-    header.close = UI.IconButton(header, "Interface\\Buttons\\UI-StopButton", 24, L.CLOSE, function() self:Hide() end)
+    -- the close and settings glyphs say what they do: no tooltip
+    header.close = UI.IconButton(header, "Interface\\Buttons\\UI-StopButton", 24, nil, function() self:Hide() end)
     header.close:SetPoint("TOPRIGHT", -8, -8)
-    header.settings = UI.IconButton(header, "Interface\\Buttons\\UI-OptionsButton", 24, L.SETTINGS, function() FC.SettingsWindow:Toggle() end)
+    header.settings = UI.IconButton(header, "Interface\\Buttons\\UI-OptionsButton", 24, nil, function() FC.SettingsWindow:Toggle() end)
     header.settings:SetPoint("RIGHT", header.close, "LEFT", -4, 0)
     -- the look, one click away: the painted journal or a flat color theme
     header.look = UI.IconButton(header, "Interface\\Icons\\INV_Misc_Gem_Variety_01", 24, nil, function(button) self:OpenLookMenu(button) end)
@@ -240,7 +280,7 @@ function MainWindow:BuildHeader()
     header.plate:SetColorTexture(0.05, 0.03, 0.02, 0.6)
     header.plate:SetPoint("TOPLEFT", header.look, "TOPLEFT", -4, 4)
     header.plate:SetPoint("BOTTOMRIGHT", header.close, "BOTTOMRIGHT", 4, -4)
-    UI.MakeMovable(frame, header, savePosition)
+    UI.MakeMovable(frame, header, savePosition, canMove)
     self.header = header
 end
 
@@ -289,14 +329,17 @@ function MainWindow:BuildContent()
     end)
     self.listView = listView
 
-    self.chipBar = CreateFrame("Frame", nil, listView)
+    self.chipBar = UI.ScrollArea(listView)
     self.chipBar:SetPoint("TOPLEFT")
     self.chipBar:SetHeight(1)
     self.chipPool = UI.Pool(function()
-        return UI.Chip(self.chipBar, "", nil, function(_, _, chip)
+        return UI.Chip(self.chipBar.content, "", nil, function(_, _, chip)
             if chip.onClick then FC:SafeCall("filter-chip", chip.onClick) end
         end)
     end, function(chip) chip.onClick = nil end)
+    self.chipBar:SetScript("OnSizeChanged", function()
+        if self.page and self.page.kind == "list" then self:RenderChips() end
+    end)
 
     self.detail = UI.DetailPanel(listView)
     self.detail:SetPoint("TOPRIGHT")
@@ -350,6 +393,8 @@ function MainWindow:BuildContent()
     self.progressPage:SetAllPoints()
     self.questLog = UI.QuestLogPage(content)
     self.questLog:SetAllPoints()
+    self.mapPage = FC.SettingsWindow:BuildEmbeddedMapPage(content)
+    self.mapPage:SetAllPoints()
     -- full pages are laid out for a width: they use the whole of it while
     -- there is nothing to scroll (their right edge then lines up with the
     -- toolbar's), and lay out again when it changes (a resize)
@@ -370,6 +415,7 @@ function MainWindow:BuildContent()
     self.pageActions = {
         list = { bar.sort, bar.filter, bar.density },
         overview = { bar.map },
+        mapsettings = { bar.map },
         progress = { self.progressPage.showButton },
         bio = { self.biography.character },
         questlog = { self.questLog.sortBox, self.questLog.rescan },
@@ -459,6 +505,7 @@ function MainWindow:Layout()
     self:StyleChrome()
     self:LayoutToolbar()
     self:FitDetail()
+    if FC.ZoneGuide then FC.ZoneGuide:Place() end
 end
 
 --- Painted or flat dress for the window's own parts.
@@ -549,6 +596,16 @@ function MainWindow:LayoutToolbar()
     for _, list in pairs(self.pageActions) do
         for _, widget in ipairs(list) do widget:Hide() end
     end
+    if kind == "mapsettings" then
+        bar.new:Hide()
+        bar.search:Hide()
+        bar.map:Show()
+        bar.map:ClearAllPoints()
+        bar.map:SetPoint("LEFT", bar, "LEFT", 0, 0)
+        return
+    end
+    bar.new:Show()
+    bar.search:Show()
     local actions = self.pageActions[kind] or {}
     local width = bar:GetWidth()
     if not width or width <= 0 then width = 640 end
@@ -635,6 +692,7 @@ function MainWindow:OnEnable()
     end)
     FC.Bus:On("SETTINGS_CHANGED", self, function(_, path)
         if not self.frame then return end
+        if path == "*" or path:find("^narration%.") then self:RefreshNarratorToggle() end
         if path == "*" or path:find("^appearance%.scale") or path:find("^appearance%.alpha") or path:find("^appearance%.window") then
             self:ApplyGeometry()
         end
@@ -685,11 +743,11 @@ end
 -- Pages and filters
 ------------------------------------------------------------------------
 
-function MainWindow:SelectPage(key, silent)
+function MainWindow:SelectPage(key, silent, filters)
     local page = pageByKey[key] or pageByKey.overview
     if page.kind == "action" then page = pageByKey.overview end
     self.page = page
-    self.filters = {}
+    self.filters = filters or {}
     if not silent then
         self.toolbar.search:SetText("")
         self.searchText = ""
@@ -701,6 +759,7 @@ function MainWindow:SelectPage(key, silent)
     self.biography:SetShown(page.kind == "bio")
     self.progressPage:SetShown(page.kind == "progress")
     self.questLog:SetShown(page.kind == "questlog")
+    self.mapPage:SetShown(page.kind == "mapsettings")
     if page.kind == "questlog" then self.questLog:SetSearch(self.searchText or "") end
     self:SetHeaderArt()
     self:LayoutToolbar()
@@ -765,11 +824,19 @@ function MainWindow:OpenFilterMenu(anchor)
 end
 
 function MainWindow:RenderChips()
+    if self.fcRenderingChips then return end
+    self.fcRenderingChips = true
     self.chipPool:ReleaseAll()
     local f = self.filters or {}
     local chips = {}
     local page = self.page
-    if page.professionChips then
+    if page.key == "chests" then
+        for _, choice in ipairs({ {L.CHESTS_OPENED, true}, {L.CHESTS_ALL, false} }) do
+            local opened = choice[2]
+            chips[#chips + 1] = { text = choice[1], active = (f.opened ~= false) == opened,
+                onClick = function() f.opened = opened self:RefreshList() end }
+        end
+    elseif page.professionChips then
         for _, prof in ipairs(Categories.PROFESSIONS) do
             chips[#chips + 1] = {
                 text = "|T" .. prof.icon .. ":12:12:0:0:64:64:5:59:5:59|t " .. L[prof.label],
@@ -809,10 +876,11 @@ function MainWindow:RenderChips()
     if f.since then removable(L["FILTER_" .. (f.sinceKey or "any"):upper()], "since") end
     if f.zone then removable(f.zone, "zone") end
 
-    -- every chip stays visible: they wrap onto as many rows as they need
-    local width = self.chipBar:GetWidth()
+    -- Long translations may need many filter rows. Keep them scrollable so
+    -- they cannot push the discovery list below a short journal window.
+    local width = self.chipBar:ContentWidth()
     if not width or width <= 0 then width = 600 end
-    local x, y, rows = 0, 0, #chips > 0 and 1 or 0
+    local x, y, rowHeight = 0, 0, 0
     local accent = Theme:Hex("accent")
     for _, spec in ipairs(chips) do
         local chip = self.chipPool:Acquire()
@@ -825,14 +893,23 @@ function MainWindow:RenderChips()
             chip.label:SetWidth(0)
         end
         if x > 0 and x + chip:GetWidth() > width then
-            x, y, rows = 0, y + 22, rows + 1
+            x, y, rowHeight = 0, y + rowHeight + 4, 0
         end
         chip:SetPoint("TOPLEFT", x, -y)
+        rowHeight = math.max(rowHeight, chip:GetHeight())
         x = x + chip:GetWidth() + 6
     end
-    self.chipBar:SetHeight(rows > 0 and (rows * 22 - 4) or 1)
+    local totalHeight = #chips > 0 and (y + rowHeight) or 1
+    local available = math.max(1, math.floor(self.listView:GetHeight() * 0.35))
+    local height = math.min(totalHeight, available)
+    self.chipBar:SetHeight(height)
+    self.chipBar:SetContentHeight(totalHeight)
+    local offset = self.chipPage == page.key and self.chipBar.scroll:GetVerticalScroll() or 0
+    self.chipBar.scroll:SetVerticalScroll(U.Clamp(offset, 0, math.max(0, totalHeight - height)))
+    self.chipPage = page.key
     -- without chips the cards start level with the detail panel
-    self.listPanel:SetPoint("TOPLEFT", self.chipBar, "BOTTOMLEFT", 0, rows > 0 and -6 or 1)
+    self.listPanel:SetPoint("TOPLEFT", self.chipBar, "BOTTOMLEFT", 0, #chips > 0 and -6 or 1)
+    self.fcRenderingChips = nil
 end
 
 ------------------------------------------------------------------------
@@ -842,6 +919,7 @@ end
 function MainWindow:Refresh()
     if not self.frame then return end
     self.dirty = false
+    self:RefreshNarratorToggle()
     self:RefreshNav()
     self:RefreshFooter()
     if not self.page then return end
@@ -856,6 +934,8 @@ function MainWindow:Refresh()
         page = self.progressPage
     elseif self.page.kind == "questlog" then
         page = self.questLog
+    elseif self.page.kind == "mapsettings" then
+        page = self.mapPage
     end
     if page then
         page:Refresh()
@@ -885,7 +965,11 @@ function MainWindow:RefreshNav()
     for _, page in ipairs(self.PAGES) do
         local item = self.navItems[page.key]
         local count
-        if page.group then
+        if page.key == "secrets" then
+            count = stats.secrets
+        elseif page.key == "chests" then
+            count = stats.openedChests
+        elseif page.group then
             count = 0
             for _, t in ipairs(Categories:TypesInGroup(page.group) or {}) do count = count + (stats.byType[t] or 0) end
         elseif page.key == "guild" then
@@ -922,7 +1006,8 @@ function MainWindow:RefreshList(keepOffset)
     if not self.frame or self.page.kind ~= "list" then return end
     local results = FC.Query:Run(self:CurrentSpec(), self.searchText)
     self.results = results
-    self:SetHeaderText(L[self.page.label], string.format(L.RESULTS_COUNT, U.FormatNumber(#results)))
+    local title = self.page.key == "chests" and self.filters.opened == false and L.NAV_ALL_CHESTS or L[self.page.label]
+    self:SetHeaderText(title, string.format(L.RESULTS_COUNT, U.FormatNumber(#results)))
     self:RenderChips()
     self.list:SetItems(results, keepOffset)
 
@@ -991,16 +1076,17 @@ function MainWindow:ShowDiscovery(id)
     local rec = FC.Store:Get(id)
     if not rec then return end
     self:Build()
-    local group = Categories:Get(rec.t).group
+    local group = Categories:ForRecord(rec).group
     local target = "recent"
     for _, page in ipairs(self.PAGES) do
         if page.group == group then target = page.key break end
     end
+    if FC.SecretCatalog:Contains(rec) then target = "secrets" end
     local state = FC.Store:GetState(id)
     if state and state.arch then target = "archived" end
     self.selected = id
     if not self.frame:IsShown() then UI.FadeIn(self.frame, 0.16) end
-    self:SelectPage(target)
+    self:SelectPage(target, nil, target == "chests" and not FC.Store:HasOpened(rec) and { opened = false } or nil)
     self.list:ScrollTo(id)
     self.detail:ShowRecord(rec)
 end
@@ -1072,7 +1158,7 @@ function MainWindow:RunAction(action, rec)
     elseif action == "verify" then
         store:MarkSeen(rec.id)
         if store:AddVerification(rec.id, store.me, U.Now(), "local") then
-            FC:Print(L.MSG_VERIFIED, U.Escape(rec.n or "?"))
+            FC:Print(L.MSG_VERIFIED, U.Escape(FC.Locale:RecordText(rec, "n") or "?"))
         end
     elseif action == "archive" then
         local state = store:GetState(rec.id)
@@ -1104,16 +1190,16 @@ function MainWindow:Share(rec)
     end
     if FC.Store:IsMine(rec) and rec.v == "p" then
         UI.Confirm(L.SHARE_CONFIRM_TITLE, L.SHARE_CONFIRM_TEXT, L.ACTION_SHARE, function()
-            if FC.Sync:ShareNow(rec.id) then FC:Print(L.MSG_SHARED, U.Escape(rec.n or "?")) end
+            if FC.Sync:ShareNow(rec.id) then FC:Print(L.MSG_SHARED, U.Escape(FC.Locale:RecordText(rec, "n") or "?")) end
         end)
     elseif FC.Sync:ShareNow(rec.id) then
-        FC:Print(L.MSG_SHARED, U.Escape(rec.n or "?"))
+        FC:Print(L.MSG_SHARED, U.Escape(FC.Locale:RecordText(rec, "n") or "?"))
     end
 end
 
 function MainWindow:ConfirmDelete(rec)
     local store = FC.Store
-    local title = U.Escape(rec.n or "?")
+    local title = U.Escape(FC.Locale:RecordText(rec, "n") or "?")
     if store:IsMine(rec) and rec.v == "g" then
         UI.Confirm(L.RETRACT_TITLE, string.format(L.RETRACT_TEXT, title), L.RETRACT, function()
             store:Retract(rec.id)

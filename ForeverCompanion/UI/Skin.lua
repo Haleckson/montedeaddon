@@ -48,6 +48,7 @@ Skin.ASSETS = {
 Skin.HEADERS = {
     overview = { file = "header_overview" },
     recent = { file = "header_recent" },
+    map = { file = "header_settings" },
     quests = { file = "header_quests" },
     questlog = { file = "header_quests" },
     npcs = { file = "header_npcs" },
@@ -57,6 +58,9 @@ Skin.HEADERS = {
     recipes = { file = "header_recipes" },
     items = { file = "header_items" },
     secrets = { file = "header_secrets" },
+    caves = { file = "header_dungeons" },
+    chests = { file = "header_items" },
+    exploration = { file = "header_recent" },
     dungeons = { file = "header_dungeons" },
     professions = { file = "header_professions" },
     guild = { file = "header_guild" },
@@ -67,10 +71,13 @@ Skin.HEADERS = {
     statistics = { file = "header_statistics" },
     biography = { file = "header_biography" },
     settings = { file = "header_settings" },
+    pinstyles = { file = "header_pin_styles" },
+    language = { file = "onboarding_language" },
 }
 
 -- The welcome guide's steps.
 Skin.BANNERS = {
+    language = { file = "onboarding_language" },
     progress = { file = "onboarding_progress" },
     share = { file = "onboarding_share" },
 }

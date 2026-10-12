@@ -28,7 +28,7 @@ function Waypoints:Set(rec)
         FC:Print(L.MSG_NO_COORDS)
         return false
     end
-    local title = rec.n or "Forever Companion"
+    local title = FC.Locale:RecordText(rec, "n") or "Forever Companion"
     local tt = tomtom()
     if tt and (FC.P.map.preferTomTom or not Compat.CanSetUserWaypoint(rec.m)) then
         local ok = pcall(tt.AddWaypoint, tt, rec.m, rec.x, rec.y, { title = title, from = "Forever Companion", persistent = false })

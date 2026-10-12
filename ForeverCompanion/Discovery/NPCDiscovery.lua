@@ -96,7 +96,7 @@ local function wordList(key)
     local list = wordLists[key]
     if not list then
         list = {}
-        for _, word in ipairs(U.Split(L[key], ",")) do list[#list + 1] = word:lower() end
+        for _, word in ipairs(U.Split(FC.Locale:DetectionWords(key), ",")) do list[#list + 1] = U.Lower(word) end
         wordLists[key] = list
     end
     return list
@@ -105,7 +105,7 @@ end
 --- True when text contains one of the listed words or phrases as whole words.
 local function hasWord(text, key)
     if type(text) ~= "string" or text == "" then return false end
-    local padded = " " .. text:lower():gsub("[%p%s]+", " ") .. " "
+    local padded = " " .. U.WordText(text) .. " "
     for _, word in ipairs(wordList(key)) do
         if padded:find(" " .. word .. " ", 1, true) then return true end
     end
@@ -236,15 +236,12 @@ local function onKillLoot()
     for _, item in ipairs(Compat.GetLootItems()) do
         for _, source in ipairs(item.sources) do
             sources = sources + 1
-            if source.guidType == "Creature" and source.id then npcIDs[source.id] = true end
+            if (source.guidType == "Creature" or source.guidType == "Vehicle") and source.id then npcIDs[source.id] = true end
         end
     end
     if sources == 0 then
-        -- clients without loot sources: the dead target is what we loot. A
-        -- chest or a herb names itself, and then the corpse of a rare that
-        -- happens to be targeted was not defeated by opening it.
-        local target = Compat.GetUnitInfo("target")
-        if target and target.isDead and target.npcID then npcIDs[target.npcID] = true end
+        local target = Compat.GetLootCreatureFallback()
+        if target then npcIDs[target.npcID] = true end
     end
     local now = GetTime()
     for npcID in pairs(npcIDs) do
@@ -328,20 +325,20 @@ local function ordinaryReason(info, gossip)
     return nil
 end
 
-local function recordConversationNPC(info)
+local function recordConversationNPC(info, fields)
+    if not FC.Config:Get("discovery.gossip") then return end
     if NPC.IsOrdinary(info.npcID) then return end -- a service window opened meanwhile
     if NPC.KnownEveryday(info.npcID) then return end -- its quest dialog taught it meanwhile
     for _, t in ipairs(SERVICE_TYPES) do
         if FC.Store:Get(t .. ":" .. info.npcID) then return end
     end
-    local fields = Engine:LocationFields()
     fields.t = "npc"
     fields.n = info.name
     fields.npc = info.npcID
     fields.lvl = info.level
     local subtitle = info.subtitle
     local greeting = info.greeting
-    if greeting and #greeting > 160 then greeting = greeting:sub(1, 157) .. "..." end
+    if greeting then greeting = U.Truncate(greeting, 157) end
     if subtitle and greeting then
         fields.d = subtitle .. ". " .. greeting
     else
@@ -360,10 +357,9 @@ local function givesQuests(objectID)
 end
 
 local function recordInteractiveObject(objectID, name)
-    if givesQuests(objectID) then return end
+    if givesQuests(objectID) and not FC.SecretCatalog.objects[objectID] then return end
     local fields = Engine:LocationFields()
-    local outdoors = not Compat.GetInstance() and not Compat.IsResting()
-    fields.t = outdoors and "secret" or "object"
+    fields.t = FC.SecretCatalog.objects[objectID] and "secret" or "object"
     fields.n = name
     fields.ic = Categories:Get(fields.t).icon
     local id = Engine:ObjectId("u:go:" .. objectID .. ":" .. (fields.m or 0) .. ":", fields.m, fields.x, fields.y)
@@ -376,7 +372,8 @@ local function onConversation(_, event)
     local guidType, id = Compat.ParseGUID(info.guid)
     if guidType == "GameObject" and id then
         -- wanted posters and other quest boards are the everyday game, not secrets
-        if event ~= "GOSSIP_SHOW" or Compat.GetGossipInfo().quests > 0 then return end
+        if not FC.SecretCatalog.objects[id]
+            and (event ~= "GOSSIP_SHOW" or Compat.GetGossipInfo().quests > 0) then return end
         recordInteractiveObject(id, info.name)
         return
     end
@@ -396,8 +393,11 @@ local function onConversation(_, event)
         return
     end
     info.greeting = gossip.text
+    -- The player can close the dialog and move during the service-window
+    -- delay. Keep the location at which this conversation actually began.
+    local fields = Engine:LocationFields()
     -- give vendor / trainer / flight windows a moment to open first
-    U.After(1.5, function() recordConversationNPC(info) end)
+    U.After(1.5, function() recordConversationNPC(info, fields) end)
 end
 
 -- Turning in a quest: the NPC takes part in quests.

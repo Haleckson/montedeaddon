@@ -156,12 +156,17 @@ end
 function Gathering:RecordTreasure(objectID, name, fields)
     if not FC.Config:Get("discovery.objects") then return end
     local treasure = U.CopyTable(fields)
-    treasure.t = "treasure"
-    treasure.n = name or L.AUTO_OBJECT_TITLE
-    treasure.ic = Categories:Get("treasure").icon
+    treasure.t = FC.SecretCatalog.nonContainers[objectID] and "object" or "treasure"
+    treasure.n = name or (FC.Reference.objects[objectID] and FC.Reference.objects[objectID].n)
+        or FC.Reference.objectNames[objectID] or L.AUTO_OBJECT_TITLE
+    treasure.ic = Categories:Get(treasure.t).icon
     local id = Engine:ObjectId("u:obj:" .. objectID .. ":" .. (fields.m or 0) .. ":", fields.m, fields.x, fields.y)
-    local rec, isNew = Engine:Record(treasure, { id = id })
-    if rec and isNew and not fields.pa then FC.WorldDiscovery:RecordRoute(rec) end
+    local trail = not fields.pa and FC.Location:RecentRoute(fields.m, C.DISCOVERY.ROUTE_POINTS)
+    trail = trail and U.CopyTable(trail)
+    Engine:Record(treasure, { id = id, deferInCombat = false, onRecorded = function(rec, isNew)
+        FC.Store:MarkOpened(rec.id)
+        if isNew and not fields.pa then FC.WorldDiscovery:RecordRoute(rec, trail) end
+    end })
 end
 
 --- A world object turned out to be a gathering node: remember it, and take
@@ -199,13 +204,19 @@ end
 
 function Gathering:OnLoot()
     local items = Compat.GetLootItems()
-    local objectID = objectSource(items)
+    local objectID = objectSource(items) or Compat.GetLootObjectID()
     -- a catch: fishing is channeled, so its cast is long over when the
     -- bobber is looted, and fish are no herbs or ore; the game says it is one
     local fishing = Compat.IsFishingLoot() == true
     if not objectID and not fishing then return end
     local cast = self:RecentCast()
     local fields = Engine:LocationFields()
+    -- A verified chest remains a chest even if it contains only herbs/ore,
+    -- or an earlier gathering cast is still inside the detection window.
+    if objectID and FC.SecretCatalog.containers[objectID] then
+        self:RecordTreasure(objectID, cast and not cast.profession and cast.target, fields)
+        return
+    end
     local lootProfession, lootName = Gathering.LootProfession(items)
     local remembered = objectID and FC.db.gatherObjects[objectID]
     local profession = (fishing and "fishing") or (cast and cast.profession) or lootProfession or (remembered ~= "node" and remembered) or nil
@@ -218,7 +229,8 @@ function Gathering:OnLoot()
         return
     end
     -- a node whose profession the addon could not tell this time is still no treasure
-    if remembered or onlyQuestItems(items) then return end
+    if remembered or (onlyQuestItems(items) and not FC.SecretCatalog.objects[objectID]
+        and not FC.SecretCatalog.containers[objectID]) then return end
     self:RecordTreasure(objectID, cast and cast.target, fields)
 end
 

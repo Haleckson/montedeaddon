@@ -85,6 +85,7 @@ end
 --- Records an automatic discovery. Returns rec, isNew, announced (a toast
 --- went out: a new find, or one this character had not come across).
 --- opts: id (explicit id), force (skip cooldown), onExisting(rec) callback,
+---       onRecorded(rec, isNew) callback (also after combat deferral),
 ---       deferInCombat (default true)
 function Engine:Record(fields, opts)
     opts = opts or {}
@@ -104,6 +105,7 @@ function Engine:Record(fields, opts)
     if not opts.force and self.recent[id] and now - self.recent[id] < C.DISCOVERY.RECORD_COOLDOWN then
         local cached = store:Get(id)
         if cached and opts.onExisting then FC:SafeCall("onExisting", opts.onExisting, cached) end
+        if cached and opts.onRecorded then FC:SafeCall("onRecorded", opts.onRecorded, cached, false) end
         return cached, false, false
     end
     if not self.recent[id] then self.recentCount = self.recentCount + 1 end
@@ -117,8 +119,10 @@ function Engine:Record(fields, opts)
         -- counts for the character you play; the toast depends on the progress mode
         local _, _, announced = store:Encounter(rec, now)
         if opts.onExisting then FC:SafeCall("onExisting", opts.onExisting, rec) end
+        if opts.onRecorded then FC:SafeCall("onRecorded", opts.onRecorded, rec, false) end
         return rec, false, announced
     end
+    if opts.onRecorded then FC:SafeCall("onRecorded", opts.onRecorded, rec, true) end
     return rec, true, true
 end
 

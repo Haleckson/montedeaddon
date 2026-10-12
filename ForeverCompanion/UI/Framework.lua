@@ -71,6 +71,7 @@ end
 
 --- Sets an icon texture; numbers are fileIDs, strings are paths.
 function UI.SetIcon(tex, icon, fallback)
+    if FC.PinArt then return FC.PinArt:SetIcon(tex, icon, fallback) end
     tex:SetTexture(icon or fallback or "Interface\\Icons\\INV_Misc_QuestionMark")
 end
 
@@ -258,24 +259,39 @@ function UI.WrappedText(parent, fontRole, colorRole)
     return fs
 end
 
+local sectionHeaders = setmetatable({}, { __mode = "k" })
 function UI.SectionHeader(parent, text)
     local frame = CreateFrame("Frame", nil, parent)
     frame:SetHeight(22)
-    frame.label = UI.Text(frame, "meta", "accent")
+    frame.label = UI.WrappedText(frame, "meta", "accent")
     frame.label:SetPoint("LEFT")
-    frame.label:SetText(text and text:upper() or "")
+    frame.label:SetText(U.Upper(text))
     frame.line = UI.Divider(frame, "border")
     frame.line:SetPoint("LEFT", frame.label, "RIGHT", 8, 0)
     frame.line:SetPoint("RIGHT")
-    function frame:SetText(value) self.label:SetText(value and value:upper() or "") end
+    function frame:FitHeading()
+        if self.fcFittingHeading then return end
+        local width = self:GetWidth()
+        if width <= 24 then return end
+        self.fcFittingHeading = true
+        self.label:SetWidth(0) -- measure the full new text, not the preceding pooled label's wrap
+        self.label:SetWidth(math.min(self.label:GetStringWidth(), width - 24))
+        self:SetHeight(math.max(22, self.label:GetStringHeight() + 6))
+        self.fcFittingHeading = nil
+    end
+    function frame:SetText(value) self.label:SetText(U.Upper(value)); self:FitHeading() end
+    frame:HookScript("OnSizeChanged", function() frame:FitHeading() end)
+    sectionHeaders[frame] = true
     return frame
 end
+FC.Bus:On("FONTS_CHANGED", sectionHeaders, function() for frame in pairs(sectionHeaders) do frame:FitHeading() end end)
 
 ------------------------------------------------------------------------
 -- Tooltip (FCTooltip)
 ------------------------------------------------------------------------
 
 local tooltip
+local nativeTooltipOwner
 
 local function ensureTooltip()
     if tooltip then return tooltip end
@@ -285,54 +301,140 @@ local function ensureTooltip()
     tooltip.accent = UI.AccentLine(tooltip)
     tooltip.icon = UI.Icon(tooltip, 28)
     tooltip.icon:SetPoint("TOPLEFT", 10, -10)
-    tooltip.title = UI.Text(tooltip, "cardTitle", "text")
+    tooltip.title = UI.WrappedText(tooltip, "cardTitle", "text")
     tooltip.lines = {}
     tooltip:Hide()
     return tooltip
 end
 
+-- Native tooltip FontStrings are reused by Blizzard and other addons. Leave
+-- their widths, anchors and wrap flags to AddLine/AddDoubleLine's own layout.
+-- Only our Russian text needs a temporary font when the client is not Russian.
+local nativeTooltipFonts = setmetatable({}, { __mode = "k" })
+
+local function restoreTooltipFonts(tooltip)
+    local state = nativeTooltipFonts[tooltip]
+    if not state then return end
+    local safeCall = FC.Compat.SafeCall
+    for fs, previous in pairs(state.fonts) do
+        local path, size, flags = safeCall(fs.GetFont, fs)
+        -- Do not undo another addon's later font change.
+        if path == previous.applied and size == previous.size and flags == previous.flags then
+            safeCall(fs.SetFont, fs, previous.path, previous.size, previous.flags)
+        end
+    end
+    wipe(state.fonts)
+end
+
+local function nextTooltipLine(tooltip)
+    if FC.Locale.active ~= "ruRU" then return nil end
+    local count = FC.Compat.SafeCall(tooltip.NumLines, tooltip)
+    if type(count) == "number" and count >= 0 and count < math.huge and count == math.floor(count) then
+        return count + 1
+    end
+end
+
+local function localizeTooltipLine(tooltip, row, leftText, rightText)
+    if not row then return end
+    local safeCall = FC.Compat.SafeCall
+    local name = safeCall(tooltip.GetName, tooltip)
+    if type(name) ~= "string" then return end
+    local state = nativeTooltipFonts[tooltip]
+    if not state then
+        if type(tooltip.HookScript) ~= "function" then return end
+        local ok = pcall(tooltip.HookScript, tooltip, "OnTooltipCleared", restoreTooltipFonts)
+        if not ok then return end
+        state = { fonts = {} }
+        nativeTooltipFonts[tooltip] = state
+    end
+    local function prepare(side, expected)
+        local fs = _G[name .. side .. row]
+        -- Capture the insertion index before AddLine: a hook can append more
+        -- lines before it returns. Never format that other addon's last row.
+        if not fs or type(expected) ~= "string" or safeCall(fs.GetText, fs) ~= expected then return end
+        local path, size, flags = safeCall(fs.GetFont, fs)
+        local cyrillic = Fonts:CyrillicPath()
+        if type(path) ~= "string" or type(size) ~= "number" or size <= 0 or size >= math.huge
+            or type(flags) ~= "string" or path == cyrillic then return end
+        state.fonts[fs] = { path = path, size = size, flags = flags, applied = cyrillic }
+        safeCall(fs.SetFont, fs, cyrillic, size, flags)
+    end
+    prepare("TextLeft", leftText)
+    prepare("TextRight", rightText)
+end
+
+function UI.AddTooltipLine(tooltip, text, r, g, b, wrap)
+    local row = nextTooltipLine(tooltip)
+    tooltip:AddLine(text, r, g, b, wrap ~= false)
+    localizeTooltipLine(tooltip, row, text)
+end
+
+function UI.AddTooltipDoubleLine(tooltip, left, right, r, g, b, r2, g2, b2)
+    local row = nextTooltipLine(tooltip)
+    -- The native wrap argument also accounts for line height. Forcing wrapping
+    -- on TextRight afterward can make several lines overlap the following row.
+    tooltip:AddDoubleLine(left, right, r, g, b, r2, g2, b2, true)
+    localizeTooltipLine(tooltip, row, left, right)
+end
+
+-- Track only tooltips opened by our controls. Appending information to an
+-- external item tooltip does not make that shared tooltip ours to hide.
+function UI.SetTooltipOwner(owner, anchor)
+    if tooltip then tooltip:Hide(); tooltip.fcOwner = nil end
+    GameTooltip:SetOwner(owner, anchor)
+    nativeTooltipOwner = owner
+end
+
 --- Shows the addon tooltip. lines: array of { text, colorRole | hex, rightText }
-function UI.ShowTooltip(owner, title, lines, icon, anchor)
+function UI.ShowTooltip(owner, title, lines, icon, anchor, iconFallback)
     if FC.P and FC.P.appearance.tooltipStyle == "blizzard" then
-        GameTooltip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
-        GameTooltip:AddLine(title or "", 1, 0.82, 0)
+        UI.SetTooltipOwner(owner, anchor or "ANCHOR_RIGHT")
+        UI.AddTooltipLine(GameTooltip, title or "", 1, 0.82, 0, true)
         for _, line in ipairs(lines or {}) do
             local r, g, b = 0.9, 0.9, 0.9
             if line[2] and U.IsValidHex(line[2]) then r, g, b = U.HexToRGB(line[2]) elseif line[2] then r, g, b = Theme:Color(line[2]) end
             if line[3] then
-                GameTooltip:AddDoubleLine(line[1], line[3], r, g, b, 1, 1, 1)
+                UI.AddTooltipDoubleLine(GameTooltip, line[1], line[3], r, g, b, 1, 1, 1)
             else
-                GameTooltip:AddLine(line[1], r, g, b, true)
+                UI.AddTooltipLine(GameTooltip, line[1], r, g, b, true)
             end
         end
         GameTooltip:Show()
         return
     end
+    UI.HideTooltip()
     local tip = ensureTooltip()
-    local width = 220
+    tip.fcOwner = owner
+    -- Title-only tooltips, including compact minimap pins, fit their words
+    -- and optional icon without the minimum width of a detailed tooltip.
+    local titleOnly = not (lines and #lines > 0)
+    local width = titleOnly and 0 or 220
     local left = 10
     if icon then
         tip.icon:Show()
-        UI.SetIcon(tip.icon, icon)
+        UI.SetIcon(tip.icon, icon, iconFallback)
         left = 46
     else
         tip.icon:Hide()
     end
     tip.title:ClearAllPoints()
     tip.title:SetPoint("TOPLEFT", left, -12)
+    tip.title:SetWidth(0)
     tip.title:SetText(title or "")
-    width = math.max(width, tip.title:GetStringWidth() + left + 16)
+    width = math.min(360, math.max(titleOnly and 80 or 300, tip.title:GetStringWidth() + left + (titleOnly and 10 or 16)))
+    tip.title:SetWidth(width - left - 10)
     local y = -12 - tip.title:GetStringHeight() - 6
     if icon then y = math.min(y, -44) end
     for i, line in ipairs(lines or {}) do
         local row = tip.lines[i]
         if not row then
-            row = { left = UI.WrappedText(tip, "secondary", "muted"), right = UI.Text(tip, "secondary", "text") }
+            row = { left = UI.WrappedText(tip, "secondary", "muted"), right = UI.WrappedText(tip, "secondary", "text") }
+            row.right:SetJustifyH("RIGHT")
             tip.lines[i] = row
         end
         row.left:ClearAllPoints()
         row.left:SetPoint("TOPLEFT", 10, y)
-        row.left:SetWidth(line[3] and 150 or 280)
+        row.left:SetWidth(line[3] and (width - 30) * 0.55 or width - 20)
         row.left:SetText(line[1] or "")
         if line[2] and U.IsValidHex(line[2]) then
             Theme:Forget(row.left)
@@ -342,18 +444,18 @@ function UI.ShowTooltip(owner, title, lines, icon, anchor)
         end
         row.right:ClearAllPoints()
         row.right:SetPoint("TOPRIGHT", -10, y)
+        row.right:SetWidth((width - 30) * 0.45)
         row.right:SetText(line[3] or "")
         row.left:Show()
         row.right:Show()
-        local h = math.max(row.left:GetStringHeight(), 12)
-        width = math.max(width, math.min(300, row.left:GetStringWidth() + (line[3] and row.right:GetStringWidth() + 30 or 0) + 20))
+        local h = math.max(row.left:GetStringHeight(), row.right:GetStringHeight(), 12)
         y = y - h - 4
     end
     for i = #(lines or {}) + 1, #tip.lines do
         tip.lines[i].left:Hide()
         tip.lines[i].right:Hide()
     end
-    tip:SetSize(width, -y + 8)
+    tip:SetSize(width, -y + (titleOnly and 6 or 8))
     tip:ClearAllPoints()
     if anchor == "cursor" then
         local x, cy = GetCursorPosition()
@@ -362,13 +464,22 @@ function UI.ShowTooltip(owner, title, lines, icon, anchor)
     else
         tip:SetPoint("TOPLEFT", owner, "TOPRIGHT", 8, 0)
     end
-    tip:SetScale(FC.P and FC.P.appearance.scale or 1)
+    UI.FitScale(tip, FC.P and FC.P.appearance.scale or 1)
     tip:Show()
 end
 
-function UI.HideTooltip()
-    if tooltip then tooltip:Hide() end
-    if GameTooltip then GameTooltip:Hide() end
+function UI.HideTooltip(owner)
+    if tooltip and (not owner or tooltip.fcOwner == owner) then
+        tooltip:Hide()
+        tooltip.fcOwner = nil
+    end
+    if nativeTooltipOwner and (not owner or nativeTooltipOwner == owner) then
+        -- Another addon may already have reused GameTooltip before OnLeave.
+        if GameTooltip and FC.Compat.SafeCall(GameTooltip.GetOwner, GameTooltip) == nativeTooltipOwner then
+            GameTooltip:Hide()
+        end
+        nativeTooltipOwner = nil
+    end
 end
 
 --- Attaches a simple title/text tooltip to any frame.
@@ -415,10 +526,35 @@ local function buttonPadding(button)
 end
 
 local function fitWidth(button)
+    if button.fcFitting then return end
+    button.fcFitting = true
     if button.fcAutoWidth then
-        button:SetWidth(math.max(button.fcAutoWidth, button.label:GetStringWidth() + buttonPadding(button)))
+        if button.fcMaxWidth then
+            button:SetHeight(button.fcMinHeight or 26)
+            button.label:SetWidth(0)
+            button.label:SetHeight(0)
+            button.label:SetWordWrap(false)
+        end
+        local width = math.max(button.fcAutoWidth, math.ceil(button.label:GetStringWidth() + buttonPadding(button)) + 2)
+        button:SetWidth(button.fcMaxWidth and math.min(width, button.fcMaxWidth) or width)
+        if button.fcMaxWidth then
+            button.label:SetWidth(math.max(20, button:GetWidth() - buttonPadding(button)))
+            button.label:SetWordWrap(width > button.fcMaxWidth)
+            button:SetHeight(math.max(button.fcMinHeight or 26, button.label:GetStringHeight() + 10))
+        end
+    else
+        -- Fixed layout controls cannot grow sideways into their neighbours.
+        -- WoW ellipsizes the bounded label; hovering exposes the full wording.
+        button.label:SetWidth(math.max(1, button:GetWidth() - buttonPadding(button)))
+        button.label:SetHeight(math.max(1, button:GetHeight() - 4))
     end
+    button.fcFitting = nil
 end
+
+local textButtons = setmetatable({}, { __mode = "k" })
+FC.Bus:On("FONTS_CHANGED", textButtons, function()
+    for button in pairs(textButtons) do fitWidth(button) end
+end)
 
 function UI.StyleButton(button)
     local style = BUTTON_STYLES[button.fcStyle] or BUTTON_STYLES.secondary
@@ -480,6 +616,8 @@ function UI.Button(parent, text, opts)
     button.hover = UI.Texture(button, "HIGHLIGHT", "text", 0.07)
     button.hover:SetAllPoints()
     button.label = UI.Text(button, "button", "text")
+    button.label:SetJustifyH("CENTER")
+    if button.label.SetNonSpaceWrap then button.label:SetNonSpaceWrap(true) end
     button.label:SetPoint("CENTER")
     button.label:SetText(text or "")
     if opts.icon then
@@ -514,6 +652,13 @@ function UI.Button(parent, text, opts)
     end)
     if opts.tooltip then
         UI.AttachTooltip(button, text ~= "" and text or opts.tooltip, text ~= "" and opts.tooltip or nil)
+    else
+        button:HookScript("OnEnter", function(self)
+            if self.label:GetStringWidth() > self.label:GetWidth() or self.label:GetStringHeight() > self.label:GetHeight() then
+                UI.ShowTooltip(self, self.label:GetText())
+            end
+        end)
+        button:HookScript("OnLeave", UI.HideTooltip)
     end
     function button:SetLabel(value)
         self.label:SetText(value or "")
@@ -523,11 +668,21 @@ function UI.Button(parent, text, opts)
         self.fcStyle = style
         UI.StyleButton(self)
     end
+    -- Settings can wrap long translated labels while retaining auto sizing
+    -- when the theme or font changes again.
+    function button:FitLabel(maxWidth, minHeight)
+        if not self.fcAutoWidth then self.fcAutoWidth = math.min(self:GetWidth(), maxWidth) end
+        self.fcMaxWidth, self.fcMinHeight = maxWidth, minHeight or 26
+        fitWidth(self)
+        return self:GetHeight()
+    end
     function button:SetDisabled(disabled)
         self.fcDisabled = disabled and true or false
         UI.StyleButton(self)
     end
     UI.StyleButton(button)
+    textButtons[button] = true
+    button:HookScript("OnSizeChanged", function() fitWidth(button) end)
     Theme:OnChange(button, UI.StyleButton)
     return button
 end
@@ -623,6 +778,7 @@ function UI.NavItem(parent, icon, label, onClick)
     function item:SetCount(n)
         self.count:SetText(n and n > 0 and U.FormatNumber(n) or "")
     end
+    UI.AttachTooltip(item, label)
     return item
 end
 
@@ -638,6 +794,7 @@ function UI.Chip(parent, text, colorHex, onClick)
     function chip:SetChip(value, hex)
         self.value = value
         self.label:SetText(value)
+        self:SetHeight(math.max(18, self.label:GetStringHeight() + 4))
         self:SetWidth(self.label:GetStringWidth() + 14)
         if hex and U.IsValidHex(hex) then
             Theme:Forget(self.bg)
@@ -871,6 +1028,9 @@ function UI.MultiLineEdit(parent, opts)
     if opts.placeholder then
         edit.placeholder = UI.Text(container, "body", "muted", "ARTWORK")
         edit.placeholder:SetPoint("TOPLEFT", 8, -8)
+        edit.placeholder:SetPoint("TOPRIGHT", -8, -8)
+        edit.placeholder:SetWordWrap(true)
+        if edit.placeholder.SetNonSpaceWrap then edit.placeholder:SetNonSpaceWrap(true) end
         edit.placeholder:SetText(opts.placeholder)
         local function update(self) self.placeholder:SetShown(self:GetText() == "" and not self:HasFocus()) end
         edit:HookScript("OnTextChanged", update)
@@ -1052,14 +1212,21 @@ function UI.FitScale(frame, wanted)
 end
 
 --- Keeps a movable frame fully on screen and stores its position via save(point, relPoint, x, y).
-function UI.MakeMovable(frame, handle, save)
+--- canMove (optional) answers whether a drag may move the frame now (a lock).
+function UI.MakeMovable(frame, handle, save, canMove)
     frame:SetMovable(true)
     frame:SetClampedToScreen(true)
     handle = handle or frame
     handle:EnableMouse(true)
     handle:RegisterForDrag("LeftButton")
-    handle:SetScript("OnDragStart", function() frame:StartMoving() end)
+    handle:SetScript("OnDragStart", function()
+        if canMove and not canMove() then return end
+        frame.fcMoving = true
+        frame:StartMoving()
+    end)
     handle:SetScript("OnDragStop", function()
+        if not frame.fcMoving then return end
+        frame.fcMoving = nil
         frame:StopMovingOrSizing()
         if save then
             local point, _, relPoint, x, y = frame:GetPoint(1)
