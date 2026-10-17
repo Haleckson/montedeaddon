@@ -1,23 +1,27 @@
 local C = _G.Chronicle
 local U = C.Util
-local DB_VERSION = 8
+local DB_VERSION = 9
+local requestedEquipmentItems = {}
 
 local accountDefaults = {
-    version = DB_VERSION, characters = {}, characterData = {},
+    version = DB_VERSION, characters = {}, characterData = {}, companions = {},
     settings = { maxEvents = 750, maxLoot = 400, maxQuests = 500, maxEconomy = 500,
         showWelcome = true, windowWidth = 960, windowHeight = 650, language = "auto",
-        minimapX = -.7071, minimapY = -.7071 },
+        minimapX = -.7071, minimapY = -.7071,
+        hiddenPages = {}, showMinimapButton = true, showSuspiciousMoney = false,
+        classHideCompleted = false, rareShowCoordinates = true,
+        rareShowLoot = true, rareLevelRange = 5 },
 }
 local characterDefaults = {
     version = DB_VERSION, created = 0, lastLogin = 0, lastLogout = 0, lastSessionEnd = 0,
     ownerGUID = "", ownerName = "", ownerRealm = "", lastZone = "", lastSubZone = "", lastInstance = "", money = 0,
     events = {}, goals = {}, quests = {}, activeQuests = {}, zones = {}, npcs = {}, dungeons = {}, bosses = {},
-    loot = {}, rares = {}, professions = {}, recipes = {}, inventory = {}, bank = {}, economy = {}, deaths = {}, notes = {}, noteTombstones = {}, stats = {},
+    loot = {}, rares = {}, rareDeaths = {}, professions = {}, recipes = {}, inventory = {}, bank = {}, economy = {}, deaths = {}, notes = {}, noteTombstones = {}, stats = {},
     gathering = { ore = {}, herbs = {}, skinning = {}, oreNodes = 0, herbNodes = 0,
         skinNodes = 0 }, training = { services = {} },
 }
 local listFields = { "events", "goals", "quests", "loot", "economy", "deaths", "notes" }
-local mapFields = { "zones", "npcs", "merchants", "dungeons", "bosses", "rares", "professions", "recipes", "inventory", "bank", "gathering", "training" }
+local mapFields = { "zones", "npcs", "merchants", "dungeons", "bosses", "rares", "rareDeaths", "professions", "recipes", "inventory", "bank", "gathering", "training" }
 
 local function noteKey(note)
     return tostring(note.id or note.created or 0) .. "\031" .. tostring(note.text or "")
@@ -153,6 +157,17 @@ function C:BindCharacterDatabase()
     for data in pairs(candidates) do
         if data ~= character then mergeDeaths(character.deaths, data.deaths) end
     end
+    for data in pairs(candidates) do
+        if data ~= character and type(data.rareDeaths) == "table" then
+            for id, death in pairs(data.rareDeaths) do
+                local current = character.rareDeaths[id]
+                if type(death) == "table" and type(death.time) == "number" and
+                    (not current or death.time > (tonumber(current.time) or 0)) then
+                    character.rareDeaths[id] = death
+                end
+            end
+        end
+    end
     if type(ChronicleDeathRecovery) == "table" then
         mergeDeaths(character.deaths, ChronicleDeathRecovery[identity.key])
         mergeDeaths(character.deaths, ChronicleDeathRecovery[identity.legacyKey])
@@ -219,6 +234,153 @@ function C:UpdateCharacterSummary()
     self.db.characters[key] = summary
 end
 
+function C:UpdateEquipmentSnapshot()
+    if not self.db or not self.characterKey or
+        (not GetInventoryItemID and not GetInventoryItemLink) then return end
+    local summary = self.db.characters and self.db.characters[self.characterKey]
+    if not summary then
+        self:UpdateCharacterSummary()
+        summary = self.db.characters and self.db.characters[self.characterKey]
+    end
+    if not summary then return end
+    local slots = {}
+    local equipped = 0
+    for slot = 1, 19 do
+        local itemID, link, icon
+        if GetInventoryItemID then
+            local ok, value = pcall(GetInventoryItemID, "player", slot)
+            if not ok or (issecretvalue and issecretvalue(value)) then return end
+            if type(value) == "number" then itemID = value end
+        end
+        if GetInventoryItemLink then
+            local ok, value = pcall(GetInventoryItemLink, "player", slot)
+            if not ok or (issecretvalue and issecretvalue(value)) then return end
+            if type(value) == "string" then
+                link = value
+                itemID = itemID or tonumber(value:match("item:(%d+)"))
+            end
+        end
+        if itemID and itemID > 0 then
+            if GetInventoryItemTexture then
+                local iconOK, value = pcall(GetInventoryItemTexture, "player", slot)
+                if not iconOK or (issecretvalue and issecretvalue(value)) then return end
+                if type(value) == "string" or type(value) == "number" then icon = value end
+            end
+            local item = { id = itemID, link = link, icon = icon }
+            if GetItemInfo then
+                local infoOK, name, _, quality, itemLevel = pcall(GetItemInfo, link or itemID)
+                if (not infoOK or not name) and link then
+                    infoOK, name, _, quality, itemLevel = pcall(GetItemInfo, itemID)
+                end
+                if infoOK then
+                    if not (issecretvalue and issecretvalue(name)) and type(name) == "string" then item.name = name end
+                    if not (issecretvalue and issecretvalue(quality)) and type(quality) == "number" then item.quality = quality end
+                    if not (issecretvalue and issecretvalue(itemLevel)) and type(itemLevel) == "number" then item.itemLevel = itemLevel end
+                end
+            end
+            if not item.quality and C_Item and C_Item.GetItemQualityByID then
+                local qualityOK, quality = pcall(C_Item.GetItemQualityByID, itemID)
+                if qualityOK and not (issecretvalue and issecretvalue(quality)) and
+                    type(quality) == "number" then item.quality = quality end
+            end
+            if not item.quality and link then
+                item.quality = tonumber(link:match("|cnIQ(%d+):"))
+                if not item.quality then
+                    local hex = link:match("|cff(%x%x%x%x%x%x)")
+                    item.quality = hex and ({
+                        ["9d9d9d"] = 0, ["ffffff"] = 1, ["1eff00"] = 2,
+                        ["0070dd"] = 3, ["a335ee"] = 4, ["ff8000"] = 5,
+                    })[hex:lower()]
+                end
+            end
+            if GetItemStats then
+                local statsOK, stats = pcall(GetItemStats, link or ("item:" .. itemID))
+                if (not statsOK or (issecretvalue and issecretvalue(stats)) or
+                    type(stats) ~= "table" or not next(stats)) and link then
+                    statsOK, stats = pcall(GetItemStats, "item:" .. itemID)
+                end
+                if statsOK and not (issecretvalue and issecretvalue(stats)) and type(stats) == "table" then
+                    item.stats = {}
+                    for stat, value in pairs(stats) do
+                        if not (issecretvalue and issecretvalue(stat)) and
+                            not (issecretvalue and issecretvalue(value)) and
+                            type(stat) == "string" and type(value) == "number" then
+                            item.stats[stat] = value
+                        end
+                    end
+                end
+            end
+            if (not item.itemLevel or not item.stats or not next(item.stats)) and
+                not requestedEquipmentItems[itemID] and
+                C_Item and C_Item.RequestLoadItemDataByID then
+                requestedEquipmentItems[itemID] = true
+                pcall(C_Item.RequestLoadItemDataByID, itemID)
+            end
+            slots[slot] = item
+            equipped = equipped + 1
+        end
+    end
+    -- Inventory APIs may already be empty during logout or before equipment loads.
+    -- Keep the last valid cross-character snapshot in that case.
+    if equipped == 0 then return end
+    summary.equipment = { slots = slots, updated = time() }
+    self:UpdateCharacterStats()
+    self:Fire("DATA_CHANGED", "equipment")
+end
+
+function C:UpdateCharacterStats()
+    local summary = self.db and self.db.characters and self.db.characters[self.characterKey]
+    if not summary then return end
+    local function safeCall(func, ...)
+        if type(func) ~= "function" then return nil end
+        local ok, value = pcall(func, ...)
+        if ok and not (issecretvalue and issecretvalue(value)) and type(value) == "number" then return value end
+        return nil
+    end
+    local stats = { updated = time() }
+    stats.health = safeCall(UnitHealthMax, "player")
+    if not stats.health or stats.health <= 0 then return end
+    stats.mana = safeCall(UnitPowerMax, "player", 0)
+    for index, name in ipairs({ "strength", "agility", "stamina", "intellect", "spirit" }) do
+        if UnitStat then
+            local ok, _, effective = pcall(UnitStat, "player", index)
+            if ok and not (issecretvalue and issecretvalue(effective)) and type(effective) == "number" then
+                stats[name] = effective
+            end
+        end
+    end
+    if UnitArmor then
+        local ok, _, effective = pcall(UnitArmor, "player")
+        if ok and not (issecretvalue and issecretvalue(effective)) and type(effective) == "number" then
+            stats.armor = effective
+        end
+    end
+    if UnitDamage then
+        local ok, minimum, maximum = pcall(UnitDamage, "player")
+        if ok and type(minimum) == "number" and type(maximum) == "number" and
+            not (issecretvalue and (issecretvalue(minimum) or issecretvalue(maximum))) then
+            stats.damageMin, stats.damageMax = minimum, maximum
+        end
+    end
+    if UnitAttackPower then
+        local ok, base, positive, negative = pcall(UnitAttackPower, "player")
+        if ok and type(base) == "number" and type(positive) == "number" and type(negative) == "number" and
+            not (issecretvalue and (issecretvalue(base) or issecretvalue(positive) or issecretvalue(negative))) then
+            stats.attackPower = base + positive + negative
+        end
+    end
+    stats.crit = safeCall(GetCritChance)
+    stats.meleeHit = safeCall(GetHitModifier)
+    stats.spellHit = safeCall(GetSpellHitModifier)
+    stats.dodge = safeCall(GetDodgeChance)
+    stats.parry = safeCall(GetParryChance)
+    stats.block = safeCall(GetBlockChance)
+    stats.spellPower = safeCall(GetSpellBonusDamage, 2)
+    stats.healing = safeCall(GetSpellBonusHealing)
+    stats.spellCrit = safeCall(GetSpellCritChance, 2)
+    summary.characterStats = stats
+end
+
 function C:RefreshTalentSnapshot()
     if not self.char or not self.characterKey or not self.API.TalentSnapshot then return end
     local ok, snapshot = pcall(self.API.TalentSnapshot)
@@ -235,7 +397,10 @@ end
 function C:AddEvent(kind, text, details)
     if not self.char then return end
     local entry = { time = time(), kind = kind or "event", text = U.SafeText(text, "Ereignis"), details = details }
-    U.PushLimited(self.char.events, entry, self.db.settings.maxEvents or 750); self:Fire("DATA_CHANGED", kind); return entry
+    U.PushLimited(self.char.events, entry, self.db.settings.maxEvents or 750)
+    self:Fire("CHRONICLE_EVENT_ADDED", entry)
+    self:Fire("DATA_CHANGED", kind)
+    return entry
 end
 function C:AddGoal(text)
     self:BindCharacterDatabase()

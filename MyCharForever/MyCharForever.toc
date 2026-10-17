@@ -1,0 +1,55 @@
+## Interface: 16001
+## Title: MyCharForever
+## Notes: Your character. Your journey. Forever.
+## Author: Devchris
+## Version: 1.0.2
+## SavedVariables: MyCharForeverAccountDB, MCFGatherDebugDB
+## SavedVariablesPerCharacter: MyCharForeverDB, MyCharForeverExportDB
+
+Localization.lua
+ErrorLog.lua
+Widgets.lua
+Settings.lua
+Minimap.lua
+Screenshots.lua
+Migrations.lua
+Core.lua
+Maintenance.lua
+LevelHistory.lua
+GearTracking.lua
+Tracking.lua
+Journey.lua
+TravelDuel.lua
+Map.lua
+Map.xml
+Gold.lua
+Dungeons.lua
+WorldDrops.lua
+ItemJournal.lua
+Professions.lua
+CraftTracking.lua
+Gathering.lua
+Social.lua
+Achievements.lua
+GatherDebug.lua
+DeathRecapDebug.lua
+Reputation.lua
+Statistics.lua
+DeathCause.lua
+Iconic.lua
+Moments.lua
+Camping.lua
+Guild.lua
+PvP.lua
+Compress.lua
+Export.lua
+SelfTest.lua
+Website.lua
+Perf.lua
+MapDump.lua
+Portrait.lua
+Tips.lua
+Welcome.lua
+UI.lua
+
+## IconTexture: Interface\AddOns\MyCharForever\MyCharForever_Icon

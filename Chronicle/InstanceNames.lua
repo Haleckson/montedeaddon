@@ -45,7 +45,8 @@ local names = {
     ["Ahn'Qiraj Temple"] = {"Tempel von Ahn'Qiraj", "Temple d'Ahn'Qiraj", "Templo de Ahn'Qiraj", "Tempio di Ahn'Qiraj", "Templo de Ahn'Qiraj", "Храм Ан'Киража"},
     ["Naxxramas"] = {"Naxxramas", "Naxxramas", "Naxxramas", "Naxxramas", "Naxxramas", "Наксрамас"},
     ["Mount Hyjal"] = {"Hyjalberg", "Mont Hyjal", "Monte Hyjal", "Monte Hyjal", "Monte Hyjal", "Гора Хиджал"},
-    ["Barrow Deeps"] = {"Hügelgruft-Tiefen", "Profondeurs des tertres", "Profundidades del túmulo", "Profondità dei tumuli", "Profundezas dos Túmulos", "Глубины курганов"},
+    ["Hyjal Summit"] = {"Hyjalgipfel", "Hyjal Summit", "Hyjal Summit", "Hyjal Summit", "Hyjal Summit", "Hyjal Summit"},
+    ["Barrow Deeps"] = {"Tiefengrabhügel", "Profondeurs des tertres", "Profundidades del túmulo", "Profondità dei tumuli", "Profundezas dos Túmulos", "Глубины курганов"},
 }
 
 local columns = {deDE = 1, frFR = 2, esES = 3, esMX = 3, itIT = 4,

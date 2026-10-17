@@ -1,0 +1,5 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <Frame name="MyCharForeverRoutePinTemplate"
+           mixin="MyCharForeverRoutePinMixin"
+           virtual="true"/>
+</Ui>

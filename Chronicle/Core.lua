@@ -4,9 +4,34 @@ _G.Chronicle = ns
 
 ns.name = ADDON_NAME or "Chronicle"
 ns.displayName = "Chronicle Forever"
-ns.version = "1.5.65"
+ns.version = "1.5.256"
 ns.modules = {}
 ns.callbacks = {}
+
+function ns:BossDifficultyColor(bossLevel)
+    local level = tonumber(bossLevel)
+    local playerLevel = UnitLevel and tonumber(UnitLevel("player"))
+    if not level or not playerLevel or playerLevel < 1 then return 1, .82, .1 end
+    if GetCreatureDifficultyColor then
+        local ok, color, green, blue = pcall(GetCreatureDifficultyColor, level)
+        if ok then
+            if type(color) == "table" and color.r and color.g and color.b then
+                return color.r, color.g, color.b
+            elseif type(color) == "number" and type(green) == "number" and
+                type(blue) == "number" then
+                return color, green, blue
+            end
+        end
+    end
+    local difference = level - playerLevel
+    local grayLevel = playerLevel <= 5 and 0 or
+        (playerLevel <= 39 and playerLevel - math.floor(playerLevel / 10) - 5 or playerLevel - 9)
+    if level <= grayLevel then return .55, .55, .55 end
+    if difference <= -3 then return .25, .75, .25 end
+    if difference <= 2 then return 1, .82, .1 end
+    if difference <= 4 then return 1, .48, .1 end
+    return 1, .18, .18
+end
 
 function ns:RegisterModule(name, module)
     self.modules[name] = module
@@ -51,6 +76,15 @@ end
 function Chronicle_OnAddonCompartmentLeave()
     if GameTooltip then GameTooltip:Hide() end
 end
+
+
+
+
+
+
+
+
+
 
 
 

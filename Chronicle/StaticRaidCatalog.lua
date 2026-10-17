@@ -1050,6 +1050,16 @@ C.raidKnowledge["Ahn'Qiraj Temple"] = { level = "60", atlasSource = true, quests
         {21323, "Green Qiraji Resonating Crystal", ""},
         {21321, "Red Qiraji Resonating Crystal", ""},
     } },
+    { name = "Gemeinsame Raidbeute", loot = {
+        {20728, "Formula: Enchant Gloves - Frost Power", ""},
+        {20731, "Formula: Enchant Gloves - Superior Agility", ""},
+        {20734, "Formula: Enchant Cloak - Stealth", ""},
+        {20729, "Formula: Enchant Gloves - Fire Power", ""},
+        {20736, "Formula: Enchant Cloak - Dodge", ""},
+        {20730, "Formula: Enchant Gloves - Healing Power", ""},
+        {20727, "Formula: Enchant Gloves - Shadow Power", ""},
+        {21229, "Qiraji Lord's Insignia", ""},
+    } },
 } }
 C.raidKnowledgeOrder[#C.raidKnowledgeOrder + 1] = "Ahn'Qiraj Temple"
 C.raidKnowledge["Naxxramas"] = { level = "60", atlasSource = true, quests = {}, bosses = {

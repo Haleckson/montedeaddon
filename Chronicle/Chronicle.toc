@@ -1,9 +1,9 @@
 ## Interface: 16001
 ## Title: |cffffd100Chronicle Forever|r
-## Notes: Your journey. Forever. Version 1.5.65.
-## Notes-deDE: Deine Reise. Fuer immer. Version 1.5.65.
+## Notes: Your journey. Forever. Version 1.5.256.
+## Notes-deDE: Deine Reise. Fuer immer. Version 1.5.256.
 ## Author: Schwarzer Lotus
-## Version: 1.5.65
+## Version: 1.5.256
 ## SavedVariables: ChronicleDB, ChronicleNotesDB
 ## SavedVariablesPerCharacter: ChronicleCharDB
 ## LoadSavedVariablesFirst: 1
@@ -24,8 +24,10 @@ Compat.lua
 DeathCombat.lua
 Search.lua
 Collectors.lua
+Companions.lua
 InstanceArt.lua
 UI.lua
+CompanionsUI.lua
 MinimapButton.lua
 TrainerCatalog.lua
 KnowledgeCatalog.lua
@@ -34,9 +36,41 @@ DiscoveriesUI.lua
 DungeonKnowledgeCatalog.lua
 StaticRaidCatalog.lua
 StaticDungeonCatalog.lua
+InstanceQuestIndex.lua
 AtlasLootForeverData.lua
 InstanceKnowledgeCatalog.lua
-AzerothCompendiumRefs.lua
+BossDisplayRefs.lua
+BossMetadata.lua
 DungeonMaps.lua
+MapBossPins.lua
+InstanceCatalogUpdate.lua
+SupplementalBossLoot.lua
+SupplementalBossLevels.lua
+SupplementalTrashLoot.lua
 DungeonKnowledgeUI.lua
+DungeonMapWindow.lua
 AttunementUI.lua
+ClassReferenceData.lua
+ClassQuestExtras.lua
+ClassQuestGuideDetails.lua
+RareReferenceData.lua
+RareExtraData.lua
+LootItemReferenceData.lua
+LootTooltipData.lua
+LootTooltip.lua
+ClassKnowledgeUI.lua
+RareKnowledgeUI.lua
+LootGalleryUI.lua
+ProfessionThresholds.lua
+ProfessionBrowserUI.lua
+SettingsUI.lua
+
+
+
+
+
+
+
+
+
+

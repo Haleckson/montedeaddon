@@ -98,8 +98,18 @@ function A.TalentSnapshot()
                                     end
                                 end
                                 if type(talentName) == "string" and talentName ~= "" then
+                                    local spellID = tonumber(definition.spellID)
+                                    local icon = definition.overrideIcon
+                                    if not icon and spellID then
+                                        local getTexture = C_Spell and C_Spell.GetSpellTexture or GetSpellTexture
+                                        if type(getTexture) == "function" then
+                                            local iconOK, value = pcall(getTexture, spellID)
+                                            if iconOK then icon = value end
+                                        end
+                                    end
                                     snapshot.learned[#snapshot.learned + 1] = {
                                         name = talentName, rank = rank, treeID = treeID,
+                                        spellID = spellID, icon = icon,
                                         posX = tonumber(node.posX), posY = tonumber(node.posY),
                                     }
                                     seen[entryID] = true
@@ -252,7 +262,31 @@ function A.KnownRecipes()
         if type(id) == "number" then
             local recipeOK, recipe = pcall(C_TradeSkillUI.GetRecipeInfo, id)
             if recipeOK and type(recipe) == "table" and recipe.learned == true and type(recipe.name) == "string" and recipe.name ~= "" then
-                recipes[tostring(id)] = { id = id, name = recipe.name, icon = recipe.icon }
+                local entry = { id = id, name = recipe.name, icon = recipe.icon }
+                if C_TradeSkillUI.GetRecipeOutputItemData then
+                    local outputOK, output = pcall(C_TradeSkillUI.GetRecipeOutputItemData, id)
+                    if outputOK and type(output) == "table" then
+                        entry.outputItemID = output.itemID
+                    end
+                end
+                if C_TradeSkillUI.GetRecipeSchematic then
+                    local schematicOK, schematic = pcall(C_TradeSkillUI.GetRecipeSchematic, id, false)
+                    if schematicOK and type(schematic) == "table" then
+                        entry.outputItemID = entry.outputItemID or schematic.outputItemID
+                        entry.skill = schematic.tradeskillLevel or schematic.skillLevel
+                        entry.reagents = {}
+                        for _, slot in ipairs(schematic.reagentSlotSchematics or {}) do
+                            local reagent = slot.reagents and slot.reagents[1]
+                            if reagent then
+                                entry.reagents[#entry.reagents + 1] = {
+                                    id = reagent.itemID, name = reagent.name,
+                                    count = slot.quantityRequired or reagent.quantityRequired or 1,
+                                }
+                            end
+                        end
+                    end
+                end
+                recipes[tostring(id)] = entry
             end
         end
     end

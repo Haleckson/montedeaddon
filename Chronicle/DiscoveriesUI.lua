@@ -28,9 +28,10 @@ end
 local function panel(frame, red, green, blue)
     frame:SetBackdrop({ bgFile = WHITE, edgeFile = BORDER, tile = false, edgeSize = 13,
         insets = { left = 3, right = 3, top = 3, bottom = 3 } })
-    frame:SetBackdropColor(red or .16, green or .105, blue or .052, 1)
+    local shade = .027 + math.min(.3, math.max(0, red or 0)) * .12
+    frame:SetBackdropColor(shade, shade * .96, shade * .9, 1)
     frame:SetBackdropBorderColor(.59, .44, .17, 1)
-    C:ApplyMaterial(frame, .28)
+    C:ApplyMaterial(frame, .16)
     C:OrnateCorners(frame)
 end
 
@@ -228,7 +229,7 @@ local function makeMetric(parent, index)
     card.rule = card:CreateTexture(nil, "ARTWORK")
     card.rule:SetTexture(WHITE); card.rule:SetVertexColor(.36, .25, .1, .75)
     card.rule:SetPoint("BOTTOMLEFT", 2, 1); card.rule:SetPoint("BOTTOMRIGHT", -2, 1)
-    card.rule:SetHeight(1)
+    card.rule:SetHeight(C:RuleThickness())
     ui.metrics[index] = card
     return card
 end
@@ -301,7 +302,7 @@ local function makeRow(parent, index)
     row = CreateFrame("Button", nil, parent)
     row.highlight = row:CreateTexture(nil, "BACKGROUND")
     row.highlight:SetTexture(WHITE); row.highlight:SetAllPoints(row)
-    row.highlight:SetVertexColor(.25, .16, .055, .8); row.highlight:Hide()
+    row.highlight:SetVertexColor(.09, .085, .075, .8); row.highlight:Hide()
     row.icon = row:CreateTexture(nil, "ARTWORK")
     row.icon:SetSize(30, 30); row.icon:SetPoint("LEFT", 8, 0)
     row.icon:SetTexCoord(.07, .93, .07, .93)
@@ -310,7 +311,7 @@ local function makeRow(parent, index)
     row.rule = row:CreateTexture(nil, "ARTWORK")
     row.rule:SetTexture(WHITE); row.rule:SetVertexColor(.36, .25, .1, .75)
     row.rule:SetPoint("BOTTOMLEFT", 46, 1); row.rule:SetPoint("BOTTOMRIGHT", -4, 1)
-    row.rule:SetHeight(1)
+    row.rule:SetHeight(C:RuleThickness())
     row:SetScript("OnClick", function(self)
         if self.heading then return end
         ui.selection[ui.mode] = self.index
@@ -362,7 +363,7 @@ local function makeDossier(parent)
     dossier.rule = dossier:CreateTexture(nil, "ARTWORK")
     dossier.rule:SetTexture(WHITE); dossier.rule:SetVertexColor(.6, .4, .14, .8)
     dossier.rule:SetPoint("TOPLEFT", 18, -119); dossier.rule:SetPoint("TOPRIGHT", -18, -119)
-    dossier.rule:SetHeight(1)
+    dossier.rule:SetHeight(C:RuleThickness())
     dossier.body = font(dossier, 12, TEXT); dossier.body:SetPoint("TOPLEFT", 20, -140)
     dossier.body:SetJustifyV("TOP")
     dossier.button = CreateFrame("Button", nil, dossier, "BackdropTemplate")
@@ -370,7 +371,7 @@ local function makeDossier(parent)
     dossier.button:SetHeight(26)
     dossier.button:SetBackdrop({ bgFile = WHITE, edgeFile = BORDER, tile = false,
         edgeSize = 12, insets = { left = 2, right = 2, top = 2, bottom = 2 } })
-    dossier.button:SetBackdropColor(.24, .15, .052, 1)
+    dossier.button:SetBackdropColor(.095, .082, .061, 1)
     dossier.button:SetBackdropBorderColor(.62, .45, .16, 1)
     dossier.button.label = font(dossier.button, 11, GOLD)
     dossier.button.label:SetPoint("CENTER")
@@ -565,13 +566,13 @@ local function makeTrainerRow(parent, index)
     row.rule = row:CreateTexture(nil, "ARTWORK")
     row.rule:SetTexture(WHITE); row.rule:SetVertexColor(.36, .25, .1, .35)
     row.rule:SetPoint("BOTTOMLEFT", 44, 0); row.rule:SetPoint("BOTTOMRIGHT", -4, 0)
-    row.rule:SetHeight(1)
+    row.rule:SetHeight(C:RuleThickness())
     row:SetScript("OnEnter", function(self)
-        self.band:SetVertexColor(.36, .23, .07, .72)
+        self.band:SetVertexColor(.09, .085, .075, .72)
         showSpellTooltip(self)
     end)
     row:SetScript("OnLeave", function(self)
-        self.band:SetVertexColor(.16, .1, .045, self.heading and .94 or .26)
+        self.band:SetVertexColor(.065, .061, .055, self.heading and .94 or .26)
         hideSpellTooltip(self)
     end)
     row:SetScript("OnClick", function(self)
@@ -641,7 +642,7 @@ local function showTraining(parent, width)
         heading:SetSize(width - 10, 28)
         heading.heading, heading.entry, heading.groupKey = true, nil, key
         local expanded = ui.query ~= "" or not ui.trainerCollapsed[key]
-        heading.band:SetVertexColor(.16, .1, .045, .94)
+        heading.band:SetVertexColor(.065, .061, .055, .94)
         heading.icon:Hide(); heading.rule:Hide(); heading.level:Hide()
         heading.chevron:SetText(expanded and "-" or "+"); heading.chevron:Show()
         heading.title:ClearAllPoints(); heading.title:SetPoint("LEFT", 32, 0)
@@ -662,7 +663,7 @@ local function showTraining(parent, width)
             row:ClearAllPoints(); row:SetPoint("TOPLEFT", 5, -offset)
             row:SetSize(width - 10, 37)
             row.heading, row.entry, row.groupKey = false, entry, nil
-            row.band:SetVertexColor(.16, .1, .045, .26)
+            row.band:SetVertexColor(.065, .061, .055, .26)
             row.chevron:Hide()
             row.icon:SetTexture(entry.icon or icons.training); row.icon:Show()
             row.title:ClearAllPoints(); row.title:SetPoint("LEFT", 46, 0)
@@ -701,17 +702,17 @@ local function knowledgeRow(parent, index)
     row.rule = row:CreateTexture(nil, "ARTWORK")
     row.rule:SetTexture(WHITE); row.rule:SetVertexColor(.36, .25, .1, .35)
     row.rule:SetPoint("BOTTOMLEFT", 46, 0); row.rule:SetPoint("BOTTOMRIGHT", -5, 0)
-    row.rule:SetHeight(1)
+    row.rule:SetHeight(C:RuleThickness())
     row:SetScript("OnClick", function(self)
         if not self.subject then return end
         ui.knowledgeSelection[ui.mode] = self.subject.name
         C:ShowDiscoveries(ui.parent, ui.width)
     end)
     row:SetScript("OnEnter", function(self)
-        if self.subject then self.band:SetVertexColor(.31, .19, .065, .75) end
+        if self.subject then self.band:SetVertexColor(.09, .085, .075, .75) end
     end)
     row:SetScript("OnLeave", function(self)
-        self.band:SetVertexColor(.16, .1, .045, self.selected and .78 or (self.subject and .26 or .94))
+        self.band:SetVertexColor(.065, .061, .055, self.selected and .78 or (self.subject and .26 or .94))
     end)
     ui.knowledgeRows[index] = row
     return row
@@ -731,10 +732,12 @@ local function markKnowledgeTeacher(teacher)
     if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
         pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
     end
-    if ToggleWorldMap and (not WorldMapFrame or not WorldMapFrame:IsShown()) then
+    if C.OpenBlizzardMap then
+        C:OpenBlizzardMap(teacher.mapID)
+    elseif ToggleWorldMap and (not WorldMapFrame or not WorldMapFrame:IsShown()) then
         pcall(ToggleWorldMap)
     end
-    if WorldMapFrame and WorldMapFrame.SetMapID then
+    if not C.OpenBlizzardMap and WorldMapFrame and WorldMapFrame.SetMapID then
         pcall(WorldMapFrame.SetMapID, WorldMapFrame, teacher.mapID)
     end
 end
@@ -753,7 +756,7 @@ local function showKnowledgeDossier(parent, width, x, y, mode, subject)
         dossier.rule = dossier:CreateTexture(nil, "ARTWORK")
         dossier.rule:SetTexture(WHITE); dossier.rule:SetVertexColor(.68, .47, .16, .8)
         dossier.rule:SetPoint("TOPLEFT", 20, -111); dossier.rule:SetPoint("TOPRIGHT", -20, -111)
-        dossier.rule:SetHeight(1)
+        dossier.rule:SetHeight(C:RuleThickness())
         dossier.body = font(dossier, 13, TEXT)
         dossier.body:SetPoint("TOPLEFT", 21, -133)
         dossier.body:SetJustifyV("TOP")
@@ -770,7 +773,7 @@ local function showKnowledgeDossier(parent, width, x, y, mode, subject)
         dossier.action:SetHeight(27)
         dossier.action:SetBackdrop({ bgFile = WHITE, edgeFile = BORDER, tile = false,
             edgeSize = 12, insets = { left = 2, right = 2, top = 2, bottom = 2 } })
-        dossier.action:SetBackdropColor(.24, .15, .052, 1)
+        dossier.action:SetBackdropColor(.095, .082, .061, 1)
         dossier.action:SetBackdropBorderColor(.62, .45, .16, 1)
         dossier.action.label = font(dossier.action, 11, GOLD)
         dossier.action.label:SetPoint("CENTER")
@@ -993,7 +996,7 @@ local function showKnowledge(parent, width, mode)
         row:SetSize(listWidth - 5, info.heading and 29 or 38)
         row.subject = info.subject
         row.selected = info.subject == selected
-        row.band:SetVertexColor(.16, .1, .045, info.heading and .94 or (row.selected and .78 or .26))
+        row.band:SetVertexColor(.065, .061, .055, info.heading and .94 or (row.selected and .78 or .26))
         row.icon:SetShown(not info.heading)
         if not info.heading then row.icon:SetTexture(info.icon) end
         row.name:ClearAllPoints(); row.name:SetPoint("LEFT", info.heading and 14 or 46, 0)

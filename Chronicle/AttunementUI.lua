@@ -5,41 +5,66 @@ local WHITE = "Interface\\Buttons\\WHITE8X8"
 -- These are historical quest/key references, not assertions about Forever's gates.
 -- Entries without a dependable identifier remain explicitly unverified.
 local routes = {
-    ["Gnomeregan"] = { item = 6893 },
-    ["Zul'Farrak"] = { item = 9240 },
-    ["Sunken Temple"] = { quests = {3520, 3527, 4787, 3528}, item = 10818 },
-    ["Maraudon"] = { quests = {7044, 7046}, item = 17191 },
+    ["Gnomeregan"] = { item = 6893, optional = true },
+    ["Zul'Farrak"] = { item = 9240, optional = true },
+    ["Sunken Temple"] = { quests = {3520, 3527, 4787, 3528}, item = 10818, optional = true },
+    ["Maraudon"] = { quests = {7044, 7046}, item = 17191, optional = true },
+    ["City of Dalaran"] = { factionQuests = {
+        Alliance = {92432, 92458},
+        Horde = {544, 545, 556, 557, 93680, 92434, 96984},
+    }, item = 277507 },
     ["Upper Blackrock Spire"] = { quests = {4742, 4743}, item = 12344 },
-    ["Blackrock Depths"] = { quests = {3801, 3802}, item = 11000 },
+    ["Blackrock Depths"] = { quests = {3801, 3802}, item = 11000, optional = true },
     ["Scholomance"] = { factionQuests = {
         Alliance = {5092, 5097, 5533, 5537, 5538, 5801, 5803, 5505},
         Horde = {5096, 5098, 838, 964, 5514, 5802, 5804, 5511},
     }, item = 13704 },
-    ["Stratholme"] = { items = {7146, 12382} },
+    ["Stratholme"] = { items = {7146, 12382}, optional = true },
     ["Scarlet Monastery: Armory"] = { item = 7146 },
     ["Scarlet Monastery: Cathedral"] = { item = 7146 },
     ["Dire Maul North"] = { item = 18249 },
     ["Dire Maul West"] = { item = 18249 },
-    ["Molten Core"] = { anyQuest = {7487, 7848} },
-    ["Blackwing Lair"] = { quests = {7761} },
+    ["Molten Core"] = { anyQuest = {7487, 7848}, optional = true },
+    ["Blackwing Lair"] = { quests = {7761}, optional = true },
     ["Onyxia's Lair"] = { factionQuests = {
         Alliance = {4182, 4183, 4184, 4185, 4186, 4223, 4224, 4241, 4242, 4264, 4282, 4322, 6402, 6403, 6501, 6502},
         Horde = {4903, 4941, 4974, 6566, 6567, 6568, 6569, 6570, 6584, 6582, 6583, 6585, 6601, 6602},
     }, item = 16309 },
     ["Naxxramas"] = { anyQuest = {9121, 9122, 9123} },
 }
--- Only gates to a dungeon wing or upper section appear in the dungeon overview.
--- Shortcuts, alternate entrances and boss summons stay out of that overview.
--- This is a Classic reference; Forever may use different access rules.
-local dungeonGateRoutes = {
-    ["Scarlet Monastery: Armory"] = true,
-    ["Scarlet Monastery: Cathedral"] = true,
-    ["Scholomance"] = true,
-    ["Upper Blackrock Spire"] = true,
-    ["Dire Maul North"] = true,
-    ["Dire Maul West"] = true,
+-- Entrance coordinates are map reference points, not a claim that an instance
+-- requires a key. Unknown beta entrances remain unmarked.
+local entrances = {
+    ["Hall of Thanes"]={1455,27.86,47.7}, ["Ruins of Lordaeron"]={1420,63.36,67.38},
+    ["City of Dalaran"]={1416,8.509,59.261}, ["Ragefire Chasm"]={1454,52.6,49},
+    ["The Deadmines"]={1436,42.5,71.7}, ["Wailing Caverns"]={1413,46,36.4},
+    ["Shadowfang Keep"]={1421,44.8,67.8}, ["Stormwind Stockade"]={1453,52.4,70},
+    ["Blackfathom Deeps"]={1440,14.5,14.2}, ["Gnomeregan"]={1426,24.3,39.8},
+    ["Excavation Site: Wetlands"]={1437,47.705,56.244},
+    ["Razorfen Kraul"]={1413,42.9,90.2}, ["Razorfen Downs"]={1413,49,93.9},
+    ["Uldaman"]={1418,44.6,12.1}, ["Zul'Farrak"]={1446,38.7,20},
+    ["Maraudon"]={1443,29.1,62.5}, ["Sunken Temple"]={1435,69.9,53.6},
+    ["Scarlet Monastery: Graveyard"]={1420,82.6,33.8},
+    ["Scarlet Monastery: Library"]={1420,82.6,33.8},
+    ["Scarlet Monastery: Armory"]={1420,82.6,33.8},
+    ["Scarlet Monastery: Cathedral"]={1420,82.6,33.8},
+    ["Blackrock Depths"]={1428,29.4,38.3},
+    ["Lower Blackrock Spire"]={1428,29.4,38.3},
+    ["Upper Blackrock Spire"]={1428,29.4,38.3},
+    ["Dire Maul East"]={1444,62.5,24.9},
+    ["Dire Maul West"]={1444,60.3,30.2},
+    ["Dire Maul North"]={1444,64.8,30.2},
+    ["Scholomance"]={1422,69.7,73.2}, ["Stratholme"]={1423,31.3,15.7},
+    ["Molten Core"]={1428,29.4,38.3}, ["Blackwing Lair"]={1428,29.4,38.3},
+    ["Onyxia's Lair"]={1445,52.6,76.8}, ["Zul'Gurub"]={1434,53.9,17.6},
+    ["Ruins of Ahn'Qiraj"]={1451,28.6,92.4},
+    ["Ahn'Qiraj Temple"]={1451,28.6,92.4}, ["Naxxramas"]={1423,39.9,25.9},
 }
 local questNames = {
+    [92432] = "An Alarming Request", [92458] = "Heart of Disruption",
+    [544] = "Prison Break In", [545] = "Dalaran Patrols", [556] = "Stone Tokens",
+    [557] = "Bracers of Binding", [93680] = "Key to the City",
+    [92434] = "Blood in the Streets", [96984] = "Heart of Disruption",
     [7487] = "Attunement to the Core", [7848] = "Attunement to the Core", [7761] = "Blackhand's Command",
     [9121] = "The Dread Citadel - Naxxramas", [9122] = "The Dread Citadel - Naxxramas", [9123] = "The Dread Citadel - Naxxramas",
     [3520] = "Screecher Spirits", [3527] = "The Prophecy of Mosh'aru", [4787] = "The Ancient Egg", [3528] = "The God Hakkar",
@@ -60,6 +85,7 @@ local questNames = {
     [6585] = "The Test of Skulls, Axtroz", [6601] = "Ascension...", [6602] = "Blood of the Black Dragon Champion",
 }
 local itemNames = {
+    [277507] = "Key to the City",
     [6893] = "Workshop Key", [9240] = "Mallet of Zul'Farrak", [10818] = "Yeh'kinya's Scroll",
     [17191] = "Scepter of Celebras", [12344] = "Seal of Ascension", [11000] = "Shadowforge Key",
     [13704] = "Skeleton Key", [7146] = "The Scarlet Key", [12382] = "Key to the City",
@@ -135,6 +161,9 @@ local objectiveHints = {
 -- Quest giver positions are reference points, not quest objective markers.
 -- Coordinates are a small curated subset of the public in-game quest catalog.
 local questGivers = {
+    [92432]={1424,48.3,60.1}, [544]={1424,61.6,20.8},
+    [545]={1424,61.6,20.8}, [556]={1424,61.4,20.8},
+    [557]={1424,61.4,20.8}, [93680]={1424,61.6,20.8},
     [3520]={1446,67,22.4}, [3527]={1446,67,22.4}, [3528]={1446,67,22.4}, [4787]={1446,67,22.4},
     [3801]={1415,48.6,64.2}, [4182]={1428,85.6,69}, [4183]={1428,85.6,69},
     [4184]={1433,30,44.2}, [4185]={1453,78,18}, [4186]={1453,78,18},
@@ -316,6 +345,10 @@ local function linkForItem(id)
 end
 local function showItemTooltip(button)
     if not button.itemID or not GameTooltip then return end
+    if C.ShowLootItemTooltip then
+        C:ShowLootItemTooltip(button,button.itemID,titleForItem(button.itemID))
+        return
+    end
     GameTooltip:SetOwner(button,"ANCHOR_CURSOR")
     local ok = GameTooltip.SetHyperlink and pcall(GameTooltip.SetHyperlink,GameTooltip,"item:" .. button.itemID)
     if not ok then GameTooltip:SetText(titleForItem(button.itemID)) end
@@ -361,7 +394,9 @@ local function showQuestOnMap(id)
             if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
                 pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
             end
-            if C_Map.OpenWorldMap then
+            if C.OpenBlizzardMap then
+                C:OpenBlizzardMap(point[1])
+            elseif C_Map.OpenWorldMap then
                 pcall(C_Map.OpenWorldMap, point[1])
             elseif ToggleWorldMap then
                 if not WorldMapFrame or not WorldMapFrame:IsShown() then pcall(ToggleWorldMap) end
@@ -383,7 +418,7 @@ local function makeCard(parent)
     local card = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     card:SetBackdrop({bgFile=WHITE, edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
         edgeSize=13, insets={left=3,right=3,top=3,bottom=3}})
-    card:SetBackdropColor(.16,.105,.052,1)
+    card:SetBackdropColor(.035,.034,.032,1)
     card:SetBackdropBorderColor(.59,.44,.17,1)
     if C.ApplyMaterial then C:ApplyMaterial(card,.3) end
     if C.OrnateCorners then C:OrnateCorners(card) end
@@ -415,13 +450,20 @@ local function buildDetail(parent)
     end)
     root.path = font(root,13,{1,.82,.1}); root.path:SetPoint("TOPLEFT",27,-144)
     root.next = font(root,11,{.78,.7,.54}); root.next:SetPoint("TOPLEFT",27,-171)
+    root.map = makeButton(root,148)
+    root.map:SetPoint("TOPRIGHT",-24,-165)
+    root.map.label:SetText((GetLocale and GetLocale()=="deDE") and "Eingang auf Karte" or "Show entrance")
+    root.map:SetScript("OnClick",function(self)
+        local point=self.entrance
+        if point and C.OpenBlizzardMap then C:OpenBlizzardMap(point[1],point[2],point[3]) end
+    end)
     root.list = insetPanel(root)
     root.divider = root:CreateTexture(nil,"ARTWORK"); root.divider:SetTexture(WHITE)
-    root.divider:SetVertexColor(.5,.34,.13,.75); root.divider:SetWidth(1)
+    root.divider:SetVertexColor(.5,.34,.13,.75); root.divider:SetWidth(C:RuleThickness())
     root.list.heading = font(root.list,12,{1,.82,.1}); root.list.heading:SetPoint("TOPLEFT",16,-13)
     root.list.count = font(root.list,10,{.72,.65,.52}); root.list.count:SetPoint("TOPRIGHT",-17,-15)
     root.list.rule = root.list:CreateTexture(nil,"ARTWORK"); root.list.rule:SetTexture(WHITE)
-    root.list.rule:SetVertexColor(.54,.37,.15,.8); root.list.rule:SetHeight(1)
+    root.list.rule:SetVertexColor(.54,.37,.15,.8); root.list.rule:SetHeight(C:RuleThickness())
     root.list.rule:SetPoint("TOPLEFT",15,-37); root.list.rule:SetPoint("TOPRIGHT",-15,-37)
     root.list.scroll = CreateFrame("ScrollFrame",nil,root.list)
     root.list.scroll:SetPoint("TOPLEFT",14,-44); root.list.scroll:SetPoint("BOTTOMRIGHT",-16,14)
@@ -435,7 +477,7 @@ local function buildDetail(parent)
     root.dossier = CreateFrame("Frame",nil,root,"BackdropTemplate")
     root.dossier:SetBackdrop({bgFile=WHITE,edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
         edgeSize=13,insets={left=3,right=3,top=3,bottom=3}})
-    root.dossier:SetBackdropColor(.105,.071,.045,.98)
+    root.dossier:SetBackdropColor(.03,.029,.027,.98)
     root.dossier:SetBackdropBorderColor(.59,.44,.17,1)
     if C.OrnateCorners then C:OrnateCorners(root.dossier) end
     root.dossier.art = root.dossier:CreateTexture(nil,"ARTWORK")
@@ -449,7 +491,7 @@ local function buildDetail(parent)
     root.dossier.title = font(root.dossier,21,{.96,.91,.78}); root.dossier.title:SetPoint("TOPLEFT",18,-43)
     root.dossier.meta = font(root.dossier,11,{.72,.65,.52}); root.dossier.meta:SetPoint("TOPLEFT",19,-82)
     root.dossier.rule = root.dossier:CreateTexture(nil,"ARTWORK"); root.dossier.rule:SetTexture(WHITE)
-    root.dossier.rule:SetVertexColor(.57,.39,.15,.85); root.dossier.rule:SetHeight(1)
+    root.dossier.rule:SetVertexColor(.57,.39,.15,.85); root.dossier.rule:SetHeight(C:RuleThickness())
     root.dossier.rule:SetPoint("TOPLEFT",18,-111); root.dossier.rule:SetPoint("TOPRIGHT",-18,-111)
     root.dossier.status = font(root.dossier,12,{1,.82,.1}); root.dossier.status:SetPoint("TOPLEFT",19,-129)
     root.dossier.textScroll = CreateFrame("ScrollFrame",nil,root.dossier)
@@ -487,19 +529,19 @@ local function ensureDetailRow(root,index)
     row.title = font(row,12,{.96,.91,.78}); row.title:SetPoint("TOPLEFT",42,-8)
     row.status = font(row,10,{.72,.65,.52}); row.status:SetPoint("TOPLEFT",42,-29)
     row.rule = row:CreateTexture(nil,"ARTWORK"); row.rule:SetTexture(WHITE)
-    row.rule:SetVertexColor(.48,.32,.12,.7); row.rule:SetHeight(1)
+    row.rule:SetVertexColor(.48,.32,.12,.7); row.rule:SetHeight(C:RuleThickness())
     row.rule:SetPoint("BOTTOMLEFT",40,1); row.rule:SetPoint("BOTTOMRIGHT",-5,1)
     row:SetScript("OnClick",function(self)
         ui.selectedEntry=self.entryKey
         C:ShowAttunements(root:GetParent(),root:GetWidth()+8)
     end)
     row:SetScript("OnEnter",function(self)
-        self:SetBackdropColor(.27,.17,.06,.35)
+        self:SetBackdropColor(.09,.085,.075,.5)
         if self.itemID then showItemTooltip(self) end
     end)
     row:SetScript("OnLeave",function(self)
-        self:SetBackdropColor(self.isSelected and .24 or 0,self.isSelected and .15 or 0,
-            self.isSelected and .055 or 0,self.isSelected and .42 or 0)
+        self:SetBackdropColor(self.isSelected and .09 or 0,self.isSelected and .085 or 0,
+            self.isSelected and .075 or 0,self.isSelected and .5 or 0)
         if GameTooltip then GameTooltip:Hide() end
     end)
     root.rows[index]=row
@@ -591,11 +633,20 @@ local function showDetail(parent,width,name)
     root.hero.title:SetText(C:LocalizeInstanceName(name))
     root.hero.note:SetWidth(width-205); root.hero.note:SetText(T(4))
     root.back.label:SetText(E("back"))
+    local entrance=entrances[name]
+    root.map.entrance=entrance
+    root.map:SetShown(entrance~=nil)
+    root.next:SetWidth(width-(entrance and 230 or 60))
     local hasQuests=route and (#routeQuests(route)+#(route.anyQuest or {})>0)
     root.path:SetText(route and (T(5).."  /  "..E(hasQuests and "questPath" or "keyPath")..
-        (route.anyQuest and ("  •  "..D("variant")) or "")) or T(6))
+        (route.anyQuest and ("  •  "..D("variant")) or "")..
+        (route.optional and ("  •  "..((GetLocale and GetLocale()=="deDE") and "OPTIONAL" or "OPTIONAL")) or "")) or T(6))
     local _,nextStep=linesFor(route)
-    root.next:SetText(T(15)..": "..nextStep)
+    if route then root.next:SetText(T(15)..": "..nextStep)
+    elseif entrance then
+        root.next:SetText(((GetLocale and GetLocale()=="deDE") and "Eingang" or "Entrance")..
+            string.format(": %.1f / %.1f",entrance[2],entrance[3]))
+    else root.next:SetText(T(6)) end
     local entries={}
     if route then
         for _,id in ipairs(routeQuests(route)) do entries[#entries+1]={quest=id,key="q:"..id} end
@@ -641,8 +692,8 @@ local function showDetail(parent,width,name)
         else
             row.status:SetTextColor(.76,.69,.55)
         end
-        row:SetBackdropColor(row.isSelected and .24 or 0,row.isSelected and .15 or 0,
-            row.isSelected and .055 or 0,row.isSelected and .42 or 0)
+        row:SetBackdropColor(row.isSelected and .09 or 0,row.isSelected and .085 or 0,
+            row.isSelected and .075 or 0,row.isSelected and .5 or 0)
         if row.isSelected then selectedEntry=entry end
         row:Show()
     end
@@ -732,7 +783,7 @@ local function ensureCover(root,index)
     card = CreateFrame("Button",nil,root,"BackdropTemplate")
     card:SetBackdrop({bgFile=WHITE,edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
         edgeSize=12,insets={left=3,right=3,top=3,bottom=3}})
-    card:SetBackdropColor(.07,.05,.03,1)
+    card:SetBackdropColor(.03,.029,.027,1)
     card:SetBackdropBorderColor(.5,.36,.15,1)
     card.art = card:CreateTexture(nil,"ARTWORK")
     card.art:SetPoint("TOPLEFT",4,-4); card.art:SetPoint("BOTTOMRIGHT",-4,4)
@@ -782,16 +833,14 @@ function C:ShowAttunements(parent, width)
     if C.SetHeroMotif then C:SetHeroMotif(root.hero,"Dungeons",.35) end
     root.kicker:SetText("CHRONICLE  /  " .. C:L("attunements"))
     root.title:SetText(C:L("attunements"))
-    root.note:SetWidth(width - 215); root.note:SetText((ui.kind == "dungeons" and E("gates") or T(3)) .. "\n" .. T(4))
+    root.note:SetWidth(width - 215); root.note:SetText(T(3) .. "\n" .. T(4))
     for n, tab in ipairs(root.tabs) do
         tab.label:SetText(T(n))
         C:StyleChronicleButton(tab, ui.kind == (n == 1 and "dungeons" or "raids"))
     end
     local catalogOrder = ui.kind == "dungeons" and C.dungeonKnowledgeOrder or C.raidKnowledgeOrder
     local order = {}
-    for _,name in ipairs(catalogOrder or {}) do
-        if ui.kind == "raids" or dungeonGateRoutes[name] then order[#order+1]=name end
-    end
+    for _,name in ipairs(catalogOrder or {}) do order[#order+1]=name end
     root.count:SetText(#order .. " " .. T(ui.kind == "dungeons" and 1 or 2))
     local catalog = ui.kind == "dungeons" and C.dungeonKnowledge or C.raidKnowledge
     local gap = 12
@@ -811,7 +860,9 @@ function C:ShowAttunements(parent, width)
         local route = routes[name]
         local questCount = #routeQuests(route)+#(route and route.anyQuest or {})
         local itemCount = #routeItems(route)
-        card.meta:SetText(route and (questCount.." "..C:L("quests").."  ·  "..itemCount.." "..C:L("item")) or T(14))
+        card.meta:SetText(route and (questCount.." "..C:L("quests").."  ·  "..itemCount.." "..C:L("item")..
+            (route.optional and "  ·  OPTIONAL" or "")) or
+            (entrances[name] and ((GetLocale and GetLocale()=="deDE") and "Eingang auf Karte" or "Entrance on map") or T(14)))
         card.level:SetText(data.level and (C:L("level").." "..tostring(data.level)) or "")
         card:Show()
     end

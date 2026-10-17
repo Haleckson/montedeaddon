@@ -1,0 +1,5 @@
+<Bindings>
+  <Binding name="MYCHARFOREVER_CHRONICLE_SCREENSHOT" header="MYCHARFOREVER" category="ADDONS">
+    MyCharForever_TakeManualChronicleScreenshot()
+  </Binding>
+</Bindings>

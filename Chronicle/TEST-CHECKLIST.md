@@ -25,7 +25,7 @@
 
 - [ ] Aktions-, Filter- und Reiterknöpfe haben einen dunklen Hintergrund, Goldrahmen und einen helleren Rahmen beim Überfahren; Karten und Listeneinträge bleiben als eigene Bedienelemente erkennbar.
 
-- [ ] Beim Stufenaufstieg erscheint die Chronicle-Zaubermeldung unter der Blizzard-Anzeige ohne Überlappung und blendet nach einigen Sekunden aus.
+- [ ] Beim Stufenaufstieg erscheint nur die Chronicle-Anzeige; die Blizzard-Levelanzeige bleibt ausgeblendet. Chronicle blendet nach einigen Sekunden aus.
 
 - [ ] Rechte Header-Motive bleiben auf allen Seiten innerhalb der Kopfkarte und überdecken weder Zähler, Datum noch Text; bei schmalen geteilten Karten werden sie ausgeblendet.
 
@@ -213,7 +213,7 @@
 
 - [ ] Besitzarchiv gruppiert Fundstücke je Inventar und Bank in passende Kapitel, auch nach Filterwechsel ohne überlappende Zeilen.
 
-- [ ] Berufe & Rezepte: Haupt- und Nebenberufe stehen in getrennten Kapiteln; Fortschritt und verbleibende Punkte stimmen.
+- [ ] Berufe & Rezepte: Haupt- und Nebenberufe stehen links, Rezeptsuche und Seitenwechsel funktionieren; Auswahl zeigt Materialien und Fertigkeitsstufe rechts.
 - [ ] Erfasste Rezepte erscheinen im Rezeptarchiv; bei null Rezepten erscheint der Leerzustand.
 
 

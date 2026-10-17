@@ -5,8 +5,19 @@ local BORDER = "Interface\\Tooltips\\UI-Tooltip-Border"
 local DIALOG_BACKGROUND = "Interface\\DialogFrame\\UI-DialogBox-Background"
 local DIALOG_BORDER = "Interface\\DialogFrame\\UI-DialogBox-Border"
 local GOLD, TEXT, MUTED = { 1, .82, .1 }, { .96, .91, .78 }, { .72, .65, .52 }
-local SURFACE = { .105, .071, .045 }
-local HERO_SURFACE = { .16, .105, .052 }
+local SURFACE = { .035, .034, .032 }
+local HERO_SURFACE = { .05, .048, .045 }
+
+local function itemQualityColor(itemID,quality,link)
+    local r,g,b=C:ItemQualityColor(itemID,quality,link)
+    return {r=r,g=g,b=b}
+end
+
+function C:RuleThickness()
+    local scale = (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+    -- One physical pixel keeps rules and flat card borders crisp at every UI scale.
+    return 1 / math.max(.1, scale)
+end
 
 local function setFont(fs, size, color)
     fs:SetFont(C:FontPath(), size or 12)
@@ -15,16 +26,16 @@ end
 
 local function backdrop(frame, red, green, blue, alpha)
     frame:SetBackdrop({ bgFile = BACKGROUND, edgeFile = BORDER, tile = false, edgeSize = 13, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
-    -- All sections share the same warm material; individual colors remain subtle tints.
+    -- Keep surfaces near black; selection depth comes from brightness, not brown tint.
     red, green, blue = red or SURFACE[1], green or SURFACE[2], blue or SURFACE[3]
-    frame:SetBackdropColor(red * .72 + SURFACE[1] * .28,
-        green * .72 + SURFACE[2] * .28,
-        blue * .72 + SURFACE[3] * .28, alpha or .98)
-    frame:SetBackdropBorderColor(.59, .44, .17, 1)
+    local shade = .027 + math.min(.3, math.max(0, red)) * .12
+    frame:SetBackdropColor(shade, shade * .96, shade * .9, alpha or .98)
+    frame:SetBackdropBorderColor(.45, .33, .16, 1)
     if frame.chronicleActionStyle then
         local active = red > .14
-        frame:SetBackdropColor(active and .22 or .09, active and .14 or .06, .035, .96)
-        frame:SetBackdropBorderColor(.76, .56, .19, 1)
+        frame:SetBackdropColor(active and .095 or .038, active and .082 or .036,
+            active and .061 or .032, 1)
+        frame:SetBackdropBorderColor(.52, .39, .21, 1)
     end
 end
 
@@ -32,8 +43,9 @@ function C:StyleChronicleButton(button, active)
     button.chronicleActionStyle = true
     button:SetBackdrop({ bgFile = BACKGROUND, edgeFile = BORDER, tile = false,
         edgeSize = 11, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
-    button:SetBackdropColor(active and .22 or .09, active and .14 or .06, .035, .96)
-    button:SetBackdropBorderColor(.76, .56, .19, 1)
+    button:SetBackdropColor(active and .095 or .038, active and .082 or .036,
+        active and .061 or .032, 1)
+    button:SetBackdropBorderColor(.52, .39, .21, 1)
     if button.GetNormalTexture and button:GetNormalTexture() then button:GetNormalTexture():Hide() end
     if button.GetPushedTexture and button:GetPushedTexture() then button:GetPushedTexture():Hide() end
     if button.GetHighlightTexture and button:GetHighlightTexture() then button:GetHighlightTexture():Hide() end
@@ -51,7 +63,7 @@ function C:StyleChronicleButton(button, active)
             self:SetBackdropBorderColor(1, .82, .29, 1)
         end)
         button:HookScript("OnLeave", function(self)
-            self:SetBackdropBorderColor(.76, .56, .19, 1)
+            self:SetBackdropBorderColor(.52, .39, .21, 1)
         end)
         button.chronicleActionHover = true
     end
@@ -63,11 +75,12 @@ function C:OrnateCorners(frame)
         return
     end
     frame.chronicleCorners = {}
+    local stroke = self:RuleThickness()
     local corners = {
-        { "TOPLEFT", 9, -9, 11, 1 }, { "TOPLEFT", 9, -9, 1, 11 },
-        { "TOPRIGHT", -9, -9, 11, 1 }, { "TOPRIGHT", -9, -9, 1, 11 },
-        { "BOTTOMLEFT", 9, 9, 11, 1 }, { "BOTTOMLEFT", 9, 9, 1, 11 },
-        { "BOTTOMRIGHT", -9, 9, 11, 1 }, { "BOTTOMRIGHT", -9, 9, 1, 11 },
+        { "TOPLEFT", 9, -9, 11, stroke }, { "TOPLEFT", 9, -9, stroke, 11 },
+        { "TOPRIGHT", -9, -9, 11, stroke }, { "TOPRIGHT", -9, -9, stroke, 11 },
+        { "BOTTOMLEFT", 9, 9, 11, stroke }, { "BOTTOMLEFT", 9, 9, stroke, 11 },
+        { "BOTTOMRIGHT", -9, 9, 11, stroke }, { "BOTTOMRIGHT", -9, 9, stroke, 11 },
     }
     for _, corner in ipairs(corners) do
         local mark = frame:CreateTexture(nil, "ARTWORK")
@@ -85,10 +98,10 @@ function C:ApplyMaterial(frame, alpha)
         texture:SetTexture("Interface\\AddOns\\Chronicle\\JournalSurface")
         texture:SetPoint("TOPLEFT", 4, -4)
         texture:SetPoint("BOTTOMRIGHT", -4, 4)
-        texture:SetVertexColor(.6, .55, .48)
+        texture:SetVertexColor(.34, .32, .29)
         frame.chronicleMaterial = texture
     end
-    frame.chronicleMaterial:SetAlpha(alpha or .25)
+    frame.chronicleMaterial:SetAlpha((alpha or .25) * .55)
     frame.chronicleMaterial:Show()
 end
 
@@ -102,7 +115,7 @@ end
 
 local function heroBackdrop(frame)
     backdrop(frame, HERO_SURFACE[1], HERO_SURFACE[2], HERO_SURFACE[3], 1)
-    C:ApplyMaterial(frame, .32)
+    C:ApplyMaterial(frame, .2)
     C:OrnateCorners(frame)
 end
 
@@ -123,7 +136,7 @@ function C:SetHeroMotif(frame, motifName, alpha)
     frame.motifClip:Show()
 end
 
-local window = CreateFrame("Frame", "ChronicleMainFrame", UIParent, "BackdropTemplate")
+local window = CreateFrame("Frame", "ChronicleMainFrame", UIParent, "ButtonFrameTemplate,BackdropTemplate")
 C.frame = window
 window:SetSize(960, 650); window:SetPoint("CENTER"); window:SetFrameStrata("HIGH"); window:SetClampedToScreen(true)
 window:SetMovable(true); window:EnableMouse(true); window:RegisterForDrag("LeftButton")
@@ -134,10 +147,16 @@ elseif window.SetMinResize and window.SetMaxResize then
 end
 window:SetScript("OnDragStart", function(self) if not C.API.IsInCombat() then self:StartMoving() end end)
 window:SetScript("OnDragStop", window.StopMovingOrSizing)
-window:SetBackdrop({ bgFile = DIALOG_BACKGROUND, edgeFile = DIALOG_BORDER, tile = true,
-    tileSize = 32, edgeSize = 32, insets = { left = 11, right = 11, top = 11, bottom = 11 } })
-window:SetBackdropColor(.32, .25, .17, 1)
-window:SetBackdropBorderColor(.82, .73, .52, 1)
+window:SetBackdrop(nil)
+if window.Inset then window.Inset:Hide() end
+if window.Bg then window.Bg:SetColorTexture(.055, .055, .06, 1) end
+if window.TitleContainer and window.TitleContainer.TitleText then
+    window.TitleContainer.TitleText:SetText(C.displayName)
+    window.TitleContainer.TitleText:SetTextColor(1, .82, .35, 1)
+end
+if window.PortraitContainer and window.PortraitContainer.portrait then
+    window.PortraitContainer.portrait:SetTexture("Interface\\AddOns\\Chronicle\\LotusEmblem")
+end
 window:Hide()
 if UISpecialFrames then table.insert(UISpecialFrames, "ChronicleMainFrame") end
 
@@ -178,25 +197,31 @@ resizeGrip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-High
 resizeGrip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
 
 local headerPanel = CreateFrame("Frame", nil, window, "BackdropTemplate")
-headerPanel:SetPoint("TOPLEFT", 17, -17); headerPanel:SetPoint("TOPRIGHT", -17, -17)
-headerPanel:SetHeight(71)
-backdrop(headerPanel, .16, .105, .045, 1)
-C:ApplyMaterial(headerPanel, .28)
-C:OrnateCorners(headerPanel)
+headerPanel:SetPoint("TOPLEFT", 17, -42); headerPanel:SetPoint("TOPRIGHT", -17, -42)
+headerPanel:SetHeight(54)
+headerPanel.titleRule = headerPanel:CreateTexture(nil, "ARTWORK")
+headerPanel.titleRule:SetColorTexture(.64, .43, .17, .62)
+headerPanel.titleRule:SetPoint("TOPLEFT", headerPanel, "TOPLEFT", 73, -37)
+headerPanel.titleRule:SetSize(314, C:RuleThickness())
 
-local lotus = headerPanel:CreateTexture(nil, "ARTWORK")
-lotus:SetTexture("Interface\\AddOns\\Chronicle\\LotusEmblem")
-lotus:SetSize(66, 66); lotus:SetPoint("TOPLEFT", 7, 0)
+headerPanel.rule = headerPanel:CreateTexture(nil, "ARTWORK")
+headerPanel.rule:SetTexture(BACKGROUND)
+headerPanel.rule:SetVertexColor(.46, .32, .13, .9)
+headerPanel.rule:SetPoint("BOTTOMLEFT", headerPanel, "BOTTOMLEFT", 8, 5)
+headerPanel.rule:SetPoint("BOTTOMRIGHT", headerPanel, "BOTTOMRIGHT", -8, 5)
+headerPanel.rule:SetHeight(C:RuleThickness())
+
 local title = headerPanel:CreateFontString(nil, "OVERLAY")
-title:SetPoint("TOPLEFT", 81, -10); setFont(title, 24, GOLD); title:SetText(C.displayName)
+title:SetPoint("TOPLEFT", 73, -4); setFont(title, 18, GOLD); title:SetText(C:L("subtitle"))
 local subtitle = headerPanel:CreateFontString(nil, "OVERLAY")
-subtitle:SetPoint("TOPLEFT", 82, -42); setFont(subtitle, 10, MUTED)
-subtitle:SetText("VERSION " .. C.version .. "  |  " .. C:L("subtitle"))
-local close = CreateFrame("Button", nil, window, "UIPanelCloseButton"); close:SetPoint("TOPRIGHT", -9, -9)
-close:SetFrameLevel(headerPanel:GetFrameLevel() + 1)
+subtitle:SetPoint("TOPLEFT", 74, -26); setFont(subtitle, 10, MUTED)
+subtitle:SetText("VERSION " .. C.version)
+local close = window.CloseButton or CreateFrame("Button", nil, window, "UIPanelCloseButton")
+if not window.CloseButton then close:SetPoint("TOPRIGHT", -9, -9) end
+close:SetScript("OnClick", function() window:Hide() end)
 
 local search = CreateFrame("EditBox", nil, window, "InputBoxTemplate")
-search:SetSize(235, 25); search:SetPoint("TOPRIGHT", -52, -33); search:SetAutoFocus(false); search:SetMaxLetters(80)
+search:SetSize(235, 25); search:SetPoint("TOPRIGHT", -52, -55); search:SetAutoFocus(false); search:SetMaxLetters(80)
 search:SetFrameLevel(headerPanel:GetFrameLevel() + 1)
 if search.SetTextInsets then search:SetTextInsets(23, 5, 0, 0) end
 search:SetScript("OnEscapePressed", search.ClearFocus)
@@ -219,6 +244,49 @@ local languageButtonLabel = languageButton:GetFontString()
 languageButtonLabel:ClearAllPoints()
 languageButtonLabel:SetPoint("LEFT", languageButton, "LEFT", 38, 0)
 languageButtonLabel:SetJustifyH("LEFT")
+local settingsButton = CreateFrame("Button", nil, window, "BackdropTemplate")
+C:StyleChronicleButton(settingsButton)
+settingsButton:SetPoint("RIGHT", languageButton, "LEFT", -9, 0)
+settingsButton:SetSize(129, 27)
+settingsButton:SetText(C:L("settings"))
+settingsButton:SetScript("OnClick", function() C:ShowPage("settings") end)
+local quickButtons = {}
+for _, definition in ipairs({
+    { key = "notes", icon = "Interface\\Icons\\INV_Misc_Note_01", anchor = settingsButton },
+    { key = "goals", icon = "Interface\\Icons\\Ability_Hunter_MarkedForDeath" },
+}) do
+    local button = CreateFrame("Button", nil, window, "BackdropTemplate")
+    C:StyleChronicleButton(button)
+    button:SetPoint("RIGHT", definition.anchor or quickButtons.notes, "LEFT", -7, 0)
+    button:SetSize(88, 27)
+    button.icon = button:CreateTexture(nil, "ARTWORK")
+    button.icon:SetSize(17, 17)
+    button.icon:SetPoint("CENTER")
+    button.icon:SetTexture(definition.icon)
+    button.icon:Hide()
+    button:SetScript("OnClick", function() C:ShowPage(definition.key) end)
+    button:SetScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+        GameTooltip:SetText(C:L(definition.key))
+        GameTooltip:Show()
+    end)
+    button:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    quickButtons[definition.key] = button
+end
+local function updateHeaderQuickButtons()
+    local width = window:GetWidth()
+    local compact = width < 1160
+    search:SetWidth(compact and 200 or 235)
+    languageButton:SetWidth(compact and 102 or 129)
+    settingsButton:SetWidth(compact and 108 or 129)
+    for key, button in pairs(quickButtons) do
+        button:SetShown(width >= 900)
+        button:SetWidth(compact and 34 or 88)
+        button:SetText(compact and "" or C:L(key))
+        button.icon:SetShown(compact)
+    end
+end
 local languageMenu = CreateFrame("Frame", nil, languageButton, "BackdropTemplate")
 languageMenu:SetPoint("TOPRIGHT", languageButton, "BOTTOMRIGHT", 0, -4)
 languageMenu:SetSize(153, #C.languages * 27 + 8)
@@ -228,6 +296,8 @@ backdrop(languageMenu, .105, .073, .044, 1)
 languageMenu:Hide()
 local function updateLanguageButton()
     local current = C:FlagCode(C:GetLanguage())
+    settingsButton:SetText(C:L("settings"))
+    updateHeaderQuickButtons()
     languageButton.flag:SetTexture("Interface\\AddOns\\Chronicle\\Flag_" .. current)
     for _, language in ipairs(C.languages) do
         if language.code == current then languageButton:SetText(language.name .. "  v"); return end
@@ -269,11 +339,12 @@ for index, language in ipairs(C.languages) do
 end
 updateLanguageButton()
 C.UpdateLanguageButton = updateLanguageButton
+C.UpdateHeaderQuickButtons = updateHeaderQuickButtons
 end
 
 local sidebar = CreateFrame("Frame", nil, window, "BackdropTemplate")
-sidebar:SetPoint("TOPLEFT", 18, -88); sidebar:SetPoint("BOTTOMLEFT", 18, 18); sidebar:SetWidth(190); backdrop(sidebar, .105, .073, .044, 1)
-C:ApplyMaterial(sidebar, .2)
+sidebar:SetPoint("TOPLEFT", 18, -104); sidebar:SetPoint("BOTTOMLEFT", 18, 18); sidebar:SetWidth(190); backdrop(sidebar, .055, .051, .046, 1)
+C:ApplyMaterial(sidebar, .1)
 sidebar.scroll = CreateFrame("ScrollFrame", nil, sidebar)
 sidebar.scroll:SetPoint("TOPLEFT", 3, -4); sidebar.scroll:SetPoint("BOTTOMRIGHT", -3, 4)
 sidebar.content = CreateFrame("Frame", nil, sidebar.scroll)
@@ -284,8 +355,8 @@ sidebar.scroll:SetScript("OnMouseWheel", function(self, delta)
     self:SetVerticalScroll(math.max(0, math.min(maximum, self:GetVerticalScroll() - delta * 58)))
 end)
 local content = CreateFrame("Frame", nil, window, "BackdropTemplate")
-content:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", 10, 0); content:SetPoint("BOTTOMRIGHT", -18, 18); backdrop(content, .16, .105, .045, 1)
-C:ApplyMaterial(content, .28)
+content:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", 10, 0); content:SetPoint("BOTTOMRIGHT", -18, 18); backdrop(content, .055, .052, .049, 1)
+C:ApplyMaterial(content, .12)
 
 local contentTopWash = content:CreateTexture(nil, "BORDER")
 contentTopWash:SetTexture(BACKGROUND); contentTopWash:SetVertexColor(.29, .17, .075, 0)
@@ -294,11 +365,11 @@ contentTopWash:SetHeight(108)
 local contentBottomRule = content:CreateTexture(nil, "BORDER")
 contentBottomRule:SetTexture(BACKGROUND); contentBottomRule:SetVertexColor(.42, .29, .13, .45)
 contentBottomRule:SetPoint("BOTTOMLEFT", 18, 13); contentBottomRule:SetPoint("BOTTOMRIGHT", -18, 13)
-contentBottomRule:SetHeight(1)
+contentBottomRule:SetHeight(C:RuleThickness())
 
 local titleRule = content:CreateTexture(nil, "ARTWORK")
 titleRule:SetTexture(BACKGROUND); titleRule:SetVertexColor(.47, .34, .13, .9)
-titleRule:SetPoint("TOPLEFT", 19, -42); titleRule:SetPoint("TOPRIGHT", -19, -42); titleRule:SetHeight(1)
+titleRule:SetPoint("TOPLEFT", 19, -42); titleRule:SetPoint("TOPRIGHT", -19, -42); titleRule:SetHeight(C:RuleThickness())
 
 local pageTitle = content:CreateFontString(nil, "OVERLAY"); pageTitle:SetPoint("TOPLEFT", 20, -16); setFont(pageTitle, 20, GOLD)
 local backButton = CreateFrame("Button", nil, content, "BackdropTemplate")
@@ -319,7 +390,8 @@ local motifArt = {
     overview = "Overview", goals = "Goals", timeline = "Timeline", quests = "Quests",
     gathering = "Professions", training = "Alts",
     zones = "Zones", npcs = "NPCs", dungeons = "Dungeons", attunements = "Dungeons", loot = "Loot",
-    professions = "Professions", alts = "Alts", inventory = "Inventory",
+    professions = "Professions", alts = "Alts", companions = "Alts", classes = "Alts", inventory = "Inventory",
+    rarecodex = "Loot",
     economy = "Economy", deaths = "Deaths", notes = "Notes", stats = "Stats",
 }
 local body = scrollChild:CreateFontString(nil, "ARTWORK"); body:SetPoint("TOPLEFT", 4, 0); body:SetWidth(630); body:SetJustifyH("LEFT"); body:SetJustifyV("TOP"); setFont(body, 13, TEXT)
@@ -339,7 +411,7 @@ local function showSimpleEmpty(titleText, detailText, iconPath, motifName)
         for _, flourish in ipairs({ simpleEmpty.leftFlourish, simpleEmpty.rightFlourish }) do
             flourish:SetTexture(BACKGROUND)
             flourish:SetVertexColor(.62, .4, .16, .75)
-            flourish:SetSize(100, 1)
+            flourish:SetSize(100, C:RuleThickness())
         end
         simpleEmpty.title = simpleEmpty:CreateFontString(nil, "OVERLAY")
         setFont(simpleEmpty.title, 20, TEXT); simpleEmpty.title:SetJustifyH("CENTER")
@@ -398,30 +470,33 @@ cancelEdit:SetPoint("LEFT", action, "RIGHT", 5, 0); cancelEdit:SetSize(68, 25); 
 
 local pages = {
     { key = "overview", label = "Wo war ich?", group = "REISE", icon = "Interface\\Icons\\INV_Misc_Book_09" },
-    { key = "goals", label = "Ziele", icon = "Interface\\Icons\\Ability_Hunter_MarkedForDeath" },
     { key = "timeline", label = "Abenteuer", icon = "Interface\\Icons\\INV_Misc_Book_09" },
     { key = "quests", label = "Quests", icon = "Interface\\Icons\\INV_Misc_Note_01" },
     { key = "zones", label = "Gebiete", icon = "Interface\\Icons\\Spell_Nature_EarthBind" },
+    { key = "companions", label = "Reisegefährten", icon = "Interface\\Icons\\INV_Misc_GroupNeedMore" },
     { key = "npcs", label = "NPC & Händler", icon = "Interface\\Icons\\INV_Misc_GroupNeedMore" },
     { key = "dungeons", label = "Dungeons & Bosse", icon = "Interface\\Icons\\INV_Misc_Key_03" },
-    { key = "gathering", label = "Sammeln", group = "WISSEN", icon = "Interface\\Icons\\INV_Misc_Herb_01" },
+    { key = "classes", label = "Klassen", group = "WISSEN", icon = "Interface\\Icons\\INV_Misc_Book_09" },
+    { key = "weapons", label = "Waffenfertigkeiten", icon = "Interface\\Icons\\INV_Sword_04" },
     { key = "training", label = "Trainer", icon = "Interface\\Icons\\INV_Misc_Book_09" },
     { key = "teachers", label = "Lehrerorte", icon = "Interface\\Icons\\INV_Misc_Map_01" },
-    { key = "weapons", label = "Waffenfertigkeiten", icon = "Interface\\Icons\\INV_Sword_04" },
+    { key = "gathering", label = "Sammeln", icon = "Interface\\Icons\\INV_Misc_Herb_01" },
     { key = "dungeonknowledge", label = "Instanzwissen", icon = "Interface\\Icons\\INV_Misc_Book_09" },
     { key = "raidknowledge", label = "Raidwissen", icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01" },
     { key = "attunements", label = "Zugangswege", icon = "Interface\\AddOns\\Chronicle\\KeyMedallion" },
-    { key = "loot", label = "Beute & Rares", group = "SAMMLUNG", icon = "Interface\\Icons\\INV_Box_01" },
+    { key = "loot", label = "Fundstücke", group = "SAMMLUNG", icon = "Interface\\Icons\\INV_Box_01" },
+    { key = "rarecodex", label = "Rare-Datenbank", icon = "Interface\\Icons\\Ability_Hunter_SniperShot" },
     { key = "professions", label = "Berufe & Rezepte", icon = "Interface\\Icons\\Trade_LeatherWorking" },
     { key = "alts", label = "Charaktere", group = "CHARAKTER", icon = "Interface\\Icons\\INV_Shirt_GuildTabard_01" },
     { key = "inventory", label = "Inventar & Bank", icon = "Interface\\Icons\\INV_Misc_Bag_10" },
     { key = "economy", label = "Gold & Wirtschaft", icon = "Interface\\Icons\\INV_Misc_Coin_01" },
     { key = "deaths", label = "Death Journal", icon = "Interface\\AddOns\\Chronicle\\DeathMedallion" },
-    { key = "notes", label = "Notizen", icon = "Interface\\Icons\\INV_Misc_Note_05" },
     { key = "stats", label = "Statistiken", icon = "Interface\\Icons\\Achievement_General" },
 }
-local buttons, quickTabs, goalRows, noteRows, altRows, inventoryRows, selected, editingNote = {}, {}, {}, {}, {}, {}, "overview", nil
+local buttons, goalRows, noteRows, altRows, inventoryRows, selected, editingNote = {}, {}, {}, {}, {}, "overview", nil
 local chapterHero
+C.goalUI = C.goalUI or {}
+C.noteUI = C.noteUI or {}
 local inventoryFilters, inventoryFilter = {}, "all"
 local economyHero, economyIntro, economyDayRows, economyEntryRows = nil, nil, {}, {}
 C.economyExpandedGroups = C.economyExpandedGroups or {}
@@ -462,10 +537,22 @@ end
 
 local function hideGoalRows()
     for _, row in ipairs(goalRows) do row:Hide() end
+    if C.goalUI.composer then C.goalUI.composer:Hide() end
+    if C.goalUI.createButton then C.goalUI.createButton:Hide() end
+    if C.goalUI.listPanel then C.goalUI.listPanel:Hide() end
+    if C.goalUI.openHeading then C.goalUI.openHeading:Hide() end
+    if C.goalUI.doneHeading then C.goalUI.doneHeading:Hide() end
+    if C.goalUI.listHeading then C.goalUI.listHeading:Hide() end
+    if C.goalUI.detail then C.goalUI.detail:Hide() end
 end
 
 local function hideNoteRows()
     for _, row in ipairs(noteRows) do row:Hide() end
+    if C.noteUI.composer then C.noteUI.composer:Hide() end
+    if C.noteUI.createButton then C.noteUI.createButton:Hide() end
+    if C.noteUI.listPanel then C.noteUI.listPanel:Hide() end
+    if C.noteUI.listHeading then C.noteUI.listHeading:Hide() end
+    if C.noteUI.detail then C.noteUI.detail:Hide() end
 end
 
 local function hideAltRows()
@@ -474,8 +561,11 @@ end
 
 local function hideAltDetail()
     if detailHero then detailHero:Hide() end
+    if detailHero and detailHero.equipmentStage then detailHero.equipmentStage:Hide() end
+    if detailHero and detailHero.statPanel then detailHero.statPanel:Hide() end
     if detailHero and detailHero.surnameEditor then detailHero.surnameEditor:Hide() end
     if detailHero and detailHero.surnameSave then detailHero.surnameSave:Hide() end
+    if detailHero and detailHero.surnameLabel then detailHero.surnameLabel:Hide() end
     for _, widget in ipairs(detailTabs) do widget:Hide() end
     for _, widget in ipairs(detailHeaders) do widget:Hide() end
     for _, widget in ipairs(detailCards) do widget:Hide() end
@@ -506,6 +596,7 @@ local function hideStatsRows()
 end
 
 local function hideProfessionRows()
+    if C.HideProfessionBrowser then C:HideProfessionBrowser() end
     if professionHero then professionHero:Hide() end
     for _, row in ipairs(professionCards) do row:Hide() end
     for _, row in ipairs(professionHeaders) do row:Hide() end
@@ -517,6 +608,7 @@ local function hideProfessionRows()
 end
 
 local function hideLootRows()
+    if C.HideLootGallery then C:HideLootGallery() end
     if lootHero then lootHero:Hide() end
     if lootHero and lootHero.emptyGallery then
         for _, panel in ipairs(lootHero.emptyGallery) do panel:Hide() end
@@ -534,6 +626,7 @@ local function hideOverviewRows()
         for _, dot in ipairs(overviewHero.routeDots or {}) do dot:Hide() end
     end
     for _, widget in ipairs(overviewStats) do widget:Hide() end
+    if C.overviewAccount then C.overviewAccount:Hide() end
     for _, widget in ipairs(overviewHeaders) do widget:Hide() end
     for _, widget in ipairs(overviewGoals) do widget:Hide() end
     for _, widget in ipairs(overviewEvents) do widget:Hide() end
@@ -658,7 +751,7 @@ local function showChapterHero(caption, titleText, detailText, statsText, iconPa
         chapterHero.rule = chapterHero:CreateTexture(nil, "ARTWORK")
         chapterHero.rule:SetTexture(BACKGROUND)
         chapterHero.rule:SetPoint("TOPLEFT", 19, -82)
-        chapterHero.rule:SetPoint("TOPRIGHT", -106, -82); chapterHero.rule:SetHeight(1)
+        chapterHero.rule:SetPoint("TOPRIGHT", -106, -82); chapterHero.rule:SetHeight(C:RuleThickness())
         chapterHero.stats = chapterHero:CreateFontString(nil, "OVERLAY")
         chapterHero.stats:SetPoint("TOPLEFT", 20, -91); setFont(chapterHero.stats, 11, GOLD)
         chapterHero.icon = chapterHero:CreateTexture(nil, "ARTWORK")
@@ -680,114 +773,919 @@ local function showChapterHero(caption, titleText, detailText, statsText, iconPa
     chapterHero:Show(); body:Hide()
 end
 
+function C:OpenJournalEntry(kind, entry, actions)
+    local window = C.journalEntryWindow
+    if not window then
+        window = CreateFrame("Frame", "ChronicleJournalEntryWindow", UIParent, "BackdropTemplate")
+        window:SetSize(760, 560)
+        window:SetPoint("CENTER")
+        window:SetFrameStrata("DIALOG")
+        window:SetToplevel(true)
+        window:SetClampedToScreen(true)
+        window:EnableMouse(true)
+        window:SetMovable(true)
+        window:RegisterForDrag("LeftButton")
+        window:SetScript("OnDragStart", window.StartMoving)
+        window:SetScript("OnDragStop", window.StopMovingOrSizing)
+        backdrop(window, .09, .06, .035, .99)
+        C:ApplyMaterial(window, .14)
+        C:OrnateCorners(window)
+        window.caption = window:CreateFontString(nil, "OVERLAY")
+        window.caption:SetPoint("TOPLEFT", 24, -22)
+        setFont(window.caption, 11, GOLD)
+        window.close = CreateFrame("Button", nil, window, "BackdropTemplate")
+        C:StyleChronicleButton(window.close)
+        window.close:SetSize(95, 26)
+        window.close:SetPoint("TOPRIGHT", -19, -17)
+        window.close:SetScript("OnClick", function() window:Hide() end)
+        window.rule = window:CreateTexture(nil, "ARTWORK")
+        window.rule:SetTexture(BACKGROUND)
+        window.rule:SetVertexColor(.65, .44, .16, .8)
+        window.rule:SetPoint("TOPLEFT", 24, -57)
+        window.rule:SetPoint("TOPRIGHT", -24, -57)
+        window.rule:SetHeight(C:RuleThickness())
+        window.textScroll = CreateFrame("ScrollFrame", nil, window, "UIPanelScrollFrameTemplate")
+        window.textScroll:SetPoint("TOPLEFT", 26, -78)
+        window.textScroll:SetPoint("BOTTOMRIGHT", -42, 100)
+        window.textChild = CreateFrame("Frame", nil, window.textScroll)
+        window.textChild:SetSize(665, 380)
+        window.textScroll:SetScrollChild(window.textChild)
+        window.text = window.textChild:CreateFontString(nil, "OVERLAY")
+        window.text:SetPoint("TOPLEFT", 0, 0)
+        window.text:SetJustifyH("LEFT")
+        window.text:SetJustifyV("TOP")
+        setFont(window.text, 17, TEXT)
+        window.meta = window:CreateFontString(nil, "OVERLAY")
+        window.meta:SetPoint("BOTTOMLEFT", 26, 65)
+        setFont(window.meta, 11, MUTED)
+        window.actions = {}
+        for index = 1, 3 do
+            local button = CreateFrame("Button", nil, window, "BackdropTemplate")
+            C:StyleChronicleButton(button)
+            button:SetSize(index == 1 and 185 or 105, 28)
+            button:SetPoint("BOTTOMLEFT", 24 + (index == 1 and 0 or index == 2 and 195 or 310), 20)
+            window.actions[index] = button
+        end
+        C.journalEntryWindow = window
+    end
+    window.caption:SetText(C:L(kind == "note" and "noteDetails" or "goalDetails"))
+    window.close:SetText(C:L("mapClose"))
+    window.text:SetWidth(665)
+    window.text:SetText(entry.text or "")
+    window.textChild:SetHeight(math.max(380, window.text:GetStringHeight() + 24))
+    window.textScroll:SetVerticalScroll(0)
+    window.meta:SetText(C:L("goalCreated") .. U.Date(entry.created) .. "   ·   " .. C:L("goalUpdated") .. U.Date(entry.updated or entry.created))
+    for index, action in ipairs(actions) do
+        local button = window.actions[index]
+        button:SetText(action[1])
+        button:SetScript("OnClick", function()
+            window:Hide()
+            action[2]()
+        end)
+        button:Show()
+    end
+    for index = #actions + 1, 3 do window.actions[index]:Hide() end
+    window:Show()
+end
+
 local function showNoteRows()
     local width = availableContentWidth()
-    local notes = C.char.notes
+    local notes = C.char.notes or {}
+    if simpleEmpty then simpleEmpty:Hide() end
     showChapterHero("CHRONICLE  /  NOTIZEN", "Deine Gedanken",
         "Persönliche Erinnerungen und Pläne", #notes .. C:LocalizeDisplay(" NOTIZEN"),
         "Interface\\AddOns\\Chronicle\\NotesMedallion", { .8, .6, .23 })
+    body:Hide()
     if #notes == 0 then
         showSimpleEmpty("Noch keine Notizen", "Schreibe unten deine erste Erinnerung auf.",
             "Interface\\AddOns\\Chronicle\\NotesMedallion", "Notes")
+    end
+
+    local n = C.noteUI
+    if n.composerOpen == nil then n.composerOpen = #notes == 0 end
+    if not n.composer then
+        n.composer = CreateFrame("Frame", nil, content, "BackdropTemplate")
+        n.composer:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT", 18, 12)
+        n.composer:SetSize(width, 180)
+        backdrop(n.composer, .14, .09, .05, .98)
+        n.composer:SetFrameLevel(scroll:GetFrameLevel() + 2)
+        n.composer:Show()
+        n.composer.caption = n.composer:CreateFontString(nil, "OVERLAY")
+        n.composer.caption:SetPoint("TOPLEFT", 18, -11)
+        setFont(n.composer.caption, 11, GOLD)
+        n.composer.rule = n.composer:CreateTexture(nil, "ARTWORK")
+        n.composer.rule:SetTexture(BACKGROUND)
+        n.composer.rule:SetVertexColor(.52, .36, .14, .75)
+        n.composer.rule:SetPoint("TOPLEFT", 18, -29)
+        n.composer.rule:SetPoint("TOPRIGHT", -18, -29)
+        n.composer.rule:SetHeight(C:RuleThickness())
+        n.composer.editorBack = CreateFrame("Frame", nil, n.composer, "BackdropTemplate")
+        backdrop(n.composer.editorBack, .07, .045, .025, 1)
+        n.composer.editorBack:SetBackdropColor(.05, .047, .043, 1)
+        n.composer.editorBack:SetBackdropBorderColor(.58, .4, .16, 1)
+        n.composer.editorBack:EnableMouse(true)
+        n.composer.editorBack:SetScript("OnMouseDown", function()
+            n.composer.editor:SetFocus()
+        end)
+        n.composer.editorFrame = CreateFrame("ScrollFrame", nil, n.composer.editorBack, "UIPanelScrollFrameTemplate")
+        n.composer.editor = CreateFrame("EditBox", nil, n.composer.editorFrame)
+        n.composer.editor:SetMultiLine(true)
+        n.composer.editor:SetAutoFocus(false)
+        n.composer.editor:SetMaxLetters(4000)
+        n.composer.editor:SetFontObject(ChatFontNormal)
+        n.composer.editor:SetTextColor(unpack(TEXT))
+        n.composer.editor:SetSize(300, 92)
+        n.composer.editorFrame:SetScrollChild(n.composer.editor)
+        n.composer.editorHint = n.composer.editorBack:CreateFontString(nil, "OVERLAY")
+        n.composer.editorHint:SetPoint("TOPLEFT", 12, -10)
+        setFont(n.composer.editorHint, 12, MUTED)
+        n.composer.editor:SetScript("OnTextChanged", function(self)
+            local charactersPerLine = math.max(20, math.floor(self:GetWidth() / 7))
+            local lines = 0
+            for line in (self:GetText() .. "\n"):gmatch("(.-)\n") do
+                lines = lines + math.max(1, math.ceil(#line / charactersPerLine))
+            end
+            self:SetHeight(math.max(92, lines * 18 + 12))
+            n.composer.editorHint:SetShown(self:GetText() == "" and not self:HasFocus())
+        end)
+        n.composer.editor:SetScript("OnCursorChanged", function(_, _, y, _, height)
+            local view = n.composer.editorFrame
+            local cursor = -y
+            local top = view:GetVerticalScroll()
+            if cursor < top then view:SetVerticalScroll(cursor)
+            elseif cursor + height > top + view:GetHeight() then
+                view:SetVerticalScroll(cursor + height - view:GetHeight())
+            end
+        end)
+        n.composer.editor:SetScript("OnEditFocusGained", function()
+            n.composer.editorHint:Hide()
+            n.composer.editorBack:SetBackdropBorderColor(.95, .73, .22, 1)
+        end)
+        n.composer.editor:SetScript("OnEditFocusLost", function(self)
+            n.composer.editorHint:SetShown(self:GetText() == "")
+            n.composer.editorBack:SetBackdropBorderColor(.58, .4, .16, 1)
+        end)
+        n.composer.editor:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        n.composer.save = CreateFrame("Button", nil, n.composer, "BackdropTemplate")
+        C:StyleChronicleButton(n.composer.save)
+        n.composer.save:SetSize(128, 27)
+        n.composer.save:SetPoint("BOTTOMRIGHT", -18, 12)
+        n.composer.save:SetScript("OnClick", function()
+            local value = U.Trim(n.composer.editor:GetText())
+            if value == "" then return end
+            if n.editing then
+                C:UpdateNote(n.editing, value)
+            else
+                C:AddNote(value)
+                n.selectedNote = C.char.notes[1]
+            end
+            n.editing = nil
+            n.composerOpen = false
+            n.composer.editor:SetText("")
+            n.composer.editor:ClearFocus()
+            showNoteRows()
+        end)
+        n.composer.cancel = CreateFrame("Button", nil, n.composer, "BackdropTemplate")
+        C:StyleChronicleButton(n.composer.cancel)
+        n.composer.cancel:SetSize(90, 27)
+        n.composer.cancel:SetPoint("RIGHT", n.composer.save, "LEFT", -8, 0)
+        n.composer.cancel:SetScript("OnClick", function()
+            n.editing = nil
+            n.composerOpen = false
+            n.composer.editor:SetText("")
+            n.composer.editor:ClearFocus()
+            showNoteRows()
+        end)
+    end
+    n.composer:ClearAllPoints()
+    n.composer:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT", 18, 12)
+    n.composer:SetSize(width, 180)
+    backdrop(n.composer, .14, .09, .05, .98)
+    C:ApplyMaterial(n.composer, .2)
+    C:OrnateCorners(n.composer)
+    n.composer.caption:SetText(C:L(n.editing and "editNote" or "newNote"))
+    n.composer.editorBack:ClearAllPoints()
+    n.composer.editorBack:SetPoint("TOPLEFT", 18, -37)
+    n.composer.editorBack:SetSize(width - 36, 101)
+    n.composer.editorFrame:ClearAllPoints()
+    n.composer.editorFrame:SetPoint("TOPLEFT", n.composer.editorBack, "TOPLEFT", 8, -5)
+    n.composer.editorFrame:SetSize(width - 52, 92)
+    n.composer.editor:SetWidth(width - 78)
+    n.composer.editorHint:SetText(C:L("noteWriteHint"))
+    n.composer.editorHint:SetShown(n.composer.editor:GetText() == "" and not n.composer.editor:HasFocus())
+    n.composer.save:SetText(C:L(n.editing and "save" or "add"))
+    n.composer.cancel:SetText(C:L("cancel"))
+    n.composer.cancel:SetShown(n.editing ~= nil)
+    if not n.createButton then
+        n.createButton = CreateFrame("Button", nil, scrollChild, "BackdropTemplate")
+        C:StyleChronicleButton(n.createButton)
+        n.createButton:SetSize(170, 27)
+        n.createButton:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", -12, -143)
+        n.createButton:SetScript("OnClick", function()
+            n.composerOpen = true
+            showNoteRows()
+            n.composer.editor:SetFocus()
+        end)
+    end
+    n.createButton:SetText(C:L("newNote"))
+    n.createButton:SetShown(not n.composerOpen)
+    n.composer:SetShown(n.composerOpen)
+    scroll:ClearAllPoints()
+    scroll:SetPoint("TOPLEFT", 18, -49)
+    scroll:SetPoint("BOTTOMRIGHT", -29, n.composerOpen and 197 or 60)
+    if #notes == 0 then
+        if n.listHeading then n.listHeading:Hide() end
+        if n.listPanel then n.listPanel:Hide() end
+        if n.detail then n.detail:Hide() end
+        for _, row in ipairs(noteRows) do row:Hide() end
         return
     end
-    body:Hide()
-    for i, note in ipairs(notes) do
-        local row = noteRows[i]
+
+    local listWidth = width - 8
+    if not n.listPanel then
+        n.listPanel = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
+    end
+    n.listPanel:ClearAllPoints()
+    n.listPanel:SetPoint("TOPLEFT", 0, -137)
+    n.listPanel:SetWidth(width)
+    backdrop(n.listPanel, .12, .08, .05, .96)
+    C:OrnateCorners(n.listPanel)
+    n.listPanel:Hide()
+    local detailX = listWidth + 18
+    local detailWidth = width - detailX + 4
+    if not n.listHeading then
+        n.listHeading = CreateFrame("Frame", nil, scrollChild)
+        n.listHeading.title = n.listHeading:CreateFontString(nil, "OVERLAY")
+        n.listHeading.title:SetPoint("TOPLEFT", 4, -2)
+        setFont(n.listHeading.title, 12, GOLD)
+        n.listHeading.count = n.listHeading:CreateFontString(nil, "OVERLAY")
+        n.listHeading.count:SetPoint("TOPRIGHT", -4, -3)
+        setFont(n.listHeading.count, 10, MUTED)
+        n.listHeading.rule = n.listHeading:CreateTexture(nil, "ARTWORK")
+        n.listHeading.rule:SetTexture(BACKGROUND)
+        n.listHeading.rule:SetVertexColor(.47, .32, .13, .85)
+        n.listHeading.rule:SetPoint("BOTTOMLEFT", 4, 0)
+        n.listHeading.rule:SetPoint("BOTTOMRIGHT", -4, 0)
+        n.listHeading.rule:SetHeight(C:RuleThickness())
+    end
+    n.listHeading:ClearAllPoints()
+    n.listHeading:SetPoint("TOPLEFT", 4, -147)
+    n.listHeading:SetSize(listWidth, 28)
+    n.listHeading.title:SetText(C:L("notes"))
+    n.listHeading.count:SetText("")
+    n.listHeading:Show()
+
+    if not n.detail then
+        n.detail = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
+        n.detail.kicker = n.detail:CreateFontString(nil, "OVERLAY")
+        n.detail.kicker:SetPoint("TOPLEFT", 20, -17)
+        setFont(n.detail.kicker, 11, GOLD)
+        n.detail.textScroll = CreateFrame("ScrollFrame", nil, n.detail, "UIPanelScrollFrameTemplate")
+        n.detail.textScroll:SetPoint("TOPLEFT", 20, -49)
+        n.detail.textChild = CreateFrame("Frame", nil, n.detail.textScroll)
+        n.detail.textChild:SetSize(300, 170)
+        n.detail.textScroll:SetScrollChild(n.detail.textChild)
+        n.detail.text = n.detail.textChild:CreateFontString(nil, "OVERLAY")
+        n.detail.text:SetPoint("TOPLEFT", 0, 0)
+        n.detail.text:SetJustifyH("LEFT")
+        n.detail.text:SetJustifyV("TOP")
+        setFont(n.detail.text, 15, TEXT)
+        n.detail.rule = n.detail:CreateTexture(nil, "ARTWORK")
+        n.detail.rule:SetTexture(BACKGROUND)
+        n.detail.rule:SetVertexColor(.5, .35, .14, .9)
+        n.detail.rule:SetPoint("TOPLEFT", 20, -191)
+        n.detail.rule:SetPoint("TOPRIGHT", -20, -191)
+        n.detail.rule:SetHeight(C:RuleThickness())
+        n.detail.meta = n.detail:CreateFontString(nil, "OVERLAY")
+        n.detail.meta:SetPoint("TOPLEFT", 20, -205)
+        setFont(n.detail.meta, 11, GOLD)
+        n.detail.created = n.detail:CreateFontString(nil, "OVERLAY")
+        n.detail.created:SetPoint("TOPLEFT", 20, -229)
+        setFont(n.detail.created, 11, MUTED)
+        n.detail.updated = n.detail:CreateFontString(nil, "OVERLAY")
+        n.detail.updated:SetPoint("TOPLEFT", 20, -253)
+        setFont(n.detail.updated, 11, MUTED)
+        n.detail.edit = CreateFrame("Button", nil, n.detail, "BackdropTemplate")
+        C:StyleChronicleButton(n.detail.edit)
+        n.detail.edit:SetSize(120, 27)
+        n.detail.edit:SetPoint("BOTTOMLEFT", 20, 16)
+        n.detail.edit:SetScript("OnClick", function()
+            if not n.selectedNote then return end
+            n.editing = n.selectedNote
+            n.composerOpen = true
+            n.composer.editor:SetText(n.editing.text)
+            n.composer.editor:SetFocus()
+            showNoteRows()
+        end)
+        n.detail.delete = CreateFrame("Button", nil, n.detail, "BackdropTemplate")
+        C:StyleChronicleButton(n.detail.delete)
+        n.detail.delete:SetSize(90, 27)
+        n.detail.delete:SetPoint("LEFT", n.detail.edit, "RIGHT", 10, 0)
+        n.detail.delete:SetScript("OnClick", function()
+            if not n.selectedNote then return end
+            if n.editing == n.selectedNote then
+                n.editing = nil
+                n.composer.editor:SetText("")
+            end
+            C:DeleteNote(n.selectedNote)
+            n.selectedNote = nil
+            showNoteRows()
+        end)
+    end
+    n.detail:ClearAllPoints()
+    n.detail:SetPoint("TOPLEFT", detailX, -147)
+    n.detail:SetSize(detailWidth, 315)
+    backdrop(n.detail, .12, .08, .05, .96)
+    C:ApplyMaterial(n.detail, .13)
+    C:OrnateCorners(n.detail)
+    n.detail.textScroll:SetSize(detailWidth - 45, 130)
+    n.detail.textChild:SetWidth(detailWidth - 65)
+    n.detail.text:SetWidth(detailWidth - 65)
+    n.detail:Hide()
+
+    local stillPresent = false
+    for _, note in ipairs(notes) do
+        if note == n.selectedNote then stillPresent = true; break end
+    end
+    if not stillPresent then n.selectedNote = notes[1] end
+    if n.selectedNote then
+        local note = n.selectedNote
+        n.detail.kicker:SetText(C:L("noteDetails"))
+        n.detail.text:SetText(note.text)
+        n.detail.textChild:SetHeight(math.max(130, n.detail.text:GetStringHeight() + 15))
+        n.detail.meta:SetText(U.SafeText(note.category, C:LocalizeDisplay("Allgemein")))
+        n.detail.created:SetText(C:L("goalCreated") .. U.Date(note.created))
+        n.detail.updated:SetText(C:L("goalUpdated") .. U.Date(note.updated or note.created))
+        n.detail.edit:SetText(C:L("editGoalButton"))
+        n.detail.delete:SetText(C:L("goalRemove"))
+        n.detail.edit:Show(); n.detail.delete:Show()
+    else
+        n.detail.kicker:SetText(C:L("noteDetails"))
+        n.detail.text:SetText(C:L("noteChoose"))
+        n.detail.meta:SetText("")
+        n.detail.created:SetText("")
+        n.detail.updated:SetText("")
+        n.detail.edit:Hide(); n.detail.delete:Hide()
+    end
+
+    local cardWidth = #notes == 1 and (listWidth - 24) or math.floor((listWidth - 36) / 2)
+    local offset = 202
+    for index, note in ipairs(notes) do
+        local row = noteRows[index]
         if not row then
-            row = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
-            row:SetSize(630, 104); row:SetPoint("TOPLEFT", 4, -132 - (i - 1) * 108)
-            openSurface(row)
-            row.accent = row:CreateTexture(nil, "ARTWORK"); row.accent:Hide()
-            row.accent:SetTexture(BACKGROUND); row.accent:SetVertexColor(.8, .6, .23)
-            row.accent:SetPoint("TOPLEFT", 4, -4); row.accent:SetPoint("BOTTOMLEFT", 4, 4)
-            row.accent:SetWidth(3)
-            row.caption = row:CreateFontString(nil, "OVERLAY")
-            row.caption:SetPoint("TOPLEFT", 10, -9); setFont(row.caption, 11, GOLD)
-            row.text = row:CreateFontString(nil, "OVERLAY")
-            row.text:SetPoint("TOPLEFT", 10, -29); row.text:SetWidth(460)
-            row.text:SetJustifyH("LEFT"); row.text:SetJustifyV("TOP"); setFont(row.text, 12, TEXT)
-            row.edit = CreateFrame("Button", nil, row, "BackdropTemplate")
-            C:StyleChronicleButton(row.edit)
-            row.edit:SetSize(68, 23); row.edit:SetPoint("TOPRIGHT", -7, -9); row.edit:SetText(C:LocalizeDisplay("Bearb.")); row.edit.noteRow = row
-            row.edit:SetScript("OnClick", function(self)
-                editingNote = self.noteRow.note
-                input:SetText(editingNote.text); input:SetFocus()
-                action:SetText(C:LocalizeDisplay("Aendern")); cancelEdit:Show()
+            row = CreateFrame("Button", nil, scrollChild, "BackdropTemplate")
+            row.band = row:CreateTexture(nil, "BACKGROUND")
+            row.band:SetTexture(BACKGROUND); row.band:SetAllPoints(row)
+            row.accent = row:CreateTexture(nil, "ARTWORK")
+            row.accent:SetTexture(BACKGROUND)
+            row.accent:SetPoint("TOPLEFT", 0, -3)
+            row.accent:SetPoint("BOTTOMLEFT", 0, 3)
+            row.accent:SetWidth(2)
+            row.accent:Hide()
+            row.mark = row:CreateFontString(nil, "OVERLAY")
+            row.mark:SetPoint("TOPLEFT", 31, -70)
+            setFont(row.mark, 11, GOLD)
+            row.mark:Hide()
+            row.icon = row:CreateTexture(nil, "ARTWORK")
+            row.icon:SetTexture("Interface\\AddOns\\Chronicle\\NotesMedallion")
+            row.icon:SetPoint("TOPLEFT", 11, -10)
+            row.icon:SetSize(52, 52)
+            row.kicker = row:CreateFontString(nil, "OVERLAY")
+            row.kicker:SetPoint("TOPLEFT", 79, -12)
+            setFont(row.kicker, 10, GOLD)
+            row.label = row:CreateFontString(nil, "OVERLAY")
+            row.label:SetPoint("TOPLEFT", 79, -34)
+            row.label:SetHeight(45)
+            row.label:SetJustifyH("LEFT")
+            row.label:SetJustifyV("TOP")
+            if row.label.SetMaxLines then row.label:SetMaxLines(2) end
+            setFont(row.label, 16, TEXT)
+            row.meta = row:CreateFontString(nil, "OVERLAY")
+            row.meta:SetPoint("BOTTOMLEFT", 79, 14)
+            setFont(row.meta, 10, MUTED)
+            row.open = row:CreateFontString(nil, "OVERLAY")
+            row.open:SetPoint("BOTTOMRIGHT", -15, 14)
+            setFont(row.open, 11, GOLD)
+            row.side = row:CreateTexture(nil, "BACKGROUND")
+            row.side:SetTexture(BACKGROUND)
+            row.side:SetVertexColor(.07, .045, .025, .8)
+            row.side:SetPoint("TOPRIGHT", -2, -2)
+            row.side:SetPoint("BOTTOMRIGHT", -2, 2)
+            row.side:SetWidth(234)
+            row.divider = row:CreateTexture(nil, "ARTWORK")
+            row.divider:SetTexture(BACKGROUND)
+            row.divider:SetVertexColor(.55, .38, .15, .6)
+            row.divider:SetPoint("TOPRIGHT", -238, -15)
+            row.divider:SetPoint("BOTTOMRIGHT", -238, 15)
+            row.divider:SetWidth(C:RuleThickness())
+            row.openButton = CreateFrame("Button", nil, row, "BackdropTemplate")
+            C:StyleChronicleButton(row.openButton)
+            row.openButton:SetSize(116, 26)
+            row.openButton:SetPoint("BOTTOMRIGHT", -17, 13)
+            row.openButton:SetScript("OnClick", function(self)
+                local parent = self:GetParent()
+                parent:GetScript("OnClick")(parent)
             end)
-            row.delete = CreateFrame("Button", nil, row, "BackdropTemplate")
-            C:StyleChronicleButton(row.delete)
-            row.delete:SetSize(68, 23); row.delete:SetPoint("TOPRIGHT", -7, -38); row.delete:SetText(C:LocalizeDisplay("Entf.")); row.delete.noteRow = row
-            row.delete:SetScript("OnClick", function(self)
-                if editingNote == self.noteRow.note then editingNote = nil; input:SetText(""); cancelEdit:Hide(); action:SetText(C:LocalizeDisplay("Speichern")) end
-                C:DeleteNote(self.noteRow.note)
+            row.rule = row:CreateTexture(nil, "ARTWORK")
+            row.rule:SetTexture(BACKGROUND)
+            row.rule:SetVertexColor(.45, .3, .12, .65)
+            row.rule:SetPoint("BOTTOMLEFT", 2, 0)
+            row.rule:SetPoint("BOTTOMRIGHT", -2, 0)
+            row.rule:SetHeight(C:RuleThickness())
+            row.rule:Hide()
+            row:SetScript("OnClick", function(self)
+                if n.editing and n.editing ~= self.note then
+                    n.editing = nil
+                    n.composer.editor:SetText("")
+                end
+                n.selectedNote = self.note
+                showNoteRows()
+                C:OpenJournalEntry("note", self.note, {
+                    { C:L("editGoalButton"), function() n.detail.edit:GetScript("OnClick")(n.detail.edit) end },
+                    { C:L("goalRemove"), function() n.detail.delete:GetScript("OnClick")(n.detail.delete) end },
+                })
             end)
-            noteRows[i] = row
+            row:SetScript("OnEnter", function(self)
+                self:SetBackdropBorderColor(1, .76, .24, 1)
+                if GameTooltip then
+                    GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+                    GameTooltip:SetText(self.note.text, 1, .82, .1, true)
+                    C:ShowLocalizedTooltip()
+                end
+            end)
+            row:SetScript("OnLeave", function(self)
+                self:SetBackdropBorderColor(.59, .44, .17, 1)
+                if GameTooltip then GameTooltip:Hide() end
+            end)
+            noteRows[index] = row
         end
         row.note = note
-        row:SetWidth(width); row.text:SetWidth(width - 170)
-        row.caption:SetText(U.SafeText(note.category, C:LocalizeDisplay("Allgemein")) .. "  -  " .. U.Date(note.updated or note.created))
-        row.text:SetText(U.SafeText(note.text, ""))
+        row:SetFrameLevel(n.listPanel:GetFrameLevel() + 1)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 12 + ((index - 1) % 2) * (cardWidth + 12), -offset)
+        local featured = #notes == 1
+        row:SetSize(cardWidth, featured and 96 or 122)
+        backdrop(row, .13, .085, .05, .97)
+        row.kicker:SetText(U.SafeText(note.category, C:LocalizeDisplay("Allgemein")) .. "  ·  " .. string.format("%02d", index))
+        row.label:SetWidth(cardWidth - (featured and 340 or 103))
+        row.label:SetText(note.text:gsub("[\r\n]+", " "))
+        row.meta:ClearAllPoints()
+        if featured then
+            row.meta:SetPoint("TOPRIGHT", -18, -19)
+        else
+            row.meta:SetPoint("BOTTOMLEFT", 79, 14)
+        end
+        row.meta:SetText(U.Date(note.updated or note.created, true))
+        row.open:SetText(C:L("openEntry"))
+        row.open:SetShown(not featured)
+        row.side:SetShown(featured)
+        row.divider:SetShown(featured)
+        row.openButton:SetText(C:L("openEntry"))
+        row.openButton:SetShown(featured)
+        row.band:SetVertexColor(.09, .085, .075, note == n.selectedNote and .7 or .13)
+        row.accent:SetVertexColor(1, .73, .19, note == n.selectedNote and 1 or .3)
         row:Show()
+        if index % 2 == 0 or index == #notes then offset = offset + (featured and 108 or 134) end
     end
-    for i = #notes + 1, #noteRows do noteRows[i]:Hide() end
-    scrollChild:SetHeight(math.max(1, 132 + #notes * 108 + 4))
+    for index = #notes + 1, #noteRows do noteRows[index]:Hide() end
+    n.listPanel:SetHeight(math.max(105, offset - 128))
+    scrollChild:SetHeight(math.max(560, offset + 24))
 end
 
 local function showGoalRows()
     local width = availableContentWidth()
-    local goals = C.char.goals
-    local done = 0
-    for _, goal in ipairs(goals) do if goal.done then done = done + 1 end end
+    if simpleEmpty then simpleEmpty:Hide() end
+    local goals = C.char.goals or {}
+    local ordered, openCount, doneCount = {}, 0, 0
+    for index, goal in ipairs(goals) do
+        if not goal.done then
+            ordered[#ordered + 1] = { goal = goal, index = index }
+            openCount = openCount + 1
+        else doneCount = doneCount + 1 end
+    end
+    for index, goal in ipairs(goals) do
+        if goal.done then ordered[#ordered + 1] = { goal = goal, index = index } end
+    end
     showChapterHero("CHRONICLE  /  ZIELE", "Deine nächsten Schritte",
         "Was du auf deiner Reise erreichen möchtest",
-        (#goals - done) .. C:LocalizeDisplay(" OFFEN     |     ") .. done .. C:LocalizeDisplay(" ERLEDIGT"),
+        openCount .. C:LocalizeDisplay(" OFFEN     |     ") .. doneCount .. C:LocalizeDisplay(" ERLEDIGT"),
         "Interface\\AddOns\\Chronicle\\GoalsMedallion", { .93, .66, .2 })
+    body:Hide()
     if #goals == 0 then
-        showSimpleEmpty("Noch keine Ziele", "Lege unten dein erstes persönliches Ziel an.",
+        showSimpleEmpty(C:L("noGoals"), C:L("goalEmptyHint"),
             "Interface\\AddOns\\Chronicle\\GoalsMedallion", "Goals")
+    end
+
+    local g = C.goalUI
+    if g.composerOpen == nil then g.composerOpen = #goals == 0 end
+    if not g.composer then
+        g.composer = CreateFrame("Frame", nil, content, "BackdropTemplate")
+        g.composer:SetHeight(180)
+        g.composer:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT", 18, 12)
+        g.composer:SetWidth(width)
+        backdrop(g.composer, .14, .09, .05, .98)
+        g.composer:SetFrameLevel(scroll:GetFrameLevel() + 2)
+        g.composer:Show()
+        g.composer.caption = g.composer:CreateFontString(nil, "OVERLAY")
+        g.composer.caption:SetPoint("TOPLEFT", 18, -11)
+        setFont(g.composer.caption, 11, GOLD)
+        g.composer.rule = g.composer:CreateTexture(nil, "ARTWORK")
+        g.composer.rule:SetTexture(BACKGROUND)
+        g.composer.rule:SetVertexColor(.52, .36, .14, .75)
+        g.composer.rule:SetPoint("TOPLEFT", 18, -29)
+        g.composer.rule:SetPoint("TOPRIGHT", -18, -29)
+        g.composer.rule:SetHeight(C:RuleThickness())
+        g.composer.editorBack = CreateFrame("Frame", nil, g.composer, "BackdropTemplate")
+        backdrop(g.composer.editorBack, .07, .045, .025, 1)
+        g.composer.editorBack:SetBackdropColor(.05, .047, .043, 1)
+        g.composer.editorBack:SetBackdropBorderColor(.58, .4, .16, 1)
+        g.composer.editorBack:EnableMouse(true)
+        g.composer.editorBack:SetScript("OnMouseDown", function()
+            g.composer.editor:SetFocus()
+        end)
+        g.composer.editorFrame = CreateFrame("ScrollFrame", nil, g.composer.editorBack, "UIPanelScrollFrameTemplate")
+        g.composer.editor = CreateFrame("EditBox", nil, g.composer.editorFrame)
+        g.composer.editor:SetMultiLine(true)
+        g.composer.editor:SetAutoFocus(false)
+        g.composer.editor:SetMaxLetters(1000)
+        g.composer.editor:SetFontObject(ChatFontNormal)
+        g.composer.editor:SetTextColor(unpack(TEXT))
+        g.composer.editor:SetSize(300, 92)
+        g.composer.editorFrame:SetScrollChild(g.composer.editor)
+        g.composer.editor:SetScript("OnTextChanged", function(self)
+            local charactersPerLine = math.max(20, math.floor(self:GetWidth() / 7))
+            local lines = 0
+            for line in (self:GetText() .. "\n"):gmatch("(.-)\n") do
+                lines = lines + math.max(1, math.ceil(#line / charactersPerLine))
+            end
+            self:SetHeight(math.max(92, lines * 18 + 12))
+            if g.composer.editorHint then
+                g.composer.editorHint:SetShown(self:GetText() == "" and not self:HasFocus())
+            end
+        end)
+        g.composer.editor:SetScript("OnCursorChanged", function(_, _, y, _, height)
+            local view = g.composer.editorFrame
+            local cursor = -y
+            local top = view:GetVerticalScroll()
+            if cursor < top then view:SetVerticalScroll(cursor)
+            elseif cursor + height > top + view:GetHeight() then
+                view:SetVerticalScroll(cursor + height - view:GetHeight())
+            end
+        end)
+        g.composer.editor:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+        g.composer.editorHint = g.composer.editorBack:CreateFontString(nil, "OVERLAY")
+        g.composer.editorHint:SetPoint("TOPLEFT", 12, -10)
+        setFont(g.composer.editorHint, 12, MUTED)
+        g.composer.editor:SetScript("OnEditFocusGained", function()
+            g.composer.editorHint:Hide()
+            g.composer.editorBack:SetBackdropBorderColor(.95, .73, .22, 1)
+        end)
+        g.composer.editor:SetScript("OnEditFocusLost", function(self)
+            g.composer.editorHint:SetShown(self:GetText() == "")
+            g.composer.editorBack:SetBackdropBorderColor(.58, .4, .16, 1)
+        end)
+        g.composer.save = CreateFrame("Button", nil, g.composer, "BackdropTemplate")
+        C:StyleChronicleButton(g.composer.save)
+        g.composer.save:SetSize(128, 27)
+        g.composer.save:SetPoint("BOTTOMRIGHT", -18, 12)
+        g.composer.save:SetScript("OnClick", function()
+            local value = U.Trim(g.composer.editor:GetText())
+            if value == "" then return end
+            if g.editing then
+                g.editing.text = value
+                g.editing.updated = time()
+                C:AddEvent("goal", "Ziel bearbeitet: " .. value)
+            else
+                C:AddGoal(value)
+                g.selectedGoal = C.char.goals[1]
+            end
+            g.editing = nil
+            g.composerOpen = false
+            g.composer.editor:SetText("")
+            g.composer.editor:ClearFocus()
+            showGoalRows()
+        end)
+        g.composer.cancel = CreateFrame("Button", nil, g.composer, "BackdropTemplate")
+        C:StyleChronicleButton(g.composer.cancel)
+        g.composer.cancel:SetSize(90, 27)
+        g.composer.cancel:SetPoint("RIGHT", g.composer.save, "LEFT", -8, 0)
+        g.composer.cancel:SetScript("OnClick", function()
+            g.editing = nil
+            g.composerOpen = false
+            g.composer.editor:SetText("")
+            g.composer.editor:ClearFocus()
+            showGoalRows()
+        end)
+    end
+    g.composer:ClearAllPoints()
+    g.composer:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT", 18, 12)
+    g.composer:SetWidth(width)
+    g.composer:SetHeight(180)
+    backdrop(g.composer, .14, .09, .05, .98)
+    C:ApplyMaterial(g.composer, .2)
+    C:OrnateCorners(g.composer)
+    g.composer.caption:SetText(C:L(g.editing and "editGoal" or "newGoal"))
+    g.composer.editorBack:ClearAllPoints()
+    g.composer.editorBack:SetPoint("TOPLEFT", 18, -37)
+    g.composer.editorBack:SetSize(width - 36, 101)
+    g.composer.editorFrame:ClearAllPoints()
+    g.composer.editorFrame:SetPoint("TOPLEFT", g.composer.editorBack, "TOPLEFT", 8, -5)
+    g.composer.editorFrame:SetSize(width - 52, 92)
+    g.composer.editor:SetWidth(width - 78)
+    g.composer.editorHint:SetText(C:L("goalWriteHint"))
+    g.composer.editorHint:SetShown(g.composer.editor:GetText() == "" and not g.composer.editor:HasFocus())
+    g.composer.save:SetText(C:L(g.editing and "save" or "add"))
+    g.composer.cancel:SetText(C:L("cancel"))
+    g.composer.cancel:SetShown(g.editing ~= nil)
+    if not g.createButton then
+        g.createButton = CreateFrame("Button", nil, scrollChild, "BackdropTemplate")
+        C:StyleChronicleButton(g.createButton)
+        g.createButton:SetSize(170, 27)
+        g.createButton:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", -12, -143)
+        g.createButton:SetScript("OnClick", function()
+            g.composerOpen = true
+            showGoalRows()
+            g.composer.editor:SetFocus()
+        end)
+    end
+    g.createButton:SetText(C:L("newGoal"))
+    g.createButton:SetShown(not g.composerOpen)
+    g.composer:SetShown(g.composerOpen)
+    scroll:ClearAllPoints()
+    scroll:SetPoint("TOPLEFT", 18, -49)
+    scroll:SetPoint("BOTTOMRIGHT", -29, g.composerOpen and 197 or 60)
+    if #goals == 0 then
+        if g.listHeading then g.listHeading:Hide() end
+        if g.listPanel then g.listPanel:Hide() end
+        if g.detail then g.detail:Hide() end
+        for _, row in ipairs(goalRows) do row:Hide() end
         return
     end
-    body:Hide()
-    for i, goal in ipairs(goals) do
-        local row = goalRows[i]
+
+    local listWidth = width - 8
+    if not g.listPanel then
+        g.listPanel = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
+    end
+    g.listPanel:ClearAllPoints()
+    g.listPanel:SetPoint("TOPLEFT", 0, -137)
+    g.listPanel:SetWidth(width)
+    backdrop(g.listPanel, .12, .08, .05, .96)
+    C:OrnateCorners(g.listPanel)
+    g.listPanel:Hide()
+    local detailX = listWidth + 18
+    local detailWidth = width - detailX + 4
+    if not g.listHeading then
+        g.listHeading = CreateFrame("Frame", nil, scrollChild)
+        g.listHeading.title = g.listHeading:CreateFontString(nil, "OVERLAY")
+        g.listHeading.title:SetPoint("TOPLEFT", 4, -2)
+        setFont(g.listHeading.title, 12, GOLD)
+        g.listHeading.count = g.listHeading:CreateFontString(nil, "OVERLAY")
+        g.listHeading.count:SetPoint("TOPRIGHT", -4, -3)
+        setFont(g.listHeading.count, 10, MUTED)
+        g.listHeading.rule = g.listHeading:CreateTexture(nil, "ARTWORK")
+        g.listHeading.rule:SetTexture(BACKGROUND)
+        g.listHeading.rule:SetVertexColor(.47, .32, .13, .85)
+        g.listHeading.rule:SetPoint("BOTTOMLEFT", 4, 0)
+        g.listHeading.rule:SetPoint("BOTTOMRIGHT", -4, 0)
+        g.listHeading.rule:SetHeight(C:RuleThickness())
+    end
+    g.listHeading:ClearAllPoints()
+    g.listHeading:SetPoint("TOPLEFT", 4, -147)
+    g.listHeading:SetSize(listWidth, 28)
+    g.listHeading.title:SetText(C:L("goals"))
+    g.listHeading.count:SetText("")
+    g.listHeading:Show()
+
+    if not g.detail then
+        g.detail = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
+        g.detail.kicker = g.detail:CreateFontString(nil, "OVERLAY")
+        g.detail.kicker:SetPoint("TOPLEFT", 20, -17)
+        setFont(g.detail.kicker, 11, GOLD)
+        g.detail.title = g.detail:CreateFontString(nil, "OVERLAY")
+        g.detail.title:SetPoint("TOPLEFT", 20, -50)
+        g.detail.title:SetHeight(112)
+        g.detail.title:SetJustifyH("LEFT")
+        g.detail.title:SetJustifyV("TOP")
+        setFont(g.detail.title, 18, TEXT)
+        g.detail.status = g.detail:CreateFontString(nil, "OVERLAY")
+        g.detail.status:SetPoint("TOPLEFT", 20, -173)
+        setFont(g.detail.status, 12, GOLD)
+        g.detail.rule = g.detail:CreateTexture(nil, "ARTWORK")
+        g.detail.rule:SetTexture(BACKGROUND)
+        g.detail.rule:SetVertexColor(.5, .35, .14, .9)
+        g.detail.rule:SetPoint("TOPLEFT", 20, -202)
+        g.detail.rule:SetPoint("TOPRIGHT", -20, -202)
+        g.detail.rule:SetHeight(C:RuleThickness())
+        g.detail.created = g.detail:CreateFontString(nil, "OVERLAY")
+        g.detail.created:SetPoint("TOPLEFT", 20, -220)
+        setFont(g.detail.created, 11, MUTED)
+        g.detail.updated = g.detail:CreateFontString(nil, "OVERLAY")
+        g.detail.updated:SetPoint("TOPLEFT", 20, -245)
+        setFont(g.detail.updated, 11, MUTED)
+        g.detail.toggle = CreateFrame("Button", nil, g.detail, "BackdropTemplate")
+        C:StyleChronicleButton(g.detail.toggle)
+        g.detail.toggle:SetSize(180, 29)
+        g.detail.toggle:SetPoint("BOTTOMLEFT", 20, 20)
+        g.detail.toggle:SetScript("OnClick", function()
+            if g.selectedIndex then C:ToggleGoal(g.selectedIndex); showGoalRows() end
+        end)
+        g.detail.edit = CreateFrame("Button", nil, g.detail, "BackdropTemplate")
+        C:StyleChronicleButton(g.detail.edit)
+        g.detail.edit:SetSize(90, 29)
+        g.detail.edit:SetPoint("LEFT", g.detail.toggle, "RIGHT", 10, 0)
+        g.detail.edit:SetScript("OnClick", function()
+            if not g.selectedGoal then return end
+            g.editing = g.selectedGoal
+            g.composerOpen = true
+            g.composer.editor:SetText(g.editing.text)
+            g.composer.editor:SetFocus()
+            showGoalRows()
+        end)
+        g.detail.delete = CreateFrame("Button", nil, g.detail, "BackdropTemplate")
+        C:StyleChronicleButton(g.detail.delete)
+        g.detail.delete:SetSize(90, 29)
+        g.detail.delete:SetPoint("LEFT", g.detail.edit, "RIGHT", 10, 0)
+        g.detail.delete:SetScript("OnClick", function()
+            if g.selectedIndex then
+                if g.editing == g.selectedGoal then
+                    g.editing = nil
+                    g.composer.editor:SetText("")
+                end
+                C:DeleteGoal(g.selectedIndex)
+                g.selectedGoal = nil
+                showGoalRows()
+            end
+        end)
+    end
+    g.detail:ClearAllPoints()
+    g.detail:SetPoint("TOPLEFT", detailX, -147)
+    g.detail:SetSize(detailWidth, 352)
+    backdrop(g.detail, .12, .08, .05, .96)
+    C:ApplyMaterial(g.detail, .13)
+    C:OrnateCorners(g.detail)
+    g.detail.title:SetWidth(detailWidth - 40)
+    g.detail:Hide()
+
+    local stillPresent = false
+    for _, goal in ipairs(goals) do
+        if goal == g.selectedGoal then stillPresent = true; break end
+    end
+    if not stillPresent then
+        g.selectedGoal = ordered[1] and ordered[1].goal or nil
+    end
+    g.selectedIndex = nil
+    for index, goal in ipairs(goals) do
+        if goal == g.selectedGoal then g.selectedIndex = index; break end
+    end
+    if g.selectedGoal then
+        local goal = g.selectedGoal
+        g.detail.kicker:SetText(C:L("goalDetails"))
+        g.detail.title:SetText(goal.text)
+        g.detail.status:SetText(C:L(goal.done and "goalDoneStatus" or "goalOpenStatus"))
+        g.detail.status:SetTextColor(unpack(goal.done and MUTED or GOLD))
+        g.detail.created:SetText(C:L("goalCreated") .. U.Date(goal.created))
+        g.detail.updated:SetText(C:L("goalUpdated") .. U.Date(goal.updated or goal.created))
+        g.detail.toggle:SetText(C:L(goal.done and "goalReopen" or "goalMarkDone"))
+        g.detail.edit:SetText(C:L("editGoalButton"))
+        g.detail.delete:SetText(C:L("goalRemove"))
+        g.detail.toggle:Show(); g.detail.edit:Show(); g.detail.delete:Show()
+    else
+        g.detail.kicker:SetText(C:L("goalDetails"))
+        g.detail.title:SetText(C:L("goalChoose"))
+        g.detail.status:SetText("")
+        g.detail.created:SetText("")
+        g.detail.updated:SetText("")
+        g.detail.toggle:Hide(); g.detail.edit:Hide(); g.detail.delete:Hide()
+    end
+
+    local cardWidth = #ordered == 1 and (listWidth - 24) or math.floor((listWidth - 36) / 2)
+    local offset = 202
+    for displayIndex, entry in ipairs(ordered) do
+        local row = goalRows[displayIndex]
         if not row then
             row = CreateFrame("Button", nil, scrollChild, "BackdropTemplate")
-            row:SetSize(630, 38); row:SetPoint("TOPLEFT", 4, -132 - (i - 1) * 42)
-            openSurface(row)
-            row.accent = row:CreateTexture(nil, "ARTWORK"); row.accent:Hide()
+            row.band = row:CreateTexture(nil, "BACKGROUND")
+            row.band:SetTexture(BACKGROUND); row.band:SetAllPoints(row)
+            row.accent = row:CreateTexture(nil, "ARTWORK")
             row.accent:SetTexture(BACKGROUND)
-            row.accent:SetPoint("TOPLEFT", 4, -4); row.accent:SetPoint("BOTTOMLEFT", 4, 4)
-            row.accent:SetWidth(3)
-            row.goalIndex = i
+            row.accent:SetPoint("TOPLEFT", 0, -3); row.accent:SetPoint("BOTTOMLEFT", 0, 3)
+            row.accent:SetWidth(2)
+            row.accent:Hide()
             row.mark = row:CreateFontString(nil, "OVERLAY")
-            row.mark:SetPoint("LEFT", 10, 0); setFont(row.mark, 16, GOLD)
+            row.mark:SetPoint("TOPLEFT", 31, -70); setFont(row.mark, 11, GOLD)
+            row.mark:Hide()
+            row.icon = row:CreateTexture(nil, "ARTWORK")
+            row.icon:SetTexture("Interface\\AddOns\\Chronicle\\GoalsMedallion")
+            row.icon:SetPoint("TOPLEFT", 11, -10)
+            row.icon:SetSize(52, 52)
+            row.kicker = row:CreateFontString(nil, "OVERLAY")
+            row.kicker:SetPoint("TOPLEFT", 79, -12)
+            setFont(row.kicker, 10, GOLD)
             row.label = row:CreateFontString(nil, "OVERLAY")
-            row.label:SetPoint("LEFT", 38, 0); row.label:SetWidth(505)
-            row.label:SetJustifyH("LEFT"); setFont(row.label, 12, TEXT)
-            row.delete = CreateFrame("Button", nil, row, "BackdropTemplate")
-            C:StyleChronicleButton(row.delete)
-            row.delete:SetSize(64, 23); row.delete:SetPoint("RIGHT", -7, 0)
-            row.delete:SetText(C:LocalizeDisplay("Entf.")); row.delete.goalRow = row
-            row.delete:SetScript("OnClick", function(self) C:DeleteGoal(self.goalRow.goalIndex) end)
-            row:SetScript("OnClick", function(self) C:ToggleGoal(self.goalIndex) end)
-            row:SetScript("OnEnter", function(self)
-                if GameTooltip then GameTooltip:SetOwner(self, "ANCHOR_CURSOR"); GameTooltip:SetText(C:LocalizeDisplay("Ziel als erledigt/offen markieren")); C:ShowLocalizedTooltip() end
+            row.label:SetPoint("TOPLEFT", 79, -34)
+            row.label:SetHeight(45)
+            row.label:SetJustifyH("LEFT")
+            row.label:SetJustifyV("TOP")
+            if row.label.SetMaxLines then row.label:SetMaxLines(2) end
+            setFont(row.label, 16, TEXT)
+            row.status = row:CreateFontString(nil, "OVERLAY")
+            row.status:SetPoint("BOTTOMLEFT", 79, 14)
+            setFont(row.status, 10, MUTED)
+            row.open = row:CreateFontString(nil, "OVERLAY")
+            row.open:SetPoint("BOTTOMRIGHT", -15, 14)
+            setFont(row.open, 11, GOLD)
+            row.side = row:CreateTexture(nil, "BACKGROUND")
+            row.side:SetTexture(BACKGROUND)
+            row.side:SetVertexColor(.07, .045, .025, .8)
+            row.side:SetPoint("TOPRIGHT", -2, -2)
+            row.side:SetPoint("BOTTOMRIGHT", -2, 2)
+            row.side:SetWidth(234)
+            row.divider = row:CreateTexture(nil, "ARTWORK")
+            row.divider:SetTexture(BACKGROUND)
+            row.divider:SetVertexColor(.55, .38, .15, .6)
+            row.divider:SetPoint("TOPRIGHT", -238, -15)
+            row.divider:SetPoint("BOTTOMRIGHT", -238, 15)
+            row.divider:SetWidth(C:RuleThickness())
+            row.date = row:CreateFontString(nil, "OVERLAY")
+            row.date:SetPoint("TOPRIGHT", -18, -42)
+            setFont(row.date, 10, MUTED)
+            row.openButton = CreateFrame("Button", nil, row, "BackdropTemplate")
+            C:StyleChronicleButton(row.openButton)
+            row.openButton:SetSize(116, 26)
+            row.openButton:SetPoint("BOTTOMRIGHT", -17, 13)
+            row.openButton:SetScript("OnClick", function(self)
+                local parent = self:GetParent()
+                parent:GetScript("OnClick")(parent)
             end)
-            row:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-            goalRows[i] = row
+            row.rule = row:CreateTexture(nil, "ARTWORK")
+            row.rule:SetTexture(BACKGROUND)
+            row.rule:SetVertexColor(.45, .3, .12, .65)
+            row.rule:SetPoint("BOTTOMLEFT", 2, 0)
+            row.rule:SetPoint("BOTTOMRIGHT", -2, 0)
+            row.rule:SetHeight(C:RuleThickness())
+            row.rule:Hide()
+            row:SetScript("OnClick", function(self)
+                if g.editing and g.editing ~= self.goal then
+                    g.editing = nil
+                    g.composer.editor:SetText("")
+                end
+                g.selectedGoal = self.goal
+                showGoalRows()
+                C:OpenJournalEntry("goal", self.goal, {
+                    { C:L(self.goal.done and "goalReopen" or "goalMarkDone"), function() g.detail.toggle:GetScript("OnClick")(g.detail.toggle) end },
+                    { C:L("editGoalButton"), function() g.detail.edit:GetScript("OnClick")(g.detail.edit) end },
+                    { C:L("goalRemove"), function() g.detail.delete:GetScript("OnClick")(g.detail.delete) end },
+                })
+            end)
+            row:SetScript("OnEnter", function(self)
+                self:SetBackdropBorderColor(1, .76, .24, 1)
+                if GameTooltip then
+                    GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+                    GameTooltip:SetText(self.goal.text, 1, .82, .1, true)
+                    C:ShowLocalizedTooltip()
+                end
+            end)
+            row:SetScript("OnLeave", function(self)
+                self:SetBackdropBorderColor(.59, .44, .17, 1)
+                if GameTooltip then GameTooltip:Hide() end
+            end)
+            goalRows[displayIndex] = row
         end
-        row.goalIndex = i
-        row:SetWidth(width); row.label:SetWidth(width - 125)
-        row.mark:SetText(goal.done and "[x]" or "[ ]")
-        row.accent:SetVertexColor(goal.done and .35 or .95, goal.done and .7 or .66,
-            goal.done and .44 or .18)
-        row.label:SetText(goal.text)
-        row.label:SetTextColor(unpack(goal.done and MUTED or TEXT))
+        row.goal = entry.goal
+        row:SetFrameLevel(g.listPanel:GetFrameLevel() + 1)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 12 + ((displayIndex - 1) % 2) * (cardWidth + 12), -offset)
+        local featured = #ordered == 1
+        row:SetSize(cardWidth, featured and 96 or 122)
+        backdrop(row, .13, .085, .05, .97)
+        row.label:SetWidth(cardWidth - (featured and 340 or 103))
+        row.label:SetText(entry.goal.text:gsub("[\r\n]+", " "))
+        row.kicker:SetText((featured and C:L("goals") or C:L(entry.goal.done and "goalDoneStatus" or "goalOpenStatus")) .. "  ·  " .. string.format("%02d", displayIndex))
+        row.status:ClearAllPoints()
+        if featured then
+            row.status:SetPoint("TOPRIGHT", -18, -19)
+            row.status:SetText(C:L(entry.goal.done and "goalDoneStatus" or "goalOpenStatus"))
+        else
+            row.status:SetPoint("BOTTOMLEFT", 79, 14)
+            row.status:SetText(U.Date(entry.goal.updated or entry.goal.created, true))
+        end
+        row.date:SetText(U.Date(entry.goal.updated or entry.goal.created, true))
+        row.date:SetShown(featured)
+        row.open:SetText(C:L("openEntry"))
+        row.open:SetShown(not featured)
+        row.side:SetShown(featured)
+        row.divider:SetShown(featured)
+        row.openButton:SetText(C:L("openEntry"))
+        row.openButton:SetShown(featured)
+        row.label:SetTextColor(unpack(entry.goal.done and MUTED or TEXT))
+        row.band:SetVertexColor(.09, .085, .075, entry.goal == g.selectedGoal and .7 or .13)
+        row.accent:SetVertexColor(1, .73, .19, entry.goal == g.selectedGoal and 1 or .3)
         row:Show()
+        if displayIndex % 2 == 0 or displayIndex == #ordered then offset = offset + (featured and 108 or 134) end
     end
-    for i = #goals + 1, #goalRows do goalRows[i]:Hide() end
-    scrollChild:SetHeight(math.max(1, 132 + #goals * 42 + 4))
+    for index = #ordered + 1, #goalRows do goalRows[index]:Hide() end
+    g.listPanel:SetHeight(math.max(105, offset - 128))
+    scrollChild:SetHeight(math.max(535, offset + 24))
 end
 
 local function showAltRows()
@@ -848,7 +1746,10 @@ local function showAltRows()
         if not card then
             card = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
             card:SetSize(630, 244); card:SetPoint("TOPLEFT", 4, -132 - (i - 1) * 254)
-            openSurface(card)
+            card:SetBackdrop({ bgFile = BACKGROUND, edgeFile = BACKGROUND,
+                edgeSize = C:RuleThickness() })
+            card:SetBackdropColor(.058, .052, .046, .82)
+            card:SetBackdropBorderColor(.48, .34, .13, .6)
             card:EnableMouse(true)
             card:SetScript("OnEnter", function(self)
                 self.hover:Show()
@@ -875,7 +1776,7 @@ local function showAltRows()
             card.headerRule = card:CreateTexture(nil, "ARTWORK")
             card.headerRule:SetTexture(BACKGROUND)
             card.headerRule:SetPoint("TOPLEFT", 76, -73)
-            card.headerRule:SetPoint("TOPRIGHT", -15, -73); card.headerRule:SetHeight(1)
+            card.headerRule:SetPoint("TOPRIGHT", -15, -73); card.headerRule:SetHeight(C:RuleThickness())
             card.classSeal = card:CreateTexture(nil, "ARTWORK")
             card.classSeal:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
             card.classSeal:SetBlendMode("ADD")
@@ -892,10 +1793,9 @@ local function showAltRows()
             card.accent:SetTexture(BACKGROUND); card.accent:SetPoint("TOPLEFT", 4, -4)
             card.accent:SetPoint("BOTTOMLEFT", 4, 4); card.accent:SetWidth(4)
             card.iconFrame = CreateFrame("Frame", nil, card, "BackdropTemplate")
-            card.iconFrame:SetSize(56, 56); card.iconFrame:SetPoint("TOPLEFT", 12, -12)
-            backdrop(card.iconFrame, .14, .092, .054, 1)
+            card.iconFrame:SetSize(72, 72); card.iconFrame:SetPoint("TOPLEFT", 4, -3)
             card.icon = card.iconFrame:CreateTexture(nil, "ARTWORK")
-            card.icon:SetSize(48, 48); card.icon:SetPoint("CENTER", card.iconFrame, "CENTER")
+            card.icon:SetSize(72, 72); card.icon:SetPoint("CENTER", card.iconFrame, "CENTER")
             card.kicker = card:CreateFontString(nil, "OVERLAY")
             card.kicker:SetPoint("TOPLEFT", 78, -8); setFont(card.kicker, 9, GOLD)
             card.kicker:SetJustifyH("LEFT")
@@ -942,8 +1842,8 @@ local function showAltRows()
             card.talentBranches:SetPoint("TOPLEFT", 16, -184); card.talentBranches:SetWidth(600)
             card.talentBranches:SetJustifyH("LEFT"); setFont(card.talentBranches, 11, GOLD)
             card.rule = card:CreateTexture(nil, "ARTWORK")
-            card.rule:SetTexture(BACKGROUND); card.rule:SetVertexColor(.46, .34, .16, .8)
-            card.rule:SetPoint("TOPLEFT", 16, -205); card.rule:SetPoint("TOPRIGHT", -16, -205); card.rule:SetHeight(1)
+            card.rule:SetTexture(BACKGROUND); card.rule:SetVertexColor(.46, .34, .16, .55)
+            card.rule:SetPoint("TOPLEFT", 16, -205); card.rule:SetPoint("TOPRIGHT", -16, -205); card.rule:SetHeight(C:RuleThickness())
             card.memoryCaption = card:CreateFontString(nil, "OVERLAY")
             card.memoryCaption:SetPoint("TOPLEFT", 16, -211); setFont(card.memoryCaption, 9, GOLD)
             card.memoryCaption:SetText(C:LocalizeDisplay("LETZTE ERINNERUNG"))
@@ -979,7 +1879,7 @@ local function showAltRows()
         card.accent:SetVertexColor(classColor and classColor.r or .92,
             classColor and classColor.g or .68, classColor and classColor.b or .23, 1)
         card.headerRule:SetVertexColor(classColor and classColor.r or .92,
-            classColor and classColor.g or .68, classColor and classColor.b or .23, .65)
+            classColor and classColor.g or .68, classColor and classColor.b or .23, .42)
         local customSigil = chronicleSigils[a.class]
         card.classSeal:SetVertexColor(classColor and classColor.r or .92,
             classColor and classColor.g or .68, classColor and classColor.b or .23, .22)
@@ -1005,8 +1905,6 @@ local function showAltRows()
         card.recordCaption:SetText(C:LocalizeDisplay("CHRONIK & KÖNNEN"))
         card.memoryCaption:SetText(C:LocalizeDisplay("LETZTE ERINNERUNG"))
         card.openHint:SetText(C:LocalizeDisplay("CHRONIK ÖFFNEN  >"))
-        card.iconFrame:SetBackdropBorderColor(classColor and classColor.r or .92,
-            classColor and classColor.g or .68, classColor and classColor.b or .23, .9)
         card.header:SetVertexColor(classColor and classColor.r or .6,
             classColor and classColor.g or .4, classColor and classColor.b or .17, .14)
         card.name:SetTextColor(classColor and classColor.r or 1,
@@ -1014,13 +1912,17 @@ local function showAltRows()
         card.kicker:SetTextColor(classColor and classColor.r or 1,
             classColor and classColor.g or .82, classColor and classColor.b or .1)
         local coords = CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[a.class]
-        if coords then
+        if customSigil then
+            card.icon:SetTexture(customSigil)
+            card.icon:SetTexCoord(0, 1, 0, 1)
+        elseif coords then
             card.icon:SetTexture("Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes")
             card.icon:SetTexCoord(unpack(coords))
         else
             card.icon:SetTexture("Interface\\Icons\\INV_Misc_Book_09")
             card.icon:SetTexCoord(0, 1, 0, 1)
         end
+        card.icon:SetSize(customSigil and 72 or 48, customSigil and 72 or 48)
         card.kicker:SetText((entry.key == C.characterKey and C:LocalizeDisplay("AKTUELLER HELD") or
             (C:LocalizeDisplay("GEFÄHRTE ") .. string.format("%02d", i))) .. "   •   " ..
             C:LocalizeDisplay(classEpithets[a.class] or "DEINE CHRONIK"))
@@ -1041,7 +1943,12 @@ local function showAltRows()
         if type(journal) == "table" then
             local openGoals = 0
             for _, goal in ipairs(journal.goals or {}) do if not goal.done then openGoals = openGoals + 1 end end
-            card.counts:SetText(C:LocalizeDisplay("Quests ") .. U.Count(journal.activeQuests) .. C:LocalizeDisplay("  |  Ziele ") .. openGoals .. C:LocalizeDisplay("  |  Notizen ") .. #(journal.notes or {}))
+            local equipped = 0
+            local equipment = a.equipment and a.equipment.slots
+            for _, item in pairs(type(equipment) == "table" and equipment or {}) do
+                if type(item) == "table" and item.id then equipped = equipped + 1 end
+            end
+            card.counts:SetText(C:LocalizeDisplay("Ausrüstung ") .. equipped .. C:LocalizeDisplay("  |  Ziele ") .. openGoals .. C:LocalizeDisplay("  |  Notizen ") .. #(journal.notes or {}))
             local professions = {}
             for name, profession in pairs(journal.professions or {}) do
                 professions[#professions + 1] = C:LocalizeDisplay(name) .. " " .. tostring(profession.rank or 0) .. "/" .. tostring(profession.maxRank or 0)
@@ -1053,7 +1960,7 @@ local function showAltRows()
             local memory = journal.events and journal.events[1]
             card.memory:SetText(memory and C:LocalizeEventText(U.SafeText(memory.text)) or C:LocalizeDisplay("nicht erfasst"))
         else
-            card.counts:SetText(C:LocalizeDisplay("Quests –  |  Ziele –  |  Notizen –"))
+            card.counts:SetText(C:LocalizeDisplay("Ausrüstung –  |  Ziele –  |  Notizen –"))
             card.professions:SetText(C:LocalizeDisplay("Berufe: nicht erfasst"))
             card.tooltipProfessions = C:LocalizeDisplay("Berufe: nicht erfasst")
             card.memory:SetText(C:LocalizeDisplay("Weitere Daten beim naechsten Login dieses Charakters."))
@@ -1081,6 +1988,11 @@ local function showInventoryRows()
     local firstVisible, selectedVisible
     local function showInventoryTooltip(owner, title, detail, link)
         if not GameTooltip then return end
+        local itemID=type(link)=="string" and tonumber(link:match("item:(%d+)"))
+        if itemID and C.ShowLootItemTooltip then
+            C:ShowLootItemTooltip(owner,itemID,title,detail,nil,link)
+            return
+        end
         GameTooltip:SetOwner(owner, "ANCHOR_CURSOR")
         if type(link) == "string" and link ~= "" then
             local ok = pcall(GameTooltip.SetHyperlink, GameTooltip, link)
@@ -1282,7 +2194,7 @@ local function showInventoryRows()
                     groupRow.rule = groupRow:CreateTexture(nil, "ARTWORK")
                     groupRow.rule:SetTexture(BACKGROUND)
                     groupRow.rule:SetPoint("LEFT", groupRow.label, "RIGHT", 11, 0)
-                    groupRow.rule:SetPoint("RIGHT", -48, 0); groupRow.rule:SetHeight(1)
+                    groupRow.rule:SetPoint("RIGHT", -48, 0); groupRow.rule:SetHeight(C:RuleThickness())
                     groupRow.count = groupRow:CreateFontString(nil, "OVERLAY")
                     groupRow.count:SetPoint("RIGHT", -7, 0)
                     groupRow.count:SetJustifyH("RIGHT"); setFont(groupRow.count, 10, MUTED)
@@ -1321,7 +2233,7 @@ local function showInventoryRows()
                 itemRow.separator:SetTexture(BACKGROUND)
                 itemRow.separator:SetPoint("BOTTOMLEFT", 61, 0)
                 itemRow.separator:SetPoint("BOTTOMRIGHT", -8, 0)
-                itemRow.separator:SetHeight(1)
+                itemRow.separator:SetHeight(C:RuleThickness())
             end
             if not itemRow.selectionShade then
                 itemRow.selectionShade = itemRow:CreateTexture(nil, "BACKGROUND")
@@ -1360,7 +2272,7 @@ local function showInventoryRows()
             itemRow:EnableMouse(true)
             if itemRow.title then itemRow.title:Hide(); itemRow.summary:Hide() end
             local quality = tonumber(item.quality) or tonumber(type(item.link) == "string" and item.link:match("|cnIQ(%d+):")) or 1
-            local color = ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality]
+            local color = itemQualityColor(item.id,item.quality,item.link)
             itemRow.separator:SetVertexColor(.46, .32, .15, .7)
             itemRow.separator:Show()
             itemRow.hoverShade:Hide()
@@ -1376,7 +2288,8 @@ local function showInventoryRows()
             end
             itemRow.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
             local name = type(item.link) == "string" and item.link:match("|h%[([^%]]+)%]|h") or nil
-            itemRow.itemTitle = U.SafeText(name, "Gegenstand #" .. tostring(item.id or "?"))
+            itemRow.itemTitle = U.SafeText(name,
+                (item.id and C.KnownItemName and C:KnownItemName(item.id)) or "Gegenstand nicht geladen")
             itemRow.itemName:SetText(itemRow.itemTitle)
             itemRow.itemName:SetWidth(tileWidth - 135)
             itemRow.itemMeta:SetWidth(tileWidth - 85); itemRow.itemPrice:SetWidth(tileWidth - 85)
@@ -1447,7 +2360,7 @@ local function showInventoryRows()
         dossier.rule = dossier:CreateTexture(nil, "ARTWORK")
         dossier.rule:SetTexture(BACKGROUND)
         dossier.rule:SetPoint("TOPLEFT", 17, -103)
-        dossier.rule:SetPoint("TOPRIGHT", -17, -103); dossier.rule:SetHeight(1)
+        dossier.rule:SetPoint("TOPRIGHT", -17, -103); dossier.rule:SetHeight(C:RuleThickness())
         dossier.icon = dossier:CreateTexture(nil, "ARTWORK")
         dossier.icon:SetPoint("TOPLEFT", 19, -32); dossier.icon:SetSize(62, 62)
         local function label(name, x, y, size, color)
@@ -1483,7 +2396,7 @@ local function showInventoryRows()
         inventoryFilters.selectedItem = item
         local quality = tonumber(item.quality) or
             tonumber(type(item.link) == "string" and item.link:match("|cnIQ(%d+):")) or 1
-        local color = ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality]
+        local color = itemQualityColor(item.id,item.quality,item.link)
         local name = type(item.link) == "string" and item.link:match("|h%[([^%]]+)%]|h") or nil
         local icon
         if C_Item and C_Item.GetItemIconByID then
@@ -1555,7 +2468,7 @@ local function showInventoryRows()
         highlight.rule = highlight:CreateTexture(nil, "ARTWORK")
         highlight.rule:SetTexture(BACKGROUND)
         highlight.rule:SetPoint("TOPLEFT", 18, -96)
-        highlight.rule:SetPoint("TOPRIGHT", -18, -96); highlight.rule:SetHeight(1)
+        highlight.rule:SetPoint("TOPRIGHT", -18, -96); highlight.rule:SetHeight(C:RuleThickness())
         highlight:SetScript("OnEnter", function(self)
             self:SetBackdropBorderColor(.9, .69, .29, 1)
             showInventoryTooltip(self, self.tooltipTitle, self.tooltipDetail, self.link)
@@ -1574,7 +2487,7 @@ local function showInventoryRows()
     highlight:SetWidth(width - listWidth - 16)
     heroBackdrop(highlight)
     if featured then
-        local color = ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[featuredQuality]
+        local color = itemQualityColor(featured.id,featuredQuality,featured.link)
         local icon
         if C_Item and C_Item.GetItemIconByID then
             local ok, value = pcall(C_Item.GetItemIconByID, featured.id)
@@ -1599,7 +2512,7 @@ local function showInventoryRows()
         highlight.detail:SetWidth(width - listWidth - 40)
         highlight.link = featured.link
         highlight.tooltipTitle = U.SafeText(featured.name, "Besonderer Fund")
-        highlight.tooltipDetail = "Klicken: Beute & Rares öffnen"
+        highlight.tooltipDetail = "Klicken: Fundstücke öffnen"
     else
         highlight.icon:SetTexture("Interface\\Icons\\INV_Box_01")
         highlight.rule:SetVertexColor(.42, .34, .22, .7)
@@ -1610,7 +2523,7 @@ local function showInventoryRows()
         highlight.detail:SetText(C:LocalizeDisplay("Dein nächster Fund bekommt hier seinen Platz."))
         highlight.link = nil
         highlight.tooltipTitle = "Highlight-Loot"
-        highlight.tooltipDetail = "Hier erscheint dein hochwertigster erfasster Fund ab blauer Qualität. Klicken: Beute & Rares öffnen."
+        highlight.tooltipDetail = "Hier erscheint dein hochwertigster erfasster Fund ab blauer Qualität. Klicken: Fundstücke öffnen."
     end
     highlight.icon:SetAlpha(featured and 1 or .35)
     highlight:Show()
@@ -1622,6 +2535,10 @@ end
 local function showLootRows()
     body:Hide()
     local width = availableContentWidth()
+    if C.ShowLootGallery then
+        C:ShowLootGallery(scrollChild, width)
+        return
+    end
     local entries, allLootCount = {}, 0
     local query = lootSearch and U.Trim(lootSearch:GetText()):lower() or ""
     local function matches(text)
@@ -1682,7 +2599,7 @@ local function showLootRows()
         lootHero.divider = lootHero:CreateTexture(nil, "ARTWORK"); lootHero.divider:SetTexture(BACKGROUND)
         lootHero.divider:SetVertexColor(.52, .36, .13, .7)
         lootHero.divider:SetPoint("TOP", lootHero, "TOP", 0, -14)
-        lootHero.divider:SetPoint("BOTTOM", lootHero, "BOTTOM", 0, 14); lootHero.divider:SetWidth(1)
+        lootHero.divider:SetPoint("BOTTOM", lootHero, "BOTTOM", 0, 14); lootHero.divider:SetWidth(C:RuleThickness())
         lootHero.featureLabel = lootHero:CreateFontString(nil, "OVERLAY")
         lootHero.featureLabel:SetPoint("TOPLEFT", lootHero, "TOP", 20, -15); setFont(lootHero.featureLabel, 10, GOLD)
         lootHero.featureLabel:SetText(C:LocalizeDisplay("WERTVOLLSTER FUND IM FILTER"))
@@ -1833,7 +2750,7 @@ local function showLootRows()
                 panel.title:SetJustifyH("LEFT"); setFont(panel.title, 23, TEXT)
                 panel.rule = panel:CreateTexture(nil, "ARTWORK"); panel.rule:SetTexture(BACKGROUND)
                 panel.rule:SetVertexColor(.77, .54, .19, .75)
-                panel.rule:SetPoint("TOPLEFT", 22, -104); panel.rule:SetPoint("TOPRIGHT", -22, -104); panel.rule:SetHeight(1)
+                panel.rule:SetPoint("TOPLEFT", 22, -104); panel.rule:SetPoint("TOPRIGHT", -22, -104); panel.rule:SetHeight(C:RuleThickness())
                 panel.detail = panel:CreateFontString(nil, "OVERLAY")
                 panel.detail:SetPoint("TOPLEFT", 22, -125); panel.detail:SetPoint("TOPRIGHT", -24, -125)
                 panel.detail:SetJustifyH("LEFT"); setFont(panel.detail, 12, MUTED)
@@ -1878,7 +2795,7 @@ local function showLootRows()
         openSurface(row)
         if row.icon then row.icon:Hide(); row.name:Hide(); row.meta:Hide(); row.count:Hide(); row.badge:Hide(); row.separator:Hide(); row.hoverShade:Hide() end
         row:SetHeight(54); row:EnableMouse(false)
-        row:ClearAllPoints(); row:SetPoint("TOPLEFT", 4, -offset); row:SetWidth(listWidth)
+        row:ClearAllPoints(); row:SetPoint("TOPLEFT", 4, -offset); row:SetWidth(width)
         row.empty:SetText(query ~= "" and C:LocalizeDisplay("Keine passenden Beutefunde.") or C:LocalizeDisplay("Noch keine Beutefunde für diesen Filter."))
         row:EnableMouse(false); row:Show()
         offset = offset + 62
@@ -1896,7 +2813,7 @@ local function showLootRows()
             row.hoverShade:SetAllPoints(row); row.hoverShade:SetVertexColor(1, .72, .22, .055); row.hoverShade:Hide()
             row.separator = row:CreateTexture(nil, "ARTWORK"); row.separator:SetTexture(BACKGROUND)
             row.separator:SetVertexColor(.45, .32, .15, .7)
-            row.separator:SetPoint("BOTTOMLEFT", 12, 0); row.separator:SetPoint("BOTTOMRIGHT", -12, 0); row.separator:SetHeight(1)
+            row.separator:SetPoint("BOTTOMLEFT", 12, 0); row.separator:SetPoint("BOTTOMRIGHT", -12, 0); row.separator:SetHeight(C:RuleThickness())
             row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetSize(36, 36); row.icon:SetPoint("LEFT", 12, 0)
             row.name = row:CreateFontString(nil, "OVERLAY"); row.name:SetPoint("TOPLEFT", 60, -8); row.name:SetJustifyH("LEFT"); setFont(row.name, 13, TEXT)
             row.meta = row:CreateFontString(nil, "OVERLAY"); row.meta:SetPoint("BOTTOMLEFT", 60, 9); row.meta:SetJustifyH("LEFT"); setFont(row.meta, 10, MUTED)
@@ -1906,8 +2823,13 @@ local function showLootRows()
                 self.hoverShade:Show()
                 if self.link and GameTooltip then
                     GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-                    local ok = pcall(GameTooltip.SetHyperlink, GameTooltip, self.link)
-                    if ok then
+                    local itemID=tonumber(self.link:match("item:(%d+)"))
+                    if itemID and C.ShowLootItemTooltip then
+                        C:ShowLootItemTooltip(self,itemID,self.itemName,nil,nil,self.link)
+                    else
+                        pcall(GameTooltip.SetHyperlink, GameTooltip, self.link)
+                    end
+                    if GameTooltip:NumLines()>0 then
                         GameTooltip:AddLine(" ")
                         GameTooltip:AddLine("Chronicle: " .. self.occurrences .. C:LocalizeDisplay(" Funde, ") .. self.totalQuantity .. C:LocalizeDisplay(" Stück"), .95, .76, .3)
                         if self.sellPrice == nil then
@@ -1932,7 +2854,7 @@ local function showLootRows()
         if C_Item and C_Item.GetItemIconByID then local ok, value = pcall(C_Item.GetItemIconByID, entry.id); if ok then icon = value end
         elseif GetItemIcon then local ok, value = pcall(GetItemIcon, entry.id); if ok then icon = value end end
         local quality = tonumber(entry.quality) or tonumber(type(entry.link) == "string" and entry.link:match("|cnIQ(%d+):")) or 1
-        local color = ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality]
+        local color = itemQualityColor(entry.id,entry.quality,entry.link)
         local name = type(entry.link) == "string" and entry.link:match("|h%[([^%]]+)%]|h") or entry.name
         row.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
         row.name:SetText(U.SafeText(name, C:LocalizeDisplay("Gegenstand #") .. tostring(entry.id or "?")))
@@ -1961,7 +2883,7 @@ local function showLootRows()
         rareHeader.title = rareHeader:CreateFontString(nil, "OVERLAY"); rareHeader.title:SetPoint("LEFT", 8, 2); setFont(rareHeader.title, 16, GOLD); rareHeader.title:SetText(C:LocalizeDisplay("Seltene Begegnungen"))
         rareHeader.count = rareHeader:CreateFontString(nil, "OVERLAY"); rareHeader.count:SetPoint("RIGHT", -10, 2); setFont(rareHeader.count, 10, MUTED)
         rareHeader.rule = rareHeader:CreateTexture(nil, "ARTWORK"); rareHeader.rule:SetTexture(BACKGROUND); rareHeader.rule:SetVertexColor(.72, .43, .93, .9)
-        rareHeader.rule:SetPoint("BOTTOMLEFT", 8, 0); rareHeader.rule:SetPoint("BOTTOMRIGHT", -8, 0); rareHeader.rule:SetHeight(1)
+        rareHeader.rule:SetPoint("BOTTOMLEFT", 8, 0); rareHeader.rule:SetPoint("BOTTOMRIGHT", -8, 0); rareHeader.rule:SetHeight(C:RuleThickness())
     end
     rareHeader:ClearAllPoints(); rareHeader:SetPoint("TOPLEFT", 4, -offset); rareHeader:SetWidth(width); rareHeader.count:SetText(rareCount .. C:LocalizeDisplay(" ENTDECKT"))
     local showRares = lootFilter == "all" or lootFilter == "rares"
@@ -2001,7 +2923,7 @@ local function showLootRows()
                 row.hoverShade:SetAllPoints(row); row.hoverShade:SetVertexColor(.72, .43, .93, .07); row.hoverShade:Hide()
                 row.separator = row:CreateTexture(nil, "ARTWORK"); row.separator:SetTexture(BACKGROUND)
                 row.separator:SetVertexColor(.52, .34, .59, .7)
-                row.separator:SetPoint("BOTTOMLEFT", 12, 0); row.separator:SetPoint("BOTTOMRIGHT", -12, 0); row.separator:SetHeight(1)
+                row.separator:SetPoint("BOTTOMLEFT", 12, 0); row.separator:SetPoint("BOTTOMRIGHT", -12, 0); row.separator:SetHeight(C:RuleThickness())
                 row.icon = row:CreateTexture(nil, "ARTWORK"); row.icon:SetTexture("Interface\\Icons\\Ability_Hunter_SniperShot"); row.icon:SetSize(36, 36); row.icon:SetPoint("LEFT", 12, 0)
                 row.name = row:CreateFontString(nil, "OVERLAY"); row.name:SetPoint("TOPLEFT", 60, -8); setFont(row.name, 13, { .78, .46, 1 })
                 row.meta = row:CreateFontString(nil, "OVERLAY"); row.meta:SetPoint("BOTTOMLEFT", 60, 9); setFont(row.meta, 10, MUTED)
@@ -2068,7 +2990,7 @@ local function showOverviewRows()
         overviewHero.money:SetPoint("BOTTOMLEFT", 21, 16); overviewHero.money:SetJustifyH("LEFT"); setFont(overviewHero.money, 11, TEXT)
         overviewHero.rule = overviewHero:CreateTexture(nil, "ARTWORK")
         overviewHero.rule:SetTexture(BACKGROUND); overviewHero.rule:SetVertexColor(.58, .39, .14, .85)
-        overviewHero.rule:SetPoint("BOTTOMLEFT", 20, 37); overviewHero.rule:SetPoint("BOTTOMRIGHT", -20, 37); overviewHero.rule:SetHeight(1)
+        overviewHero.rule:SetPoint("BOTTOMLEFT", 20, 37); overviewHero.rule:SetPoint("BOTTOMRIGHT", -20, 37); overviewHero.rule:SetHeight(C:RuleThickness())
         overviewHero.icon = overviewHero:CreateTexture(nil, "ARTWORK")
         overviewHero.icon:SetTexture("Interface\\Icons\\INV_Misc_Book_09")
         overviewHero.icon:SetSize(58, 58); overviewHero.icon:SetPoint("TOPRIGHT", -22, -22)
@@ -2117,9 +3039,9 @@ local function showOverviewRows()
         item.title:SetText(C:LocalizeDisplay(title)); item.action:SetText(C:LocalizeDisplay(action))
         item.targetPage = target; item:Show()
     end
-    chapter(1, "Dein nächster Schritt", "ZIELE ÖFFNEN", "goals", 0, 179, mainWidth)
-    chapter(2, "Deine Reisespur", "ABENTEUER ÖFFNEN", "timeline", 0, 390, mainWidth)
-    chapter(3, "Deine Reise in Zahlen", "", "stats", railX, 179, railWidth)
+    chapter(1, "Dein nächster Schritt", "ZIELE ÖFFNEN", "goals", 0, 289, mainWidth)
+    chapter(2, "Deine Reisespur", "ABENTEUER ÖFFNEN", "timeline", 0, 500, mainWidth)
+    chapter(3, "Deine Reise in Zahlen", "", "stats", railX, 289, railWidth)
     for index = 4, #overviewHeaders do overviewHeaders[index]:Hide() end
 
     local goals = {}
@@ -2128,10 +3050,10 @@ local function showOverviewRows()
     end
     local steps = {
         { "01  /  DEIN MEILENSTEIN", #goals > 0 and U.SafeText(goals[1].text) or "Schreib dein nächstes Ziel auf",
-            #goals > 0 and "DEIN WEG DURCH AZEROTH" or "EIN ZIEL GIBT DEINER REISE RICHTUNG", "goals", 22, 218, 78, 21 },
+            #goals > 0 and "DEIN WEG DURCH AZEROTH" or "EIN ZIEL GIBT DEINER REISE RICHTUNG", "goals", 22, 328, 78, 21 },
         { "02  /  IM QUESTLOG", stats.activeQuests > 0 and (stats.activeQuests .. C:LocalizeDisplay(" aktive Quests")) or "Die Welt wartet auf dich",
             stats.activeQuests > 0 and "DEINE NÄCHSTEN AUFGABEN" or "ENTDECKE DEINE NÄCHSTE GESCHICHTE",
-            stats.activeQuests > 0 and "quests" or "zones", 22, 310, 56, 14 },
+            stats.activeQuests > 0 and "quests" or "zones", 22, 420, 56, 14 },
     }
     for index, step in ipairs(steps) do
         local entry = overviewGoals[index]
@@ -2177,13 +3099,92 @@ local function showOverviewRows()
             note:SetScript("OnLeave", function(self) self.number:SetTextColor(unpack(GOLD)) end)
             overviewStats[index] = note
         end
-        note:ClearAllPoints(); note:SetPoint("TOPLEFT", railX + 12, -(220 + (index - 1) * 60))
+        note:ClearAllPoints(); note:SetPoint("TOPLEFT", railX + 12, -(330 + (index - 1) * 60))
         note:SetSize(railWidth - 20, 54)
         note.number:SetText(value[1]); note.label:SetText(C:LocalizeDisplay(value[2]))
         note.label:SetWidth(railWidth - 82)
         note.targetPage = value[3]; note:Show()
     end
     for index = #values + 1, #overviewStats do overviewStats[index]:Hide() end
+
+    local accountCharacters, accountEvents, accountZones = 0, 0, 0
+    local knownZones = {}
+    for key in pairs(C.db.characters or {}) do
+        accountCharacters = accountCharacters + 1
+        local journal = C.db.characterData and C.db.characterData[key]
+        if not journal and key == C.characterKey then journal = character end
+        if type(journal) == "table" then
+            accountEvents = accountEvents + #(journal.events or {})
+            for place in pairs(journal.zones or {}) do
+                if U.IsKnownZone(place) and not knownZones[place] then
+                    knownZones[place] = true
+                    accountZones = accountZones + 1
+                end
+            end
+        end
+    end
+    if accountCharacters == 0 then accountCharacters = 1 end
+    if not C.overviewAccount then
+        C.overviewAccount = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
+        heroBackdrop(C.overviewAccount)
+        C.overviewAccount.caption = C.overviewAccount:CreateFontString(nil, "OVERLAY")
+        C.overviewAccount.caption:SetPoint("TOPLEFT", 18, -11)
+        setFont(C.overviewAccount.caption, 10, GOLD)
+        C.overviewAccount.caption:SetText(C:LocalizeDisplay("ACCOUNTWEITE CHRONIK"))
+        C.overviewAccount.rule = C.overviewAccount:CreateTexture(nil, "ARTWORK")
+        C.overviewAccount.rule:SetTexture(BACKGROUND)
+        C.overviewAccount.rule:SetVertexColor(.58, .39, .14, .75)
+        C.overviewAccount.rule:SetPoint("TOPLEFT", 18, -33)
+        C.overviewAccount.rule:SetPoint("TOPRIGHT", -18, -33)
+        C.overviewAccount.rule:SetHeight(C:RuleThickness())
+        C.overviewAccount.rows = {}
+        for index = 1, 3 do
+            local row = CreateFrame("Button", nil, C.overviewAccount)
+            row.value = row:CreateFontString(nil, "OVERLAY")
+            row.value:SetPoint("LEFT", 0, 0); row.value:SetWidth(76)
+            row.value:SetJustifyH("LEFT"); setFont(row.value, 25, GOLD)
+            row.label = row:CreateFontString(nil, "OVERLAY")
+            row.label:SetPoint("LEFT", 82, 0)
+            setFont(row.label, 10, MUTED)
+            row:SetScript("OnClick", function(self) C:ShowPage(self.targetPage) end)
+            row:SetScript("OnEnter", function(self) self.value:SetTextColor(1, .94, .58) end)
+            row:SetScript("OnLeave", function(self) self.value:SetTextColor(unpack(GOLD)) end)
+            C.overviewAccount.rows[index] = row
+        end
+        C.overviewAccount.dividers = {}
+        for index = 1, 2 do
+            local divider = C.overviewAccount:CreateTexture(nil, "ARTWORK")
+            divider:SetTexture(BACKGROUND)
+            divider:SetVertexColor(.5, .32, .12, .65)
+            divider:SetWidth(C:RuleThickness())
+            C.overviewAccount.dividers[index] = divider
+        end
+    end
+    C.overviewAccount:ClearAllPoints()
+    C.overviewAccount:SetPoint("TOPLEFT", 4, -177)
+    C.overviewAccount:SetSize(width, 91)
+    local accountColumnWidth = (width - 36) / 3
+    local accountValues = {
+        { accountCharacters, "CHARAKTERE", "alts" },
+        { accountEvents, "EREIGNISSE", "timeline" },
+        { accountZones, "ORTE & GEBIETE", "zones" },
+    }
+    for index, value in ipairs(accountValues) do
+        local row = C.overviewAccount.rows[index]
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 18 + (index - 1) * accountColumnWidth, -42)
+        row:SetSize(accountColumnWidth - 12, 38)
+        row.value:SetText(value[1])
+        row.label:SetText(C:LocalizeDisplay(value[2]))
+        row.label:SetWidth(accountColumnWidth - 100)
+        row.targetPage = value[3]
+    end
+    for index, divider in ipairs(C.overviewAccount.dividers) do
+        divider:ClearAllPoints()
+        divider:SetPoint("TOPLEFT", 18 + index * accountColumnWidth - 10, -44)
+        divider:SetPoint("BOTTOMLEFT", 18 + index * accountColumnWidth - 10, 10)
+    end
+    C.overviewAccount:Show()
 
     local seenOverviewEvents, eventUsed, loginIncluded = {}, 0, false
     local kindLabels = {
@@ -2227,7 +3228,7 @@ local function showOverviewRows()
                 entry:SetScript("OnLeave", function(self) self.text:SetTextColor(unpack(TEXT)) end)
                 overviewEvents[eventUsed] = entry
             end
-            entry:ClearAllPoints(); entry:SetPoint("TOPLEFT", 24, -(430 + (eventUsed - 1) * 50))
+            entry:ClearAllPoints(); entry:SetPoint("TOPLEFT", 24, -(540 + (eventUsed - 1) * 50))
             entry:SetSize(mainWidth - 40, 47)
             entry.number:Show(); entry.date:Show(); entry.kind:Show(); entry.node:Show()
             entry.text:ClearAllPoints(); entry.text:SetPoint("TOPLEFT", 72, -22)
@@ -2249,7 +3250,7 @@ local function showOverviewRows()
             entry:SetScript("OnClick", function() C:ShowPage("timeline") end)
             overviewEvents[1] = entry
         end
-        entry:ClearAllPoints(); entry:SetPoint("TOPLEFT", 24, -430)
+        entry:ClearAllPoints(); entry:SetPoint("TOPLEFT", 24, -540)
         entry:SetSize(mainWidth - 40, 47)
         entry.text:SetText(C:LocalizeDisplay("Deine nächsten Erinnerungen erscheinen hier."))
         if entry.number then entry.number:Hide() end
@@ -2272,12 +3273,12 @@ local function showOverviewRows()
         end
         local progress = (index - 1) / math.max(1, dotsNeeded - 1)
         local curveX = 76 + math.sin(progress * 7.5) * 8
-        dot:ClearAllPoints(); dot:SetPoint("TOPLEFT", curveX, -(443 + progress * routeCount))
+        dot:ClearAllPoints(); dot:SetPoint("TOPLEFT", curveX, -(553 + progress * routeCount))
         dot:SetVertexColor(.94, .66, .21, .36)
         dot:Show()
     end
     for index = dotsNeeded + 1, #overviewHero.routeDots do overviewHero.routeDots[index]:Hide() end
-    scrollChild:SetHeight(math.max(710, 440 + eventUsed * 50))
+    scrollChild:SetHeight(math.max(820, 550 + eventUsed * 50))
 end
 
 local timelineKinds = {
@@ -2514,7 +3515,7 @@ local function showQuestRows()
         questDossier.rule = questDossier:CreateTexture(nil, "ARTWORK")
         questDossier.rule:SetTexture(BACKGROUND); questDossier.rule:SetVertexColor(.57, .39, .15, .85)
         questDossier.rule:SetPoint("TOPLEFT", 19, -111); questDossier.rule:SetPoint("TOPRIGHT", -19, -111)
-        questDossier.rule:SetHeight(1)
+        questDossier.rule:SetHeight(C:RuleThickness())
         questDossier.status = questDossier:CreateFontString(nil, "OVERLAY")
         questDossier.status:SetPoint("TOPLEFT", 20, -130); setFont(questDossier.status, 12, GOLD)
         questDossier.textScroll = CreateFrame("ScrollFrame", nil, questDossier)
@@ -2626,7 +3627,7 @@ local function showQuestRows()
             row.count:SetPoint("RIGHT", -10, 0); setFont(row.count, 10, MUTED)
             row.rule = row:CreateTexture(nil, "ARTWORK")
             row.rule:SetTexture(BACKGROUND); row.rule:SetVertexColor(.5, .35, .13, .8)
-            row.rule:SetPoint("BOTTOMLEFT", 8, 1); row.rule:SetPoint("BOTTOMRIGHT", -8, 1); row.rule:SetHeight(1)
+            row.rule:SetPoint("BOTTOMLEFT", 8, 1); row.rule:SetPoint("BOTTOMRIGHT", -8, 1); row.rule:SetHeight(C:RuleThickness())
             questHeaders[usedHeaders] = row
         end
         row:ClearAllPoints(); row:SetPoint("TOPLEFT", 4, -offset); row:SetWidth(listWidth)
@@ -2662,9 +3663,9 @@ local function showQuestRows()
             row.lowerRule:SetTexture(BACKGROUND)
             row.lowerRule:SetPoint("BOTTOMLEFT", 8, 1)
             row.lowerRule:SetPoint("BOTTOMRIGHT", -8, 1)
-            row.lowerRule:SetHeight(1)
+            row.lowerRule:SetHeight(C:RuleThickness())
             row:SetScript("OnEnter", function(self)
-                self:SetBackdropColor(.24, .15, .06, .55)
+                self:SetBackdropColor(.09, .085, .075, .55)
                 GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
                 GameTooltip:AddLine(self.zoneKey or C:LocalizeDisplay("Questgebiet"), 1, .82, .1)
                 GameTooltip:AddLine(C:LocalizeDisplay("Klicken zum Auf- oder Zuklappen"), .82, .76, .63)
@@ -2726,7 +3727,7 @@ local function showQuestRows()
             row.bottomRule = row:CreateTexture(nil, "ARTWORK")
             row.bottomRule:SetTexture(BACKGROUND)
             row.bottomRule:SetPoint("BOTTOMLEFT", 28, 2); row.bottomRule:SetPoint("BOTTOMRIGHT", -10, 2)
-            row.bottomRule:SetHeight(1)
+            row.bottomRule:SetHeight(C:RuleThickness())
             row:SetScript("OnEnter", function(self)
                 self.topShade:SetAlpha(self.isSelected and .5 or .16)
                 GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
@@ -2873,7 +3874,7 @@ local function showZoneRows()
         zoneHero.rule = zoneHero:CreateTexture(nil, "ARTWORK")
         zoneHero.rule:SetTexture(BACKGROUND); zoneHero.rule:SetVertexColor(.57, .39, .16, .8)
         zoneHero.rule:SetPoint("TOPLEFT", 19, -82); zoneHero.rule:SetPoint("TOPRIGHT", -106, -82)
-        zoneHero.rule:SetHeight(1)
+        zoneHero.rule:SetHeight(C:RuleThickness())
         zoneHero.stats = zoneHero:CreateFontString(nil, "OVERLAY")
         zoneHero.stats:SetPoint("TOPLEFT", 20, -91); setFont(zoneHero.stats, 11, GOLD)
         zoneHero.icon = zoneHero:CreateTexture(nil, "ARTWORK")
@@ -2941,7 +3942,7 @@ local function showZoneRows()
             card.rule = card:CreateTexture(nil, "ARTWORK")
             card.rule:SetTexture(BACKGROUND); card.rule:SetVertexColor(.42, .29, .12, .8)
             card.rule:SetPoint("BOTTOMLEFT", 12, 0)
-            card.rule:SetPoint("BOTTOMRIGHT", -12, 0); card.rule:SetHeight(1)
+            card.rule:SetPoint("BOTTOMRIGHT", -12, 0); card.rule:SetHeight(C:RuleThickness())
             card.number = card:CreateFontString(nil, "OVERLAY")
             card.number:SetPoint("TOPLEFT", 13, -37); setFont(card.number, 28, GOLD)
             card.caption = card:CreateFontString(nil, "OVERLAY")
@@ -2955,7 +3956,7 @@ local function showZoneRows()
             card.statRule:SetVertexColor(.48, .33, .14, .7)
             card.statRule:SetPoint("TOPLEFT", 70, -97)
             card.statRule:SetPoint("TOPRIGHT", -15, -97)
-            card.statRule:SetHeight(1)
+            card.statRule:SetHeight(C:RuleThickness())
             card.firstLabel = card:CreateFontString(nil, "OVERLAY")
             card.firstLabel:SetPoint("TOPLEFT", 70, -110); setFont(card.firstLabel, 9, MUTED)
             card.firstLabel:SetText(C:LocalizeDisplay("ERSTER BESUCH"))
@@ -3063,7 +4064,7 @@ local function showNPCRows()
         npcHero.rule = npcHero:CreateTexture(nil, "ARTWORK")
         npcHero.rule:SetTexture(BACKGROUND); npcHero.rule:SetVertexColor(.55, .37, .15, .8)
         npcHero.rule:SetPoint("TOPLEFT", 19, -184); npcHero.rule:SetPoint("TOPRIGHT", -19, -184)
-        npcHero.rule:SetHeight(1)
+        npcHero.rule:SetHeight(C:RuleThickness())
         npcHero.stats = npcHero:CreateFontString(nil, "OVERLAY")
         npcHero.stats:SetPoint("TOPLEFT", 20, -105); setFont(npcHero.stats, 33, GOLD)
         npcHero.stats:SetJustifyH("LEFT")
@@ -3081,7 +4082,7 @@ local function showNPCRows()
         npcHero.divider = npcHero:CreateTexture(nil, "ARTWORK")
         npcHero.divider:SetTexture(BACKGROUND); npcHero.divider:SetVertexColor(.48, .32, .13, .8)
         npcHero.divider:SetPoint("TOP", 0, -13); npcHero.divider:SetPoint("BOTTOM", 0, 13)
-        npcHero.divider:SetWidth(1)
+        npcHero.divider:SetWidth(C:RuleThickness())
         npcHero.latestLabel = npcHero:CreateFontString(nil, "OVERLAY")
         npcHero.latestLabel:SetPoint("TOPLEFT", npcHero.divider, "TOPRIGHT", 20, -2)
         setFont(npcHero.latestLabel, 10, GOLD); npcHero.latestLabel:SetText(C:LocalizeDisplay("AUSGEWÄHLTER KONTAKT"))
@@ -3262,7 +4263,7 @@ local function showNPCRows()
         profile.rule:SetTexture(BACKGROUND); profile.rule:SetVertexColor(.57, .39, .16, .8)
         profile.rule:SetPoint("TOPLEFT", 18, -347)
         profile.rule:SetPoint("TOPRIGHT", -18, -347)
-        profile.rule:SetHeight(1)
+        profile.rule:SetHeight(C:RuleThickness())
         profile.firstLabel = profile:CreateFontString(nil, "OVERLAY")
         profile.firstLabel:SetPoint("TOPLEFT", 19, -362); setFont(profile.firstLabel, 9, MUTED)
         profile.firstLabel:SetText(C:LocalizeDisplay("ERSTE BEGEGNUNG"))
@@ -3329,7 +4330,7 @@ local function showNPCRows()
             card.rule:SetVertexColor(.42, .29, .12, .8)
             card.rule:SetPoint("BOTTOMLEFT", 12, 0)
             card.rule:SetPoint("BOTTOMRIGHT", -12, 0)
-            card.rule:SetHeight(1)
+            card.rule:SetHeight(C:RuleThickness())
             card.accent = card:CreateTexture(nil, "ARTWORK"); card.accent:Hide()
             card.accent:SetTexture(BACKGROUND)
             card.accent:SetPoint("TOPLEFT", 3, -8); card.accent:SetPoint("BOTTOMLEFT", 3, 8)
@@ -3341,12 +4342,12 @@ local function showNPCRows()
             card.indexRule:SetVertexColor(.58, .39, .15, .7)
             card.indexRule:SetPoint("TOPLEFT", 57, -12)
             card.indexRule:SetPoint("BOTTOMLEFT", 57, 12)
-            card.indexRule:SetWidth(1)
+            card.indexRule:SetWidth(C:RuleThickness())
             card.connector = card:CreateTexture(nil, "ARTWORK")
             card.connector:SetTexture(BACKGROUND)
             card.connector:SetVertexColor(.57, .39, .16, .85)
             card.connector:SetPoint("TOPLEFT", card, "BOTTOMLEFT", 35, 0)
-            card.connector:SetSize(1, 8)
+            card.connector:SetSize(C:RuleThickness(), 8)
             card.icon = card:CreateTexture(nil, "ARTWORK")
             card.icon:SetSize(30, 30); card.icon:SetPoint("RIGHT", -17, 0)
             card.caption = card:CreateFontString(nil, "OVERLAY")
@@ -3472,6 +4473,114 @@ function C:RefreshDungeonInstanceArt()
     self.dungeonInstanceArtReady = ok and next(self.dungeonInstanceArtByName) ~= nil
 end
 
+function C:RecordedBossPortraitInfo(boss, encounterID, instanceName, instanceID)
+    local normalized = self:NormalizeInstanceName(instanceName)
+    local catalogName, catalog
+    for _, collection in ipairs({ self.dungeonKnowledge or {}, self.raidKnowledge or {} }) do
+        for name, data in pairs(collection) do
+            if self:NormalizeInstanceName(self:LocalizeInstanceName(name)) == normalized or
+                name == instanceName or (tonumber(instanceID) and tonumber(data.instanceID) == tonumber(instanceID)) then
+                catalogName, catalog = name, data
+                break
+            end
+        end
+        if catalog then break end
+    end
+    local displayID, creatureID
+    if encounterID and EJ_GetCreatureInfo then
+        local ok, _, _, npcID, portraitID = pcall(EJ_GetCreatureInfo, 1, encounterID)
+        if ok then
+            creatureID = tonumber(npcID)
+            displayID = tonumber(portraitID)
+            if displayID and displayID <= 0 then displayID = nil end
+        end
+    end
+    local catalogBoss
+    for _, candidate in ipairs(catalog and catalog.bosses or {}) do
+        if (encounterID and tonumber(candidate.encounterID) == encounterID) or candidate.name == boss.name then
+            catalogBoss = candidate
+            break
+        end
+    end
+    local lookupName = catalogBoss and catalogBoss.name or boss.name
+    displayID = (catalogName and self:GetBossDisplayID(catalogName, lookupName)) or
+        (catalogBoss and catalogBoss.displayID) or displayID
+    local metadata = catalogName and self:GetBossMetadata(catalogName, lookupName, creatureID)
+    local level = metadata and metadata[1] or catalogBoss and catalogBoss.level
+    local rank = metadata and metadata[2] or catalogBoss and catalogBoss.rare and 2 or 1
+    return displayID, level, rank
+end
+
+function C:MaskBossPortrait(owner, target)
+    if not owner.CreateMaskTexture or not target.AddMaskTexture then return end
+    local mask = owner:CreateMaskTexture()
+    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    mask:SetAllPoints(target)
+    target:AddMaskTexture(mask)
+end
+
+function C:CreateRecordedBossPortrait(owner)
+    local portrait = CreateFrame("Frame", nil, owner)
+    portrait:SetSize(34, 34)
+    portrait:SetFrameLevel(owner:GetFrameLevel() + 1)
+    portrait.rank = portrait:CreateTexture(nil, "OVERLAY", nil, 1)
+    portrait.rank:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    portrait.rank:SetTexCoord(0, .6, 0, .6)
+    portrait.rank:SetSize(53, 53)
+    portrait.rank:SetPoint("CENTER")
+    portrait.icon = portrait:CreateTexture(nil, "ARTWORK")
+    portrait.icon:SetSize(34, 34)
+    portrait.icon:SetPoint("CENTER")
+    self:MaskBossPortrait(portrait, portrait.icon)
+    portrait.dragon = portrait:CreateTexture(nil, "OVERLAY", nil, 2)
+    local scale = 34 / 64
+    portrait.dragon:SetSize(256 * scale, 128 * scale)
+    portrait.dragon:SetPoint("CENTER", portrait, "CENTER", -54 * scale, -20 * scale)
+    portrait.levelBg = CreateFrame("Frame", nil, portrait)
+    portrait.levelBg:SetSize(16, 16)
+    portrait.levelBg:SetPoint("CENTER", portrait, "CENTER", 19.5 * scale, -22 * scale)
+    portrait.levelBg:SetFrameLevel(portrait:GetFrameLevel() + 2)
+    portrait.levelRing = portrait.levelBg:CreateTexture(nil, "BORDER")
+    portrait.levelRing:SetAllPoints(portrait.levelBg)
+    portrait.levelFill = portrait.levelBg:CreateTexture(nil, "ARTWORK")
+    portrait.levelFill:SetPoint("TOPLEFT", 1.5, -1.5)
+    portrait.levelFill:SetPoint("BOTTOMRIGHT", -1.5, 1.5)
+    portrait.levelFill:SetColorTexture(.05, .04, .03, .95)
+    self:MaskBossPortrait(portrait.levelBg, portrait.levelRing)
+    self:MaskBossPortrait(portrait.levelBg, portrait.levelFill)
+    portrait.level = portrait.levelBg:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    portrait.level:SetPoint("CENTER", portrait.levelBg, "CENTER", .5, 0)
+    local fontFile, _, fontFlags = portrait.level:GetFont()
+    if fontFile then portrait.level:SetFont(fontFile, 9, fontFlags) end
+    portrait.skull = portrait.levelBg:CreateTexture(nil, "OVERLAY")
+    portrait.skull:SetSize(10, 10)
+    portrait.skull:SetPoint("CENTER", portrait.levelBg, "CENTER")
+    portrait.skull:SetTexture("Interface\\TargetingFrame\\UI-TargetingFrame-Skull")
+    return portrait
+end
+
+function C:UpdateRecordedBossPortrait(portrait, boss, encounterID, instanceName, instanceID)
+    local displayID, level, rank = self:RecordedBossPortraitInfo(boss, encounterID, instanceName, instanceID)
+    portrait.icon:SetTexCoord(0, 1, 0, 1)
+    local shown = displayID and SetPortraitTextureFromCreatureDisplayID and
+        pcall(SetPortraitTextureFromCreatureDisplayID, portrait.icon, displayID)
+    if not shown then portrait.icon:SetTexture("Interface\\AddOns\\Chronicle\\BossMedallion") end
+    local rare = rank == 2 or rank == 4
+    local red, green, blue = rare and .75 or .96, rare and .76 or .68, rare and .83 or .16
+    portrait.rank:SetVertexColor(red, green, blue)
+    portrait.dragon:SetTexture("Interface\\AddOns\\Chronicle\\DungeonMapArt\\" ..
+        (rank == 2 and "BossDragon-Rare-Elite" or rank == 4 and "BossDragon-Rare" or "BossDragon-Elite"))
+    portrait.levelRing:SetColorTexture(red, green, blue, 1)
+    local skull = rank == 3 or (level and level >= 63)
+    portrait.levelBg:SetShown(level ~= nil or skull == true)
+    portrait.skull:SetShown(skull and true or false)
+    portrait.level:SetShown(level ~= nil and not skull)
+    if level then
+        portrait.level:SetText(tostring(level))
+        portrait.level:SetTextColor(C:BossDifficultyColor(level))
+    end
+end
+
 local function showDungeonRows()
     body:Hide()
     if dungeonTab == "instances" then C:RefreshDungeonInstanceArt() end
@@ -3492,7 +4601,7 @@ local function showDungeonRows()
             local name = U.SafeText(value.name, "Boss #" .. tostring(key))
             if query == "" or name:lower():find(query, 1, true) or
                 U.SafeText(value.zone, ""):lower():find(query, 1, true) then
-                entries[#entries + 1] = { name = name, data = value }
+                entries[#entries + 1] = { name = name, data = value, encounterID = tonumber(key) }
             end
         end
     else
@@ -3533,7 +4642,7 @@ local function showDungeonRows()
         dungeonHero.rule = dungeonHero:CreateTexture(nil, "ARTWORK")
         dungeonHero.rule:SetTexture(BACKGROUND); dungeonHero.rule:SetVertexColor(.6, .32, .2, .8)
         dungeonHero.rule:SetPoint("TOPLEFT", 19, -109); dungeonHero.rule:SetPoint("TOPRIGHT", -20, -109)
-        dungeonHero.rule:SetHeight(1)
+        dungeonHero.rule:SetHeight(C:RuleThickness())
         dungeonHero.counters = {}
         local icons = { "Interface\\AddOns\\Chronicle\\KeyMedallion", "Interface\\AddOns\\Chronicle\\KeyMedallion", "Interface\\AddOns\\Chronicle\\BossMedallion" }
         for index = 1, 3 do
@@ -3631,7 +4740,7 @@ local function showDungeonRows()
             heading.rule:SetVertexColor(.58, .39, .15, .75)
             heading.rule:SetPoint("BOTTOMLEFT", 0, 0)
             heading.rule:SetPoint("BOTTOMRIGHT", 0, 0)
-            heading.rule:SetHeight(1)
+            heading.rule:SetHeight(C:RuleThickness())
             dungeonHero.bossListHeader = heading
         end
         heading:ClearAllPoints(); heading:SetPoint("TOPLEFT", 16, -243)
@@ -3663,7 +4772,7 @@ local function showDungeonRows()
             card.featureRule:SetVertexColor(.58, .39, .15, .8)
             card.featureRule:SetPoint("TOPLEFT", 20, -76)
             card.featureRule:SetPoint("TOPRIGHT", -20, -76)
-            card.featureRule:SetHeight(1); card.featureRule:Hide()
+            card.featureRule:SetHeight(C:RuleThickness()); card.featureRule:Hide()
             card.accent = card:CreateTexture(nil, "ARTWORK"); card.accent:Hide()
             card.accent:SetTexture(BACKGROUND)
             card.accent:SetPoint("TOPLEFT", 3, -3); card.accent:SetPoint("BOTTOMLEFT", 3, 3)
@@ -3675,13 +4784,13 @@ local function showDungeonRows()
             card.medallion:SetSize(94, 94); card.medallion:Hide()
             card.leftFlourish = card:CreateTexture(nil, "ARTWORK")
             card.leftFlourish:SetTexture(BACKGROUND); card.leftFlourish:SetVertexColor(.62, .4, .16, .7)
-            card.leftFlourish:SetHeight(1); card.leftFlourish:Hide()
+            card.leftFlourish:SetHeight(C:RuleThickness()); card.leftFlourish:Hide()
             card.rightFlourish = card:CreateTexture(nil, "ARTWORK")
             card.rightFlourish:SetTexture(BACKGROUND); card.rightFlourish:SetVertexColor(.62, .4, .16, .7)
-            card.rightFlourish:SetHeight(1); card.rightFlourish:Hide()
+            card.rightFlourish:SetHeight(C:RuleThickness()); card.rightFlourish:Hide()
             card.bottomFlourish = card:CreateTexture(nil, "ARTWORK")
             card.bottomFlourish:SetTexture(BACKGROUND); card.bottomFlourish:SetVertexColor(.62, .4, .16, .65)
-            card.bottomFlourish:SetHeight(1); card.bottomFlourish:Hide()
+            card.bottomFlourish:SetHeight(C:RuleThickness()); card.bottomFlourish:Hide()
             card.caption = card:CreateFontString(nil, "OVERLAY")
             card.caption:SetPoint("TOPLEFT", 14, -11); setFont(card.caption, 9, MUTED)
             card.ordinal = card:CreateFontString(nil, "OVERLAY")
@@ -3709,11 +4818,11 @@ local function showDungeonRows()
             card.lootRule = card:CreateTexture(nil, "ARTWORK"); card.lootRule:SetTexture(BACKGROUND)
             card.lootRule:SetVertexColor(.46, .33, .17, .75)
             card.lootRule:SetPoint("BOTTOMLEFT", 12, 0); card.lootRule:SetPoint("BOTTOMRIGHT", -12, 0)
-            card.lootRule:SetHeight(1); card.lootRule:Hide()
+            card.lootRule:SetHeight(C:RuleThickness()); card.lootRule:Hide()
             card.milestoneRule = card:CreateTexture(nil, "ARTWORK")
             card.milestoneRule:SetTexture(BACKGROUND); card.milestoneRule:SetVertexColor(.58, .39, .15, .8)
             card.milestoneRule:SetPoint("TOPLEFT", 22, -108)
-            card.milestoneRule:SetPoint("TOPRIGHT", -22, -108); card.milestoneRule:SetHeight(1)
+            card.milestoneRule:SetPoint("TOPRIGHT", -22, -108); card.milestoneRule:SetHeight(C:RuleThickness())
             card.milestones = {}
             for milestoneIndex = 1, 3 do
                 local label = card:CreateFontString(nil, "OVERLAY"); setFont(label, 9, MUTED)
@@ -3728,8 +4837,13 @@ local function showDungeonRows()
                 GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
                 GameTooltip:ClearLines()
                 if self.itemLink then
-                    local shown = pcall(GameTooltip.SetHyperlink, GameTooltip, self.itemLink)
-                    if not shown then GameTooltip:AddLine(self.entryName or C:LocalizeDisplay("Bossbeute"), 1, .82, .1) end
+                    local itemID=tonumber(self.itemLink:match("item:(%d+)"))
+                    if itemID and C.ShowLootItemTooltip then
+                        C:ShowLootItemTooltip(self,itemID,self.entryName,nil,nil,self.itemLink)
+                    else
+                        local shown = pcall(GameTooltip.SetHyperlink, GameTooltip, self.itemLink)
+                        if not shown then GameTooltip:AddLine(self.entryName or C:LocalizeDisplay("Bossbeute"), 1, .82, .1) end
+                    end
                     GameTooltip:AddLine(C:LocalizeDisplay("Erhalten von: ") .. (self.recipient or "?"), .9, .84, .72)
                     GameTooltip:AddLine(C:LocalizeDisplay("Boss: ") .. (self.bossName or "?"), .75, .7, .6)
                     if self.itemSource == "reconstructed" then
@@ -3761,7 +4875,7 @@ local function showDungeonRows()
         local row = math.floor((index - 1) / 2)
         card:ClearAllPoints(); card:SetPoint("TOPLEFT", 4 + column * (cardWidth + 8), -246 - row * 132)
         card:SetWidth(featured and width or cardWidth)
-        card:SetHeight(featured and dungeonTab == "instances" and 245 or (featured and 190 or 122))
+        card:SetHeight(featured and dungeonTab == "instances" and 122 or (featured and 190 or 122))
         card.motif:SetShown(featured)
         card.motif:SetSize(featured and 185 or 300, featured and 185 or 300)
         card.motif:SetAlpha(featured and .16 or .2)
@@ -3821,13 +4935,19 @@ local function showDungeonRows()
         card.visitLabel:SetShown(expedition)
         card.openHint:SetShown(expedition)
         if expedition then
-            card.name:ClearAllPoints(); card.name:SetPoint("TOPLEFT", 22, -53)
+            card.name:ClearAllPoints(); card.name:SetPoint("TOPLEFT", 22, -25)
+            setFont(card.name, 18, GOLD)
+            card.name:SetWidth(math.max(180, width - 260))
+            card.visitCount:ClearAllPoints(); card.visitCount:SetPoint("TOPLEFT", 22, -53)
+            setFont(card.visitCount, 25, GOLD)
+            card.visitLabel:ClearAllPoints(); card.visitLabel:SetPoint("TOPLEFT", 63, -65)
+            card.openHint:ClearAllPoints(); card.openHint:SetPoint("TOPRIGHT", card, "TOPRIGHT", -18, -11)
             card.visitCount:SetText(string.format("%02d", tonumber(entry.data.entries) or 0))
             local difficulty = U.SafeText(entry.data.difficulty, "")
             card.visitLabel:SetText(C:LocalizeDisplay("BESUCHE") .. (difficulty ~= "" and ("  ·  " .. difficulty) or ""))
             card.milestoneRule:ClearAllPoints()
-            card.milestoneRule:SetPoint("TOPLEFT", 22, -175)
-            card.milestoneRule:SetPoint("TOPRIGHT", -22, -175)
+            card.milestoneRule:SetPoint("TOPLEFT", 22, -83)
+            card.milestoneRule:SetPoint("TOPRIGHT", -22, -83)
         end
         local instanceArt = dungeonTab == "instances" and
             (C:GetPackagedInstanceArt(entry.name) or
@@ -3846,7 +4966,8 @@ local function showDungeonRows()
             { top = .08, bottom = .92, alpha = .8, fadeFraction = .6, subLevel = -7 })
         card.motif:SetShown(featured and not instanceArt)
         card.lootRow = isLoot or isBoss
-        card.ordinal:SetShown(isBoss)
+        card.ordinal:Hide()
+        if card.bossPortrait then card.bossPortrait:SetShown(isBoss) end
         card.lootShade:Hide(); card.lootRule:SetShown(isLoot); card.caption:Show()
         card.featureRule:SetShown(featured and not expedition)
         local kills = tonumber(entry.data.kills) or 0
@@ -3914,9 +5035,9 @@ local function showDungeonRows()
             local milestoneWidth = math.floor((width - 44) / 3)
             for milestoneIndex, milestone in ipairs(card.milestones) do
                 local x = 22 + (milestoneIndex - 1) * milestoneWidth
-                milestone.label:ClearAllPoints(); milestone.label:SetPoint("TOPLEFT", x, -191)
+                milestone.label:ClearAllPoints(); milestone.label:SetPoint("TOPLEFT", x, -88)
                 milestone.label:SetWidth(milestoneWidth - 12); milestone.label:SetText(C:LocalizeDisplay(labels[milestoneIndex])); milestone.label:Show()
-                milestone.value:ClearAllPoints(); milestone.value:SetPoint("TOPLEFT", x, -213)
+                milestone.value:ClearAllPoints(); milestone.value:SetPoint("TOPLEFT", x, -102)
                 milestone.value:SetWidth(milestoneWidth - 12); milestone.value:SetText(values[milestoneIndex]); milestone.value:Show()
             end
         else
@@ -3944,7 +5065,7 @@ local function showDungeonRows()
             card.name:ClearAllPoints(); card.name:SetPoint("TOPLEFT", 62, -8)
             card.name:SetWidth(width - 280); card.name:SetJustifyH("LEFT"); setFont(card.name, 13, TEXT)
             local quality = tonumber(type(entry.item.link) == "string" and entry.item.link:match("|cnIQ(%d+):"))
-            local color = ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality or 1]
+            local color = itemQualityColor(entry.item.id,quality,entry.item.link)
             if color then card.name:SetTextColor(color.r, color.g, color.b) end
             card.detail:ClearAllPoints(); card.detail:SetPoint("BOTTOMLEFT", 62, 9)
             card.detail:SetWidth(width - 280); card.detail:SetJustifyH("LEFT"); setFont(card.detail, 10, MUTED)
@@ -3962,12 +5083,17 @@ local function showDungeonRows()
             card.leftFlourish:Hide(); card.rightFlourish:Hide(); card.bottomFlourish:Hide()
             card.milestoneRule:Hide(); card.accent:Hide(); card.caption:Hide(); card.icon:Hide()
             card.lootRule:Show()
-            card.ordinal:ClearAllPoints(); card.ordinal:SetPoint("LEFT", 13, 0)
-            card.ordinal:SetWidth(37); card.ordinal:SetText(string.format("%02d", index))
-            card.name:ClearAllPoints(); card.name:SetPoint("TOPLEFT", 62, -7)
+            if not card.bossPortrait then
+                card.bossPortrait = C:CreateRecordedBossPortrait(card)
+                card.bossPortrait:SetPoint("LEFT", 13, 0)
+            end
+            C:UpdateRecordedBossPortrait(card.bossPortrait, entry.data, entry.encounterID,
+                entry.data.instanceName or entry.data.zone)
+            card.bossPortrait:Show()
+            card.name:ClearAllPoints(); card.name:SetPoint("TOPLEFT", 72, -7)
             card.name:SetWidth(width - 280); card.name:SetJustifyH("LEFT")
             setFont(card.name, 14, kills > 0 and GOLD or TEXT)
-            card.detail:ClearAllPoints(); card.detail:SetPoint("BOTTOMLEFT", 62, 9)
+            card.detail:ClearAllPoints(); card.detail:SetPoint("BOTTOMLEFT", 72, 9)
             card.detail:SetWidth(width - 280); card.detail:SetJustifyH("LEFT"); setFont(card.detail, 10, MUTED)
             card.main:ClearAllPoints(); card.main:SetPoint("RIGHT", -16, 0)
             card.main:SetWidth(200); card.main:SetJustifyH("RIGHT"); setFont(card.main, 11, GOLD)
@@ -3995,13 +5121,13 @@ local function showDungeonRows()
             dungeonEmpty.medallion:SetSize(94, 94)
             dungeonEmpty.leftFlourish = dungeonEmpty:CreateTexture(nil, "ARTWORK")
             dungeonEmpty.leftFlourish:SetTexture(BACKGROUND); dungeonEmpty.leftFlourish:SetVertexColor(.62, .4, .16, .7)
-            dungeonEmpty.leftFlourish:SetHeight(1)
+            dungeonEmpty.leftFlourish:SetHeight(C:RuleThickness())
             dungeonEmpty.rightFlourish = dungeonEmpty:CreateTexture(nil, "ARTWORK")
             dungeonEmpty.rightFlourish:SetTexture(BACKGROUND); dungeonEmpty.rightFlourish:SetVertexColor(.62, .4, .16, .7)
-            dungeonEmpty.rightFlourish:SetHeight(1)
+            dungeonEmpty.rightFlourish:SetHeight(C:RuleThickness())
             dungeonEmpty.bottomFlourish = dungeonEmpty:CreateTexture(nil, "ARTWORK")
             dungeonEmpty.bottomFlourish:SetTexture(BACKGROUND); dungeonEmpty.bottomFlourish:SetVertexColor(.62, .4, .16, .65)
-            dungeonEmpty.bottomFlourish:SetHeight(1)
+            dungeonEmpty.bottomFlourish:SetHeight(C:RuleThickness())
             dungeonEmpty.title = dungeonEmpty:CreateFontString(nil, "OVERLAY")
             setFont(dungeonEmpty.title, 25, TEXT); dungeonEmpty.title:SetJustifyH("CENTER")
             dungeonEmpty.detail = dungeonEmpty:CreateFontString(nil, "OVERLAY")
@@ -4043,7 +5169,7 @@ local function showDungeonRows()
     elseif dungeonEmpty then dungeonEmpty:Hide() end
     scrollChild:SetHeight(math.max(330, dungeonTab == "bosses" and (278 + #entries * 62 + 12) or
         dungeonTab == "loot" and (246 + #entries * 62 + 12) or
-        (#entries == 1 and (246 + (dungeonTab == "instances" and 245 or 190) + chapterHeight + 27) or
+        (#entries == 1 and (246 + (dungeonTab == "instances" and 122 or 190) + chapterHeight + 27) or
         (246 + math.ceil(#entries / 2) * 132 + 12)),
         #entries == 0 and (246 + dungeonEmpty:GetHeight() + 12) or 0))
 end
@@ -4052,7 +5178,7 @@ function C:OpenDungeonChapter(instanceName, instanceData)
     local chapter = self.dungeonChapterWindow
     if not chapter then
         chapter = CreateFrame("Frame", "ChronicleDungeonChapterWindow", UIParent, "BackdropTemplate")
-        chapter:SetSize(820, 630)
+        chapter:SetSize(820, 620)
         chapter:SetPoint("CENTER")
         chapter:SetFrameStrata("DIALOG")
         chapter:SetToplevel(true)
@@ -4063,78 +5189,121 @@ function C:OpenDungeonChapter(instanceName, instanceData)
         chapter:SetScript("OnDragStart", chapter.StartMoving)
         chapter:SetScript("OnDragStop", chapter.StopMovingOrSizing)
         backdrop(chapter, .075, .049, .029, .98)
-        -- The chapter needs its own opaque surface: the main page must not show
-        -- through the boss names when this window is open.
         chapter.surface = chapter:CreateTexture(nil, "BACKGROUND")
         chapter.surface:SetTexture(BACKGROUND)
-        chapter.surface:SetVertexColor(.075, .049, .029, 1)
+        chapter.surface:SetVertexColor(.035, .034, .032, 1)
         chapter.surface:SetPoint("TOPLEFT", 4, -4)
         chapter.surface:SetPoint("BOTTOMRIGHT", -4, 4)
-        self:OrnateCorners(chapter)
-        chapter.caption = chapter:CreateFontString(nil, "OVERLAY")
-        chapter.caption:SetPoint("TOPLEFT", 25, -20); setFont(chapter.caption, 10, GOLD)
+        chapter.hero = CreateFrame("Frame", nil, chapter, "BackdropTemplate")
+        chapter.hero:SetPoint("TOPLEFT", 17, -17)
+        chapter.hero:SetPoint("TOPRIGHT", -17, -17)
+        chapter.hero:SetHeight(151)
+        heroBackdrop(chapter.hero)
+        chapter.caption = chapter.hero:CreateFontString(nil, "OVERLAY")
+        chapter.caption:SetPoint("TOPLEFT", 17, -13); setFont(chapter.caption, 10, GOLD)
         chapter.caption:SetText(C:LocalizeDisplay("CHRONICLE  /  INSTANZKAPITEL"))
-        chapter.title = chapter:CreateFontString(nil, "OVERLAY")
-        chapter.title:SetPoint("TOPLEFT", 24, -49); chapter.title:SetWidth(405)
-        chapter.title:SetJustifyH("LEFT"); setFont(chapter.title, 26, TEXT)
-        chapter.summary = chapter:CreateFontString(nil, "OVERLAY")
-        chapter.summary:SetPoint("TOPLEFT", 26, -106); chapter.summary:SetWidth(392)
-        setFont(chapter.summary, 11, MUTED)
+        chapter.title = chapter.hero:CreateFontString(nil, "OVERLAY")
+        chapter.title:SetPoint("TOPLEFT", 17, -37); chapter.title:SetWidth(490)
+        chapter.title:SetJustifyH("LEFT"); setFont(chapter.title, 23, TEXT)
+        chapter.summary = chapter.hero:CreateFontString(nil, "OVERLAY")
+        chapter.summary:SetPoint("TOPLEFT", 18, -73); chapter.summary:SetWidth(460)
+        chapter.summary:SetJustifyH("LEFT")
+        setFont(chapter.summary, 10, MUTED)
+        chapter.heroRule = chapter.hero:CreateTexture(nil, "ARTWORK")
+        chapter.heroRule:SetTexture(BACKGROUND)
+        chapter.heroRule:SetVertexColor(.62, .42, .18, .7)
+        chapter.heroRule:SetPoint("TOPLEFT", 17, -96)
+        chapter.heroRule:SetWidth(376)
+        chapter.heroRule:SetHeight(C:RuleThickness())
         chapter.stats = {}
         for index, label in ipairs({ "BESUCHE", "BOSSE", "SIEGE" }) do
-            local stat = chapter:CreateFontString(nil, "OVERLAY")
-            stat:SetPoint("TOPLEFT", 26 + (index - 1) * 133, -145)
-            setFont(stat, 27, GOLD)
-            local caption = chapter:CreateFontString(nil, "OVERLAY")
-            caption:SetPoint("TOPLEFT", 27 + (index - 1) * 133, -179)
+            local stat = chapter.hero:CreateFontString(nil, "OVERLAY")
+            stat:SetPoint("TOPLEFT", 18 + (index - 1) * 123, -103)
+            setFont(stat, 19, GOLD)
+            local caption = chapter.hero:CreateFontString(nil, "OVERLAY")
+            caption:SetPoint("TOPLEFT", 52 + (index - 1) * 123, -110)
             setFont(caption, 9, MUTED)
             caption:SetText(C:LocalizeDisplay(label))
             chapter.stats[index] = stat
         end
-        chapter.art = chapter:CreateTexture(nil, "ARTWORK", nil, -8)
-        chapter.art:SetPoint("TOPRIGHT", -18, -13)
-        chapter.art:SetSize(425, 198)
-        chapter.art:SetTexCoord(0, 1, .08, .92)
+        chapter.art = chapter.hero:CreateTexture(nil, "ARTWORK", nil, -2)
+        chapter.art:SetPoint("TOPRIGHT", -6, -5)
+        chapter.art:SetSize(300, 139)
+        chapter.art:SetAlpha(0)
         chapter.artFade = {}
-        for index = 1, 16 do
-            local strip = chapter:CreateTexture(nil, "ARTWORK", nil, -7)
-            strip:SetTexture(BACKGROUND)
-            strip:SetPoint("TOPLEFT", 377 + (index - 1) * 8, -13)
-            strip:SetSize(8, 198)
-            strip:SetVertexColor(.075, .049, .029, (1 - (index - 1) / 16) ^ 1.5)
+        for index = 1, 30 do
+            local strip = chapter.hero:CreateTexture(nil, "ARTWORK", nil, -1)
+            strip:SetPoint("TOPLEFT", chapter.art, "TOPLEFT", (index - 1) * 10, 0)
+            strip:SetSize(10, 139)
+            strip:SetTexCoord((index - 1) / 30, index / 30, .08, .92)
+            strip:SetAlpha(.84 * (math.min(index, 9) / 9) ^ 1.4)
             chapter.artFade[index] = strip
         end
-        chapter.rule = chapter:CreateTexture(nil, "ARTWORK")
-        chapter.rule:SetTexture(BACKGROUND); chapter.rule:SetVertexColor(.6, .4, .16, .85)
-        chapter.rule:SetPoint("TOPLEFT", 24, -220)
-        chapter.rule:SetPoint("TOPRIGHT", -24, -220)
-        chapter.rule:SetHeight(1)
-        chapter.section = chapter:CreateFontString(nil, "OVERLAY")
-        chapter.section:SetPoint("TOPLEFT", 25, -232); setFont(chapter.section, 13, GOLD)
-        chapter.section:SetText(C:LocalizeDisplay("Bossbegegnungen"))
-        chapter.count = chapter:CreateFontString(nil, "OVERLAY")
-        chapter.count:SetPoint("TOPRIGHT", -38, -235); setFont(chapter.count, 10, MUTED)
         chapter.close = CreateFrame("Button", nil, chapter, "UIPanelCloseButton")
-        chapter.close:SetPoint("TOPRIGHT", -5, -5)
+        chapter.close:SetPoint("TOPRIGHT", -4, -3)
         chapter.close:SetScript("OnClick", function() chapter:Hide() end)
-        chapter.scroll = CreateFrame("ScrollFrame", nil, chapter, "UIPanelScrollFrameTemplate")
-        chapter.scroll:SetPoint("TOPLEFT", 24, -263)
-        chapter.scroll:SetPoint("BOTTOMRIGHT", -43, 24)
+        chapter.list = CreateFrame("Frame", nil, chapter, "BackdropTemplate")
+        chapter.list:SetPoint("TOPLEFT", 17, -181)
+        chapter.list:SetPoint("BOTTOMLEFT", 17, 17)
+        chapter.list:SetWidth(335)
+        heroBackdrop(chapter.list)
+        chapter.section = chapter.list:CreateFontString(nil, "OVERLAY")
+        chapter.section:SetPoint("TOPLEFT", 16, -15); setFont(chapter.section, 12, GOLD)
+        chapter.section:SetText(C:LocalizeDisplay("Bossbegegnungen"))
+        chapter.count = chapter.list:CreateFontString(nil, "OVERLAY")
+        chapter.count:SetPoint("TOPRIGHT", -16, -17); setFont(chapter.count, 9, MUTED)
+        chapter.scroll = CreateFrame("ScrollFrame", nil, chapter.list, "UIPanelScrollFrameTemplate")
+        chapter.scroll:SetPoint("TOPLEFT", 12, -43)
+        chapter.scroll:SetPoint("BOTTOMRIGHT", -29, 13)
         chapter.scrollChild = CreateFrame("Frame", nil, chapter.scroll)
-        chapter.scrollChild:SetWidth(730); chapter.scrollChild:SetHeight(1)
+        chapter.scrollChild:SetWidth(288); chapter.scrollChild:SetHeight(1)
         chapter.scroll:SetScrollChild(chapter.scrollChild)
         chapter.rows = {}
         chapter.empty = chapter.scrollChild:CreateFontString(nil, "OVERLAY")
-        chapter.empty:SetPoint("TOPLEFT", 4, -16); setFont(chapter.empty, 12, MUTED)
+        chapter.empty:SetPoint("TOPLEFT", 8, -18); setFont(chapter.empty, 11, MUTED)
+        chapter.empty:SetWidth(265)
         chapter.empty:SetText(C:LocalizeDisplay("Noch kein Bosskampf in dieser Instanz erfasst."))
+        chapter.detail = CreateFrame("Frame", nil, chapter, "BackdropTemplate")
+        chapter.detail:SetPoint("TOPLEFT", chapter.list, "TOPRIGHT", 13, 0)
+        chapter.detail:SetPoint("BOTTOMRIGHT", -17, 17)
+        heroBackdrop(chapter.detail)
+        chapter.detail.caption = chapter.detail:CreateFontString(nil, "OVERLAY")
+        chapter.detail.caption:SetPoint("TOPLEFT", 17, -15); setFont(chapter.detail.caption, 10, GOLD)
+        chapter.detail.caption:SetText(C:LocalizeDisplay("CHRONICLE  /  BOSSE"))
+        chapter.detail.title = chapter.detail:CreateFontString(nil, "OVERLAY")
+        chapter.detail.title:SetPoint("TOPLEFT", 17, -38)
+        chapter.detail.title:SetWidth(395); setFont(chapter.detail.title, 20, TEXT)
+        chapter.detail.meta = chapter.detail:CreateFontString(nil, "OVERLAY")
+        chapter.detail.meta:SetPoint("TOPLEFT", 18, -72); setFont(chapter.detail.meta, 11, GOLD)
+        chapter.detail.last = chapter.detail:CreateFontString(nil, "OVERLAY")
+        chapter.detail.last:SetPoint("TOPLEFT", 18, -96); setFont(chapter.detail.last, 10, MUTED)
+        chapter.detail.rule = chapter.detail:CreateTexture(nil, "ARTWORK")
+        chapter.detail.rule:SetTexture(BACKGROUND)
+        chapter.detail.rule:SetVertexColor(.6, .4, .16, .85)
+        chapter.detail.rule:SetPoint("TOPLEFT", 17, -120)
+        chapter.detail.rule:SetPoint("TOPRIGHT", -17, -120)
+        chapter.detail.rule:SetHeight(C:RuleThickness())
+        chapter.detail.lootTitle = chapter.detail:CreateFontString(nil, "OVERLAY")
+        chapter.detail.lootTitle:SetPoint("TOPLEFT", 18, -135); setFont(chapter.detail.lootTitle, 11, GOLD)
+        chapter.detail.lootScroll = CreateFrame("ScrollFrame", nil, chapter.detail, "UIPanelScrollFrameTemplate")
+        chapter.detail.lootScroll:SetPoint("TOPLEFT", 15, -163)
+        chapter.detail.lootScroll:SetPoint("BOTTOMRIGHT", -29, 13)
+        chapter.detail.lootChild = CreateFrame("Frame", nil, chapter.detail.lootScroll)
+        chapter.detail.lootChild:SetWidth(395); chapter.detail.lootChild:SetHeight(1)
+        chapter.detail.lootScroll:SetScrollChild(chapter.detail.lootChild)
+        chapter.detail.lootItems = {}
+        chapter.detail.empty = chapter.detail.lootChild:CreateFontString(nil, "OVERLAY")
+        chapter.detail.empty:SetPoint("TOPLEFT", 4, -7); setFont(chapter.detail.empty, 11, MUTED)
+        chapter.detail.empty:SetText(C:LocalizeDisplay("Noch keine seltene Beute erfasst"))
         chapter:SetScript("OnHide", function() GameTooltip:Hide() end)
         self.dungeonChapterWindow = chapter
     end
-    local bosses = {}
+    local bosses, encounterIDs = {}, {}
     local normalized = self:NormalizeInstanceName(instanceName)
-    for _, boss in pairs(self.char.bosses or {}) do
+    for key, boss in pairs(self.char.bosses or {}) do
         if self:NormalizeInstanceName(boss.instanceName or boss.zone) == normalized then
             bosses[#bosses + 1] = boss
+            encounterIDs[boss] = tonumber(key)
         end
     end
     table.sort(bosses, function(a, b)
@@ -4155,41 +5324,15 @@ function C:OpenDungeonChapter(instanceName, instanceData)
         self.dungeonInstanceArtByMap[tonumber(instanceData.instanceID)] or
         self.dungeonInstanceArtByName[normalized]
     chapter.art:SetShown(art ~= nil)
-    for _, strip in ipairs(chapter.artFade) do strip:SetShown(art ~= nil) end
+    for _, strip in ipairs(chapter.artFade) do
+        strip:SetShown(art ~= nil)
+        if art then strip:SetTexture(art) end
+    end
     if art then chapter.art:SetTexture(art) end
-    local columnWidth = 360
-    local pairTop, pairHeight = 0, 0
-    for index, boss in ipairs(bosses) do
-        local row = chapter.rows[index]
-        if not row then
-            row = CreateFrame("Frame", nil, chapter.scrollChild)
-            row:SetHeight(68); row:EnableMouse(true)
-            row.number = row:CreateFontString(nil, "OVERLAY")
-            row.number:SetPoint("TOPLEFT", 4, -12); setFont(row.number, 19, GOLD)
-            row.name = row:CreateFontString(nil, "OVERLAY")
-            row.name:SetPoint("TOPLEFT", 48, -9); row.name:SetWidth(300)
-            row.name:SetJustifyH("LEFT"); setFont(row.name, 14, TEXT)
-            row.meta = row:CreateFontString(nil, "OVERLAY")
-            row.meta:SetPoint("TOPLEFT", 49, -36); setFont(row.meta, 10, MUTED)
-            row.lootLabel = row:CreateFontString(nil, "OVERLAY")
-            row.lootLabel:SetPoint("TOPLEFT", 49, -57); setFont(row.lootLabel, 10, GOLD)
-            row.lootItems = {}
-            row.rule = row:CreateTexture(nil, "ARTWORK")
-            row.rule:SetTexture(BACKGROUND); row.rule:SetVertexColor(.42, .3, .14, .7)
-            row.rule:SetPoint("BOTTOMLEFT", 4, 0)
-            row.rule:SetPoint("BOTTOMRIGHT", -8, 0); row.rule:SetHeight(1)
-            row:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-                GameTooltip:AddLine(self.bossName, 1, .82, .1)
-                GameTooltip:AddLine(self.wins .. C:LocalizeDisplay(" Siege  •  ") .. self.attempts .. C:LocalizeDisplay(" Versuche"), .95, .84, .67)
-                GameTooltip:AddLine(C:LocalizeDisplay("Zuletzt: ") .. U.Date(self.lastSeen), .72, .65, .52)
-                C:ShowLocalizedTooltip()
-            end)
-            row:SetScript("OnLeave", function() GameTooltip:Hide() end)
-            chapter.rows[index] = row
-        end
-        local column = (index - 1) % 2
-        if column == 0 and index > 1 then pairTop = pairTop + pairHeight + 12; pairHeight = 0 end
+    local function portraitInfo(boss)
+        return C:RecordedBossPortraitInfo(boss, encounterIDs[boss], instanceName, instanceData.instanceID)
+    end
+    local function rareLootFor(boss)
         local rareLoot = {}
         for _, item in ipairs(boss.loot or {}) do
             local link = type(item.link) == "string" and item.link or nil
@@ -4205,52 +5348,64 @@ function C:OpenDungeonChapter(instanceName, instanceData)
             end
             if quality and quality >= 3 then rareLoot[#rareLoot + 1] = { item = item, quality = quality } end
         end
-        local rowHeight = #rareLoot > 0 and (94 + (#rareLoot - 1) * 23) or 70
-        pairHeight = math.max(pairHeight, rowHeight)
-        row:ClearAllPoints(); row:SetPoint("TOPLEFT", column * columnWidth, -pairTop)
-        row:SetWidth(columnWidth - 10)
-        row:SetHeight(rowHeight)
-        row.number:SetText(string.format("%02d", index))
-        row.bossName = U.SafeText(boss.name, "Unbekannter Boss")
-        row.wins, row.attempts = tonumber(boss.kills) or 0, tonumber(boss.attempts) or 0
-        row.lastSeen = boss.lastSeen
-        row.name:SetText(row.bossName)
-        row.meta:SetText(row.wins .. C:LocalizeDisplay(" Siege  •  ") .. row.attempts .. C:LocalizeDisplay(" Versuche"))
-        row.lootLabel:SetText(C:LocalizeDisplay("SELTENE BEUTE  /  ") .. #rareLoot)
-        row.lootLabel:SetShown(#rareLoot > 0)
+        return rareLoot
+    end
+    local function showBoss(index)
+        local boss = bosses[index]
+        chapter.selectedIndex = index
+        for rowIndex, row in ipairs(chapter.rows) do
+            row.highlight:SetShown(rowIndex == index and rowIndex <= #bosses)
+            row.name:SetTextColor(unpack(rowIndex == index and GOLD or TEXT))
+        end
+        local detail = chapter.detail
+        detail.title:SetText(boss and U.SafeText(boss.name, C:LocalizeDisplay("Unbekannter Boss")) or
+            C:LocalizeDisplay("Noch kein Bosskampf in dieser Instanz erfasst."))
+        detail.meta:SetText(boss and ((tonumber(boss.kills) or 0) .. C:LocalizeDisplay(" Siege  •  ") ..
+            (tonumber(boss.attempts) or 0) .. C:LocalizeDisplay(" Versuche")) or "")
+        detail.last:SetText(boss and (C:LocalizeDisplay("Zuletzt: ") .. U.Date(boss.lastSeen)) or "")
+        local rareLoot = boss and rareLootFor(boss) or {}
+        detail.lootTitle:SetText(C:LocalizeDisplay("SELTENE BEUTE  /  ") .. #rareLoot)
+        detail.empty:SetShown(#rareLoot == 0)
         for lootIndex, entry in ipairs(rareLoot) do
-            local button = row.lootItems[lootIndex]
+            local button = detail.lootItems[lootIndex]
             if not button then
-                button = CreateFrame("Button", nil, row)
-                button:SetHeight(24); button:SetWidth(290)
-                button.iconFallback = button:CreateTexture(nil, "ARTWORK")
-                button.iconFallback:SetSize(20, 20)
-                button.iconFallback:SetPoint("LEFT", 0, 0)
-                button.iconFallback:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-                button.icon = button:CreateTexture(nil, "OVERLAY")
-                button.icon:SetSize(20, 20)
-                button.icon:SetPoint("LEFT", 0, 0)
+                button = CreateFrame("Button", nil, detail.lootChild)
+                button:SetSize(370, 38)
+                button.icon = button:CreateTexture(nil, "ARTWORK")
+                button.icon:SetSize(25, 25)
+                button.icon:SetPoint("LEFT", 4, 0)
                 button.name = button:CreateFontString(nil, "OVERLAY")
-                button.name:SetPoint("LEFT", button.icon, "RIGHT", 7, 0)
-                button.name:SetWidth(255); button.name:SetJustifyH("LEFT")
-                setFont(button.name, 11, TEXT)
+                button.name:SetPoint("LEFT", button.icon, "RIGHT", 9, 0)
+                button.name:SetWidth(328); button.name:SetJustifyH("LEFT")
+                setFont(button.name, 12, TEXT)
+                button.rule = button:CreateTexture(nil, "ARTWORK")
+                button.rule:SetTexture(BACKGROUND); button.rule:SetVertexColor(.42, .3, .14, .7)
+                button.rule:SetPoint("BOTTOMLEFT", 3, 0)
+                button.rule:SetPoint("BOTTOMRIGHT", -4, 0)
+                button.rule:SetHeight(C:RuleThickness())
                 button:SetScript("OnEnter", function(self)
                     GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-                    local shown = self.itemLink and pcall(GameTooltip.SetHyperlink, GameTooltip, self.itemLink)
-                    if not shown then GameTooltip:AddLine(self.itemName or C:LocalizeDisplay("Bossbeute"), 1, .82, .1) end
+                    local itemID=self.itemLink and tonumber(self.itemLink:match("item:(%d+)"))
+                    if itemID and C.ShowLootItemTooltip then
+                        C:ShowLootItemTooltip(self,itemID,self.itemName,nil,nil,self.itemLink)
+                    else
+                        local shown = self.itemLink and pcall(GameTooltip.SetHyperlink, GameTooltip, self.itemLink)
+                        if not shown then GameTooltip:AddLine(self.itemName or C:LocalizeDisplay("Bossbeute"), 1, .82, .1) end
+                    end
                     GameTooltip:AddLine(C:LocalizeDisplay("Boss: ") .. (self.bossName or "?"), .75, .7, .6)
                     C:ShowLocalizedTooltip()
                 end)
                 button:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                row.lootItems[lootIndex] = button
+                detail.lootItems[lootIndex] = button
             end
             local item = entry.item
             local link = item.link
             local itemID = tonumber(item.id) or tonumber(link and link:match("|Hitem:(%d+)")) or
                 tonumber(link and link:match("item:(%d+)"))
-            local itemName = link and link:match("|h%[(.-)%]|h") or ("Gegenstand #" .. tostring(item.id or "?"))
+            local itemName = link and link:match("|h%[(.-)%]|h") or
+                (C:LocalizeDisplay("Gegenstand #") .. tostring(item.id or "?"))
             local info = link and C.API.ItemInfo(link)
-            local color = ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[entry.quality]
+            local color = itemQualityColor(itemID,entry.quality,link)
             button.name:SetText(itemName .. ((tonumber(item.count) or 1) > 1 and ("  x" .. item.count) or ""))
             button.name:SetTextColor(color and color.r or 0, color and color.g or .44, color and color.b or 1)
             local icon = info and info.icon
@@ -4262,42 +5417,130 @@ function C:OpenDungeonChapter(instanceName, instanceData)
                 local ok, value = pcall(GetItemIcon, itemID)
                 if ok then icon = value end
             end
-            if (not icon or icon == 0) and itemID and GetItemInfoInstant then
-                local ok, _, _, _, _, value = pcall(GetItemInfoInstant, itemID)
-                if ok then icon = value end
-            end
-            if not icon or icon == 0 or icon == "" then
-                icon = item.icon or ({
-                    [6469] = "Interface\\Icons\\INV_Weapon_Bow_10",
-                    [15450] = "Interface\\Icons\\INV_Pants_07",
-                })[itemID]
-            end
-            if type(icon) ~= "string" and type(icon) ~= "number" or icon == 0 or icon == "" then
-                if itemID and C_Item and C_Item.RequestLoadItemDataByID then
-                    pcall(C_Item.RequestLoadItemDataByID, itemID)
-                end
-                icon = "Interface\\Icons\\INV_Misc_QuestionMark"
-            end
+            if not icon or icon == 0 or icon == "" then icon = item.icon or "Interface\\Icons\\INV_Misc_QuestionMark" end
             button.icon:SetTexture(icon)
-            button.itemLink, button.itemName, button.bossName = link, itemName, row.bossName
-            button:ClearAllPoints(); button:SetPoint("TOPLEFT", 49, -69 - (lootIndex - 1) * 23)
+            button.itemLink, button.itemName = link, itemName
+            button.bossName = U.SafeText(boss.name, "?")
+            button:ClearAllPoints(); button:SetPoint("TOPLEFT", 0, -(lootIndex - 1) * 39)
             button:Show()
         end
-        for lootIndex = #rareLoot + 1, #row.lootItems do row.lootItems[lootIndex]:Hide() end
-        if #rareLoot == 0 then
-            if not row.emptyLoot then
-                row.emptyLoot = row:CreateFontString(nil, "OVERLAY")
-                row.emptyLoot:SetPoint("TOPLEFT", 49, -55); setFont(row.emptyLoot, 10, MUTED)
-                row.emptyLoot:SetText(C:LocalizeDisplay("Noch keine seltene Beute erfasst"))
+        for lootIndex = #rareLoot + 1, #detail.lootItems do detail.lootItems[lootIndex]:Hide() end
+        detail.lootChild:SetHeight(math.max(35, #rareLoot * 39))
+        detail.lootScroll:SetVerticalScroll(0)
+    end
+    for index, boss in ipairs(bosses) do
+        local row = chapter.rows[index]
+        if not row then
+            row = CreateFrame("Button", nil, chapter.scrollChild)
+            row:SetSize(286, 56)
+            row.highlight = row:CreateTexture(nil, "BACKGROUND")
+            row.highlight:SetTexture(BACKGROUND)
+            row.highlight:SetVertexColor(.085, .078, .064, .95)
+            row.highlight:SetAllPoints()
+            row.bossFrame = CreateFrame("Frame", nil, row)
+            row.bossFrame:SetSize(34, 34)
+            row.bossFrame:SetPoint("LEFT", 9, 0)
+            row.bossFrame:SetFrameLevel(row:GetFrameLevel() + 1)
+            row.bossRank = row.bossFrame:CreateTexture(nil, "OVERLAY", nil, 1)
+            row.bossRank:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+            row.bossRank:SetTexCoord(0, .6, 0, .6)
+            row.bossRank:SetSize(53, 53)
+            row.bossRank:SetPoint("CENTER", row.bossFrame, "CENTER")
+            row.bossIcon = row.bossFrame:CreateTexture(nil, "ARTWORK")
+            row.bossIcon:SetSize(34, 34)
+            row.bossIcon:SetPoint("CENTER", row.bossFrame, "CENTER")
+            if row.bossFrame.CreateMaskTexture and row.bossIcon.AddMaskTexture then
+                local mask = row.bossFrame:CreateMaskTexture()
+                mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+                mask:SetAllPoints(row.bossIcon)
+                row.bossIcon:AddMaskTexture(mask)
             end
-            row.emptyLoot:Show()
-        elseif row.emptyLoot then row.emptyLoot:Hide() end
+            row.bossDragon = row.bossFrame:CreateTexture(nil, "OVERLAY", nil, 2)
+            local dragonScale = 34 / 64
+            row.bossDragon:SetSize(256 * dragonScale, 128 * dragonScale)
+            row.bossDragon:SetPoint("CENTER", row.bossFrame, "CENTER", -54 * dragonScale, -20 * dragonScale)
+            row.bossLevelBg = CreateFrame("Frame", nil, row.bossFrame)
+            row.bossLevelBg:SetSize(16, 16)
+            row.bossLevelBg:SetPoint("CENTER", row.bossFrame, "CENTER", 19.5 * dragonScale, -22 * dragonScale)
+            row.bossLevelBg:SetFrameLevel(row.bossFrame:GetFrameLevel() + 2)
+            row.bossLevelRing = row.bossLevelBg:CreateTexture(nil, "BORDER")
+            row.bossLevelRing:SetAllPoints(row.bossLevelBg)
+            row.bossLevelFill = row.bossLevelBg:CreateTexture(nil, "ARTWORK")
+            row.bossLevelFill:SetPoint("TOPLEFT", 1.5, -1.5)
+            row.bossLevelFill:SetPoint("BOTTOMRIGHT", -1.5, 1.5)
+            row.bossLevelFill:SetColorTexture(.05, .04, .03, .95)
+            if row.bossLevelBg.CreateMaskTexture and row.bossLevelRing.AddMaskTexture then
+                local ringMask = row.bossLevelBg:CreateMaskTexture()
+                ringMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+                ringMask:SetAllPoints(row.bossLevelRing)
+                row.bossLevelRing:AddMaskTexture(ringMask)
+                local fillMask = row.bossLevelBg:CreateMaskTexture()
+                fillMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+                fillMask:SetAllPoints(row.bossLevelFill)
+                row.bossLevelFill:AddMaskTexture(fillMask)
+            end
+            row.bossLevel = row.bossLevelBg:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            row.bossLevel:SetPoint("CENTER", row.bossLevelBg, "CENTER", .5, 0)
+            local fontFile, _, fontFlags = row.bossLevel:GetFont()
+            if fontFile then row.bossLevel:SetFont(fontFile, 9, fontFlags) end
+            row.bossSkull = row.bossLevelBg:CreateTexture(nil, "OVERLAY")
+            row.bossSkull:SetSize(10, 10)
+            row.bossSkull:SetPoint("CENTER", row.bossLevelBg, "CENTER")
+            row.bossSkull:SetTexture("Interface\\TargetingFrame\\UI-TargetingFrame-Skull")
+            row.name = row:CreateFontString(nil, "OVERLAY")
+            row.name:SetPoint("TOPLEFT", 70, -10); row.name:SetWidth(206)
+            row.name:SetJustifyH("LEFT"); setFont(row.name, 12, TEXT)
+            row.meta = row:CreateFontString(nil, "OVERLAY")
+            row.meta:SetPoint("TOPLEFT", 71, -34); setFont(row.meta, 10, MUTED)
+            row.rule = row:CreateTexture(nil, "ARTWORK")
+            row.rule:SetTexture(BACKGROUND); row.rule:SetVertexColor(.42, .3, .14, .7)
+            row.rule:SetPoint("BOTTOMLEFT", 5, 0)
+            row.rule:SetPoint("BOTTOMRIGHT", -4, 0); row.rule:SetHeight(C:RuleThickness())
+            row:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+                GameTooltip:AddLine(self.bossName, 1, .82, .1)
+                GameTooltip:AddLine(self.wins .. C:LocalizeDisplay(" Siege  •  ") .. self.attempts .. C:LocalizeDisplay(" Versuche"), .95, .84, .67)
+                GameTooltip:AddLine(C:LocalizeDisplay("Zuletzt: ") .. U.Date(self.lastSeen), .72, .65, .52)
+                C:ShowLocalizedTooltip()
+            end)
+            row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            chapter.rows[index] = row
+        end
+        row:SetScript("OnClick", function(self) showBoss(self.bossIndex) end)
+        row:ClearAllPoints(); row:SetPoint("TOPLEFT", 1, -(index - 1) * 57)
+        row.bossIndex = index
+        local displayID, level, rank = portraitInfo(boss)
+        row.bossIcon:SetTexCoord(0, 1, 0, 1)
+        local portraitSet = displayID and SetPortraitTextureFromCreatureDisplayID and
+            pcall(SetPortraitTextureFromCreatureDisplayID, row.bossIcon, displayID)
+        if not portraitSet then row.bossIcon:SetTexture("Interface\\AddOns\\Chronicle\\BossMedallion") end
+        local rareRank = rank == 2 or rank == 4
+        row.bossRank:SetVertexColor(rareRank and .75 or .96, rareRank and .76 or .68,
+            rareRank and .83 or .16)
+        row.bossDragon:SetTexture("Interface\\AddOns\\Chronicle\\DungeonMapArt\\" ..
+            (rank == 2 and "BossDragon-Rare-Elite" or rank == 4 and "BossDragon-Rare" or "BossDragon-Elite"))
+        row.bossLevelRing:SetColorTexture(rareRank and .75 or .96, rareRank and .76 or .68,
+            rareRank and .83 or .16, 1)
+        local skull = rank == 3 or (level and level >= 63)
+        row.bossLevelBg:SetShown(level ~= nil or skull == true)
+        row.bossSkull:SetShown(skull and true or false)
+        row.bossLevel:SetShown(level ~= nil and not skull)
+        if level then
+            row.bossLevel:SetText(tostring(level))
+            row.bossLevel:SetTextColor(C:BossDifficultyColor(level))
+        end
+        row.bossName = U.SafeText(boss.name, "Unbekannter Boss")
+        row.wins, row.attempts = tonumber(boss.kills) or 0, tonumber(boss.attempts) or 0
+        row.lastSeen = boss.lastSeen
+        row.name:SetText(row.bossName)
+        row.meta:SetText(row.wins .. C:LocalizeDisplay(" Siege  •  ") .. row.attempts .. C:LocalizeDisplay(" Versuche"))
         row:Show()
     end
     for index = #bosses + 1, #chapter.rows do chapter.rows[index]:Hide() end
     chapter.empty:SetShown(#bosses == 0)
-    chapter.scrollChild:SetHeight(math.max(70, pairTop + pairHeight + 8))
+    chapter.scrollChild:SetHeight(math.max(70, #bosses * 57))
     chapter.scroll:SetVerticalScroll(0)
+    showBoss(#bosses > 0 and 1 or nil)
     chapter:Show()
     chapter:Raise()
 end
@@ -4431,7 +5674,7 @@ local function showTimelineRows()
                 dayRow.rule = dayRow:CreateTexture(nil, "ARTWORK")
                 dayRow.rule:SetTexture(BACKGROUND); dayRow.rule:SetVertexColor(.52, .36, .13, .8)
                 dayRow.rule:SetPoint("LEFT", dayRow.label, "RIGHT", 12, 0)
-                dayRow.rule:SetPoint("RIGHT", -10, 0); dayRow.rule:SetHeight(1)
+                dayRow.rule:SetPoint("RIGHT", -10, 0); dayRow.rule:SetHeight(C:RuleThickness())
                 timelineDays[usedDays] = dayRow
             end
             dayRow:ClearAllPoints(); dayRow:SetPoint("TOPLEFT", 4, -offset); dayRow:SetWidth(listWidth)
@@ -4456,9 +5699,9 @@ local function showTimelineRows()
             card.rule = card:CreateTexture(nil, "ARTWORK")
             card.rule:SetTexture(BACKGROUND); card.rule:SetVertexColor(.45, .31, .12, .7)
             card.rule:SetPoint("BOTTOMLEFT", 48, 0); card.rule:SetPoint("BOTTOMRIGHT", -5, 0)
-            card.rule:SetHeight(1)
+            card.rule:SetHeight(C:RuleThickness())
             card:SetScript("OnEnter", function(self)
-                self:SetBackdropColor(.2, .13, .05, .66)
+                self:SetBackdropColor(.09, .085, .075, .66)
                 GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
                 GameTooltip:AddLine(C:LocalizeDisplay(self.eventTitle or "Erinnerung"), self.colorR or 1, self.colorG or .82, self.colorB or .1)
                 GameTooltip:AddLine(self.eventDate or "", .72, .65, .52)
@@ -4476,8 +5719,8 @@ local function showTimelineRows()
                 C:ShowLocalizedTooltip()
             end)
             card:SetScript("OnLeave", function(self)
-                self:SetBackdropColor(self.isSelected and .22 or 0, self.isSelected and .14 or 0,
-                    self.isSelected and .05 or 0, self.isSelected and .9 or 0)
+                self:SetBackdropColor(self.isSelected and .09 or 0, self.isSelected and .085 or 0,
+                    self.isSelected and .075 or 0, self.isSelected and .9 or 0)
                 self:SetBackdropBorderColor(0, 0, 0, 0)
                 GameTooltip:Hide()
             end)
@@ -4526,7 +5769,7 @@ local function showTimelineRows()
         dossier.rule = dossier:CreateTexture(nil, "ARTWORK")
         dossier.rule:SetTexture(BACKGROUND); dossier.rule:SetVertexColor(.58, .4, .16, .85)
         dossier.rule:SetPoint("TOPLEFT", 18, -142); dossier.rule:SetPoint("TOPRIGHT", -18, -142)
-        dossier.rule:SetHeight(1)
+        dossier.rule:SetHeight(C:RuleThickness())
         dossier.body = dossier:CreateFontString(nil, "OVERLAY")
         dossier.body:SetPoint("TOPLEFT", 19, -163)
         dossier.body:SetJustifyH("LEFT"); dossier.body:SetJustifyV("TOP")
@@ -4692,7 +5935,7 @@ local function showDeathRows()
         deathHero.dateDivider:SetTexture(BACKGROUND)
         deathHero.dateDivider:SetVertexColor(.57, .39, .18, .7)
         deathHero.dateDivider:SetPoint("TOPRIGHT", -170, -21)
-        deathHero.dateDivider:SetSize(1, 73)
+        deathHero.dateDivider:SetSize(C:RuleThickness(), 73)
         deathHero.cause = deathHero:CreateFontString(nil, "OVERLAY")
         deathHero.cause:SetPoint("TOPLEFT", 103, -100); setFont(deathHero.cause, 11, TEXT)
         deathHero.cause:SetJustifyH("LEFT")
@@ -4704,7 +5947,7 @@ local function showDeathRows()
         deathHero.metricRule:SetVertexColor(.58, .38, .17, .7)
         deathHero.metricRule:SetPoint("TOPLEFT", 18, -128)
         deathHero.metricRule:SetPoint("TOPRIGHT", -18, -128)
-        deathHero.metricRule:SetHeight(1)
+        deathHero.metricRule:SetHeight(C:RuleThickness())
         deathHero.metrics = {}
         for index, label in ipairs({ C:L("deathCases"), C:L("deathPlaces"), C:L("combatRecords") }) do
             local metric = CreateFrame("Frame", nil, deathHero)
@@ -4727,7 +5970,7 @@ local function showDeathRows()
         deathHero.section.rule:SetVertexColor(.52, .33, .15, .8)
         deathHero.section.rule:SetPoint("BOTTOMLEFT", 4, 2)
         deathHero.section.rule:SetPoint("BOTTOMRIGHT", -4, 2)
-        deathHero.section.rule:SetHeight(1)
+        deathHero.section.rule:SetHeight(C:RuleThickness())
         deathHero.section.emblem = deathHero.section:CreateTexture(nil, "ARTWORK")
         deathHero.section.emblem:SetTexture("Interface\\AddOns\\Chronicle\\LotusEmblem")
         deathHero.section.emblem:SetSize(18, 18); deathHero.section.emblem:SetPoint("LEFT", 5, 7)
@@ -4762,7 +6005,7 @@ local function showDeathRows()
         panel.rule = panel:CreateTexture(nil, "ARTWORK")
         panel.rule:SetTexture(BACKGROUND); panel.rule:SetVertexColor(.65, .42, .2, .75)
         panel.rule:SetPoint("TOPLEFT", 22, -109); panel.rule:SetPoint("TOPRIGHT", -22, -109)
-        panel.rule:SetHeight(1)
+        panel.rule:SetHeight(C:RuleThickness())
         panel.whenLabel = panel:CreateFontString(nil, "OVERLAY")
         panel.whenLabel:SetPoint("TOPLEFT", 23, -126); setFont(panel.whenLabel, 10, GOLD)
         panel.whenLabel:SetText(C:LocalizeDisplay("ZEITPUNKT"))
@@ -4938,7 +6181,7 @@ local function showDeathRows()
                 heading.rule:SetTexture(BACKGROUND)
                 heading.rule:SetVertexColor(.45, .3, .15, .65)
                 heading.rule:SetPoint("LEFT", heading.date, "RIGHT", 12, 0)
-                heading.rule:SetPoint("RIGHT", -8, 0); heading.rule:SetHeight(1)
+                heading.rule:SetPoint("RIGHT", -8, 0); heading.rule:SetHeight(C:RuleThickness())
                 heading.path = heading:CreateTexture(nil, "ARTWORK")
                 heading.path:SetTexture("Interface\\AddOns\\Chronicle\\DeathRoute")
                 heading.path:SetSize(16, 30); heading.path:SetPoint("LEFT", 48, 0)
@@ -4982,7 +6225,7 @@ local function showDeathRows()
             card.rule = card:CreateTexture(nil, "ARTWORK")
             card.rule:SetTexture(BACKGROUND); card.rule:SetVertexColor(.34, .24, .13, .75)
             card.rule:SetPoint("BOTTOMLEFT", 83, 7); card.rule:SetPoint("BOTTOMRIGHT", -9, 7)
-            card.rule:SetHeight(1)
+            card.rule:SetHeight(C:RuleThickness())
             card:SetScript("OnEnter", function(self)
                 self.hover:Show()
                 GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
@@ -5051,7 +6294,17 @@ local function showEconomyRows()
         end
     end
     local function plainMoney(value)
-        return (U.Money(value):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
+        return U.Money(value)
+    end
+    local function reasonText(entry)
+        if type(entry) ~= "table" then return C:LocalizeDisplay("Grund nicht erfasst") end
+        local reason = entry.reason
+        if type(reason) ~= "string" or reason == "" then
+            return C:LocalizeDisplay((tonumber(entry.delta) or 0) < 0 and
+                "Verwendungszweck nicht erfasst" or "Herkunft nicht erfasst")
+        end
+        local prefix, subject = reason:match("^(.-): (.+)$")
+        return prefix and (C:LocalizeDisplay(prefix) .. ": " .. subject) or C:LocalizeDisplay(reason)
     end
     local earned, spent, dailyNet = 0, 0, {}
     for _, entry in ipairs(entries) do
@@ -5089,7 +6342,7 @@ local function showEconomyRows()
         economyHero.rule = economyHero:CreateTexture(nil, "ARTWORK")
         economyHero.rule:SetTexture(BACKGROUND); economyHero.rule:SetVertexColor(.6, .4, .14, .85)
         economyHero.rule:SetPoint("TOPLEFT", 18, -101); economyHero.rule:SetPoint("TOPRIGHT", -18, -101)
-        economyHero.rule:SetHeight(1)
+        economyHero.rule:SetHeight(C:RuleThickness())
         economyHero.earnedLabel = economyHero:CreateFontString(nil, "OVERLAY")
         economyHero.earnedLabel:SetPoint("TOPLEFT", 19, -111); setFont(economyHero.earnedLabel, 9, MUTED)
         economyHero.earnedLabel:SetText(C:LocalizeDisplay("EINNAHMEN IM VERLAUF"))
@@ -5116,7 +6369,7 @@ local function showEconomyRows()
         panel.spine = panel:CreateTexture(nil, "ARTWORK")
         panel.spine:SetTexture(BACKGROUND); panel.spine:SetVertexColor(.58, .39, .15, .8)
         panel.spine:SetPoint("TOPLEFT", 4, -16); panel.spine:SetPoint("BOTTOMLEFT", 4, 16)
-        panel.spine:SetWidth(1)
+        panel.spine:SetWidth(C:RuleThickness())
         panel.seal = CreateFrame("Frame", nil, panel, "BackdropTemplate")
         panel.seal:SetSize(57, 57); panel.seal:SetPoint("TOPRIGHT", -18, -17)
         backdrop(panel.seal, .16, .105, .055, 1)
@@ -5135,35 +6388,36 @@ local function showEconomyRows()
         panel.rule = panel:CreateTexture(nil, "ARTWORK")
         panel.rule:SetTexture(BACKGROUND); panel.rule:SetVertexColor(.65, .42, .2, .75)
         panel.rule:SetPoint("TOPLEFT", 22, -107); panel.rule:SetPoint("TOPRIGHT", -22, -107)
-        panel.rule:SetHeight(1)
+        panel.rule:SetHeight(C:RuleThickness())
+        panel.reasonLabel = panel:CreateFontString(nil, "OVERLAY")
+        panel.reasonLabel:SetPoint("TOPLEFT", 23, -123); setFont(panel.reasonLabel, 10, GOLD)
+        panel.reasonLabel:SetText(C:LocalizeDisplay("VERWENDUNGSZWECK / HERKUNFT"))
+        panel.reason = panel:CreateFontString(nil, "OVERLAY")
+        panel.reason:SetPoint("TOPLEFT", 23, -143); setFont(panel.reason, 12, TEXT)
+        panel.reason:SetJustifyH("LEFT")
         panel.whenLabel = panel:CreateFontString(nil, "OVERLAY")
-        panel.whenLabel:SetPoint("TOPLEFT", 23, -125); setFont(panel.whenLabel, 10, GOLD)
+        panel.whenLabel:SetPoint("TOPLEFT", 23, -191); setFont(panel.whenLabel, 10, GOLD)
         panel.whenLabel:SetText(C:LocalizeDisplay("ZEITPUNKT"))
         panel.when = panel:CreateFontString(nil, "OVERLAY")
-        panel.when:SetPoint("TOPLEFT", 23, -145); setFont(panel.when, 12, TEXT)
+        panel.when:SetPoint("TOPLEFT", 23, -211); setFont(panel.when, 12, TEXT)
         panel.when:SetJustifyH("LEFT")
         panel.zoneLabel = panel:CreateFontString(nil, "OVERLAY")
-        panel.zoneLabel:SetPoint("TOPLEFT", 23, -182); setFont(panel.zoneLabel, 10, GOLD)
+        panel.zoneLabel:SetPoint("TOPLEFT", 23, -247); setFont(panel.zoneLabel, 10, GOLD)
         panel.zoneLabel:SetText(C:LocalizeDisplay("ORT"))
         panel.zone = panel:CreateFontString(nil, "OVERLAY")
-        panel.zone:SetPoint("TOPLEFT", 23, -202); setFont(panel.zone, 12, TEXT)
+        panel.zone:SetPoint("TOPLEFT", 23, -267); setFont(panel.zone, 12, TEXT)
         panel.zone:SetJustifyH("LEFT")
         panel.balanceLabel = panel:CreateFontString(nil, "OVERLAY")
-        panel.balanceLabel:SetPoint("TOPLEFT", 23, -240); setFont(panel.balanceLabel, 10, GOLD)
+        panel.balanceLabel:SetPoint("TOPLEFT", 23, -303); setFont(panel.balanceLabel, 10, GOLD)
         panel.balanceLabel:SetText(C:LocalizeDisplay("KONTOSTAND DANACH"))
         panel.balance = panel:CreateFontString(nil, "OVERLAY")
-        panel.balance:SetPoint("TOPLEFT", 23, -260); setFont(panel.balance, 17, TEXT)
+        panel.balance:SetPoint("TOPLEFT", 23, -323); setFont(panel.balance, 17, TEXT)
         panel.balance:SetJustifyH("LEFT")
         panel.beforeLabel = panel:CreateFontString(nil, "OVERLAY")
-        panel.beforeLabel:SetPoint("TOPLEFT", 23, -302); setFont(panel.beforeLabel, 10, GOLD)
+        panel.beforeLabel:SetPoint("TOPLEFT", 23, -365); setFont(panel.beforeLabel, 10, GOLD)
         panel.beforeLabel:SetText(C:LocalizeDisplay("KONTOSTAND ZUVOR"))
         panel.before = panel:CreateFontString(nil, "OVERLAY")
-        panel.before:SetPoint("TOPLEFT", 23, -322); setFont(panel.before, 14, TEXT)
-        panel.dayLabel = panel:CreateFontString(nil, "OVERLAY")
-        panel.dayLabel:SetPoint("TOPLEFT", 23, -362); setFont(panel.dayLabel, 10, GOLD)
-        panel.dayLabel:SetText(C:LocalizeDisplay("TAGESBILANZ (ANZEIGE)"))
-        panel.day = panel:CreateFontString(nil, "OVERLAY")
-        panel.day:SetPoint("TOPLEFT", 23, -382); setFont(panel.day, 14, TEXT)
+        panel.before:SetPoint("TOPLEFT", 23, -385); setFont(panel.before, 14, TEXT)
     end
     economyHero.amount:SetText(U.Money(GetMoney and GetMoney() or C.char.money))
     economyHero:SetWidth(width); economyHero.amount:SetWidth(width - 150)
@@ -5179,7 +6433,7 @@ local function showEconomyRows()
     economyHero.net:SetTextColor(netTotal > 0 and .42 or (netTotal < 0 and .93 or .72),
         netTotal > 0 and .88 or (netTotal < 0 and .4 or .65), netTotal > 0 and .51 or (netTotal < 0 and .35 or .52))
     economyHero.last:SetText(entries[1] and
-        (C:LocalizeDisplay("Letzte erfasste Bewegung: ") .. U.Date(entries[1].time, true) .. "  |  " .. U.SafeText(entries[1].zone, C:LocalizeDisplay("Unbekannt"))) or
+        (C:LocalizeDisplay("Letzte erfasste Bewegung: ") .. U.Date(entries[1].time, true) .. "  |  " .. reasonText(entries[1])) or
         C:LocalizeDisplay("Noch keine Geldbewegung erfasst."))
     economyHero:Show()
 
@@ -5195,7 +6449,7 @@ local function showEconomyRows()
         economyIntro.rule = economyIntro:CreateTexture(nil, "ARTWORK")
         economyIntro.rule:SetTexture(BACKGROUND); economyIntro.rule:SetVertexColor(.45, .32, .12, .9)
         economyIntro.rule:SetPoint("BOTTOMLEFT", 8, 4)
-        economyIntro.rule:SetPoint("BOTTOMRIGHT", -8, 4); economyIntro.rule:SetHeight(1)
+        economyIntro.rule:SetPoint("BOTTOMRIGHT", -8, 4); economyIntro.rule:SetHeight(C:RuleThickness())
     end
     economyIntro:ClearAllPoints(); economyIntro:SetPoint("TOPLEFT", 4, -176)
     economyIntro:SetWidth(width)
@@ -5210,15 +6464,17 @@ local function showEconomyRows()
         local minute = date("%Y%m%d%H%M", entry.time or time())
         local zone = U.SafeText(entry.zone, "Unbekannt")
         local direction = delta > 0 and "income" or (delta < 0 and "expense" or "correction")
+        local reason = entry.reason or ""
         local previous = groups[#groups]
-        if previous and previous.minute == minute and previous.zone == zone and previous.direction == direction then
+        if previous and previous.minute == minute and previous.zone == zone and
+            previous.direction == direction and previous.reason == reason then
             previous.count = previous.count + 1
             previous.delta = previous.delta + delta
             previous.members[#previous.members + 1] = index
         else
-            groups[#groups + 1] = { minute = minute, zone = zone, direction = direction,
+            groups[#groups + 1] = { minute = minute, zone = zone, direction = direction, reason = reason,
                 firstIndex = index, first = entry, count = 1, delta = delta,
-                key = minute .. "|" .. zone .. "|" .. direction .. "|" .. index,
+                key = minute .. "|" .. zone .. "|" .. direction .. "|" .. reason .. "|" .. index,
                 members = { index } }
         end
     end
@@ -5259,7 +6515,7 @@ local function showEconomyRows()
                 dayRow.rule = dayRow:CreateTexture(nil, "ARTWORK")
                 dayRow.rule:SetTexture(BACKGROUND); dayRow.rule:SetVertexColor(.37, .27, .13, .75)
                 dayRow.rule:SetPoint("LEFT", dayRow.label, "RIGHT", 12, 0)
-                dayRow.rule:SetPoint("RIGHT", -155, 0); dayRow.rule:SetHeight(1)
+                dayRow.rule:SetPoint("RIGHT", -155, 0); dayRow.rule:SetHeight(C:RuleThickness())
                 dayRow.net = dayRow:CreateFontString(nil, "OVERLAY")
                 dayRow.net:SetPoint("RIGHT", -9, 0); dayRow.net:SetWidth(140)
                 dayRow.net:SetJustifyH("RIGHT"); setFont(dayRow.net, 11, GOLD)
@@ -5282,7 +6538,7 @@ local function showEconomyRows()
             transaction = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
             transaction:SetSize(630, 48); transaction:EnableMouse(true)
             transaction.bg = transaction:CreateTexture(nil, "BACKGROUND")
-            transaction.bg:SetTexture(BACKGROUND); transaction.bg:SetVertexColor(.32, .19, .08, .22)
+            transaction.bg:SetTexture(BACKGROUND)
             transaction.bg:SetAllPoints(transaction)
             transaction.bg:Hide()
             transaction.selected = transaction:CreateTexture(nil, "BACKGROUND")
@@ -5292,7 +6548,7 @@ local function showEconomyRows()
             transaction.rule = transaction:CreateTexture(nil, "ARTWORK")
             transaction.rule:SetTexture(BACKGROUND); transaction.rule:SetVertexColor(.42, .28, .13, .78)
             transaction.rule:SetPoint("BOTTOMLEFT", 11, 1); transaction.rule:SetPoint("BOTTOMRIGHT", -11, 1)
-            transaction.rule:SetHeight(1)
+            transaction.rule:SetHeight(C:RuleThickness())
             transaction.accent = transaction:CreateTexture(nil, "ARTWORK")
             transaction.accent:SetTexture(BACKGROUND)
             transaction.accent:SetSize(7, 7)
@@ -5302,7 +6558,7 @@ local function showEconomyRows()
             transaction.rail:SetVertexColor(.48, .34, .14, .62)
             transaction.rail:SetPoint("TOPLEFT", 20, 0)
             transaction.rail:SetPoint("BOTTOMLEFT", 20, 0)
-            transaction.rail:SetWidth(1)
+            transaction.rail:SetWidth(C:RuleThickness())
             transaction.symbol = transaction:CreateTexture(nil, "ARTWORK")
             transaction.symbol:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
             transaction.symbol:SetBlendMode("ADD")
@@ -5347,10 +6603,12 @@ local function showEconomyRows()
         transaction.groupKey = item.isGroup and item.group.key or nil
         local active = item.isGroup and selectedGroup == item.group or
             (not item.isGroup and not selectedGroup and item.index == economyHero.selectedIndex)
-        transaction.bg:SetShown(active)
-        transaction.selected:Hide()
         local delta = item.isGroup and item.group.delta or (tonumber(entry.delta) or 0)
         local positive, negative = delta > 0, delta < 0
+        transaction.bg:SetVertexColor(positive and .08 or .38, positive and .34 or .07,
+            positive and .13 or .06, active and .28 or .16)
+        transaction.bg:Show()
+        transaction.selected:SetShown(active)
         local red = positive and .42 or (negative and .94 or .72)
         local green = positive and .88 or (negative and .4 or .65)
         local blue = positive and .51 or (negative and .35 or .52)
@@ -5365,7 +6623,7 @@ local function showEconomyRows()
         transaction.kind:SetTextColor(red, green, blue)
         transaction.amount:SetText((positive and "+" or (negative and "-" or "")) .. plainMoney(math.abs(delta)))
         transaction.amount:SetTextColor(red, green, blue)
-        transaction.zone:SetText(U.SafeText(entry.zone, C:LocalizeDisplay("Unbekannt")) ..
+        transaction.zone:SetText(reasonText(entry) ..
             (item.isGroup and (C.economyExpandedGroups[item.group.key] and C:LocalizeDisplay("  ·  zuklappen") or C:LocalizeDisplay("  ·  aufklappen")) or ""))
         transaction.zone:SetWidth(math.max(100, listWidth - 270))
         transaction.balance:SetText(C:LocalizeDisplay("Stand: ") .. U.Money(entry.balance))
@@ -5377,7 +6635,7 @@ local function showEconomyRows()
     economyHero.selectedIndex = selectedIndex
     local selected = selectedGroup and { delta = selectedGroup.delta,
         balance = selectedGroup.first.balance, time = selectedGroup.first.time,
-        zone = selectedGroup.zone } or entries[selectedIndex]
+        zone = selectedGroup.zone, reason = selectedGroup.reason } or entries[selectedIndex]
     local panel = economyHero.detailPanel
     if selected then
         panel:ClearAllPoints(); panel:SetPoint("TOPLEFT", 12 + listWidth, -222)
@@ -5385,9 +6643,13 @@ local function showEconomyRows()
         heroBackdrop(panel)
         local delta = tonumber(selected.delta) or 0
         local positive, negative = delta > 0, delta < 0
+        panel:SetBackdropColor(positive and .055 or .15, positive and .095 or .045,
+            positive and .055 or .035, .98)
         panel.caption:SetText((selectedGroup and C:LocalizeDisplay("SAMMELBUCHUNG  /  ") or C:LocalizeDisplay("GOLDBEWEGUNG  /  ")) ..
             string.format("%03d", selectedIndex))
-        panel.amount:SetText((positive and "+" or (negative and "-" or "")) .. plainMoney(math.abs(delta)))
+        panel.amount:SetText((positive and "+" or (negative and "-" or "")) ..
+            U.Money(math.abs(delta)))
+        panel.amount:SetWidth(width - listWidth - 50)
         panel.amount:SetTextColor(positive and .42 or (negative and .94 or .72),
             positive and .88 or (negative and .4 or .65), positive and .51 or (negative and .35 or .52))
         panel.seal:SetBackdropBorderColor(positive and .42 or (negative and .94 or .72),
@@ -5396,14 +6658,13 @@ local function showEconomyRows()
             (positive and C:LocalizeDisplay("EINNAHMEN") or (negative and C:LocalizeDisplay("AUSGABEN") or C:LocalizeDisplay("KORREKTUREN")))) or
             (positive and C:LocalizeDisplay("EINNAHME") or (negative and C:LocalizeDisplay("AUSGABE") or C:LocalizeDisplay("KORREKTUR"))))
         panel.when:SetText(date("%d.%m.%Y   %H:%M", selected.time or time()))
+        panel.reason:SetText(reasonText(selected))
+        panel.reason:SetWidth(width - listWidth - 55)
+        panel.reason:SetHeight(38)
         panel.zone:SetText(U.SafeText(selected.zone, C:LocalizeDisplay("Unbekannt")))
         panel.zone:SetWidth(width - listWidth - 55)
         panel.balance:SetText(U.Money(selected.balance))
         panel.before:SetText(U.Money((tonumber(selected.balance) or 0) - delta))
-        local dayNet = dailyNet[date("%d.%m.%Y", selected.time or time())] or 0
-        panel.day:SetText((dayNet > 0 and "+" or (dayNet < 0 and "-" or "")) .. plainMoney(math.abs(dayNet)))
-        panel.day:SetTextColor(dayNet > 0 and .42 or (dayNet < 0 and .93 or .72),
-            dayNet > 0 and .88 or (dayNet < 0 and .4 or .65), dayNet > 0 and .51 or (dayNet < 0 and .35 or .52))
         panel.seal:Hide()
         panel:Show()
     else panel:Hide() end
@@ -5468,7 +6729,7 @@ local function showStatsRows()
         statsHero.rule = statsHero:CreateTexture(nil, "ARTWORK")
         statsHero.rule:SetTexture(BACKGROUND); statsHero.rule:SetVertexColor(.7, .48, .15, .8)
         statsHero.rule:SetPoint("BOTTOMLEFT", 20, 37)
-        statsHero.rule:SetPoint("BOTTOMRIGHT", -20, 37); statsHero.rule:SetHeight(1)
+        statsHero.rule:SetPoint("BOTTOMRIGHT", -20, 37); statsHero.rule:SetHeight(C:RuleThickness())
     end
     statsHero.number:SetText(tostring(stats.memories))
     statsHero:SetWidth(width)
@@ -5505,7 +6766,7 @@ local function showStatsRows()
             heading.rule = heading:CreateTexture(nil, "ARTWORK")
             heading.rule:SetTexture(BACKGROUND)
             heading.rule:SetPoint("TOPLEFT", 10, -37)
-            heading.rule:SetPoint("TOPRIGHT", -10, -37); heading.rule:SetHeight(1)
+            heading.rule:SetPoint("TOPRIGHT", -10, -37); heading.rule:SetHeight(C:RuleThickness())
             heading.mark = heading:CreateTexture(nil, "ARTWORK")
             heading.mark:SetTexture(BACKGROUND)
             heading.mark:SetPoint("TOPLEFT", 9, -9); heading.mark:SetSize(3, 22)
@@ -5530,7 +6791,7 @@ local function showStatsRows()
                 card.accent = card:CreateTexture(nil, "ARTWORK")
                 card.accent:SetTexture(BACKGROUND)
                 card.accent:SetPoint("BOTTOMLEFT", 4, 2)
-                card.accent:SetPoint("BOTTOMRIGHT", -4, 2); card.accent:SetHeight(1)
+                card.accent:SetPoint("BOTTOMRIGHT", -4, 2); card.accent:SetHeight(C:RuleThickness())
                 card.value = card:CreateFontString(nil, "OVERLAY")
                 card.value:SetPoint("TOPLEFT", 15, -16); card.value:SetWidth(120)
                 card.value:SetJustifyH("LEFT"); setFont(card.value, 28, TEXT)
@@ -5580,7 +6841,7 @@ local function showStatsRows()
             end
             card.value:SetWidth(cardWidth - 27); card.label:SetWidth(cardWidth - 22)
             backdrop(card, .14, .092, .054, 0)
-            card:SetBackdropColor(.22, .145, .075, featured and .2 or 0)
+            card:SetBackdropColor(.09, .085, .075, featured and .2 or 0)
             card:SetBackdropBorderColor(0, 0, 0, 0)
             card.accent:SetVertexColor(color[1], color[2], color[3], featured and .65 or .32)
             setFont(card.value, featured and 42 or 27, TEXT)
@@ -5640,9 +6901,49 @@ local professionIcons = {
     ["Verzauberkunst"] = "Interface\\Icons\\Trade_Engraving",
 }
 
+function C:ShowRecordedRecipeTooltip(owner)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(owner, "ANCHOR_CURSOR")
+    GameTooltip:ClearLines()
+    local native = false
+    local recipeID = tonumber(owner.recipeID)
+    if recipeID and C_TradeSkillUI and GameTooltip.SetHyperlink then
+        for _, method in ipairs({ "GetRecipeLink", "GetRecipeItemLink" }) do
+            local getter = C_TradeSkillUI[method]
+            if getter then
+                local ok, link = pcall(getter, recipeID)
+                if ok and type(link) == "string" and link ~= "" then
+                    GameTooltip:ClearLines()
+                    local shown = pcall(GameTooltip.SetHyperlink, GameTooltip, link)
+                    if shown and GameTooltip:NumLines() > 0 then native = true; break end
+                end
+            end
+        end
+    end
+    if not native and recipeID and GameTooltip.SetSpellByID then
+        GameTooltip:ClearLines()
+        local shown = pcall(GameTooltip.SetSpellByID, GameTooltip, recipeID)
+        native = shown and GameTooltip:NumLines() > 0
+    end
+    if not native then
+        GameTooltip:ClearLines()
+        GameTooltip:AddLine(owner.recipeName or C:LocalizeDisplay("Rezept"), 1, .82, .1)
+    end
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine(C:LocalizeDisplay("Beruf: ") ..
+        C:LocalizeDisplay(owner.professionName or "Unbekannt"), 1, .82, .1)
+    GameTooltip:AddLine(C:LocalizeDisplay("Erstmals erfasst: ") ..
+        (owner.learnedAt or C:LocalizeDisplay("unbekannt")), .72, .65, .52)
+    C:ShowLocalizedTooltip()
+end
+
 local function showProfessionRows()
     body:Hide()
     local width = availableContentWidth()
+    if C.ShowProfessionBrowser then
+        C:ShowProfessionBrowser(scrollChild, width)
+        return
+    end
     local names, totalRecipes, latestRecipes = {}, 0, {}
     for name in pairs(C.char.professions or {}) do names[#names + 1] = name end
     local secondaryProfessions = { ["Erste Hilfe"] = true, ["Kochkunst"] = true, ["Angeln"] = true }
@@ -5689,7 +6990,7 @@ local function showProfessionRows()
         professionHero.divider = professionHero:CreateTexture(nil, "ARTWORK")
         professionHero.divider:SetTexture(BACKGROUND); professionHero.divider:SetVertexColor(.52, .36, .13, .7)
         professionHero.divider:SetPoint("TOP", professionHero, "TOP", 0, -14)
-        professionHero.divider:SetPoint("BOTTOM", professionHero, "BOTTOM", 0, 14); professionHero.divider:SetWidth(1)
+        professionHero.divider:SetPoint("BOTTOM", professionHero, "BOTTOM", 0, 14); professionHero.divider:SetWidth(C:RuleThickness())
         professionHero.selectedLabel = professionHero:CreateFontString(nil, "OVERLAY")
         professionHero.selectedLabel:SetPoint("TOPLEFT", professionHero, "TOP", 20, -15); setFont(professionHero.selectedLabel, 10, GOLD)
         professionHero.selectedTitle = professionHero:CreateFontString(nil, "OVERLAY")
@@ -5757,7 +7058,7 @@ local function showProfessionRows()
                 heading.rule = heading:CreateTexture(nil, "ARTWORK")
                 heading.rule:SetTexture(BACKGROUND); heading.rule:SetVertexColor(.55, .39, .13, .8)
                 heading.rule:SetPoint("BOTTOMLEFT", 8, 0)
-                heading.rule:SetPoint("BOTTOMRIGHT", -8, 0); heading.rule:SetHeight(1)
+                heading.rule:SetPoint("BOTTOMRIGHT", -8, 0); heading.rule:SetHeight(C:RuleThickness())
                 professionHeaders[headerUsed] = heading
             end
             heading:ClearAllPoints(); heading:SetPoint("TOPLEFT", 4, -offset)
@@ -5783,7 +7084,7 @@ local function showProfessionRows()
             card.hoverShade:SetAllPoints(card); card.hoverShade:SetVertexColor(1, .72, .22, .055); card.hoverShade:Hide()
             card.separator = card:CreateTexture(nil, "ARTWORK"); card.separator:SetTexture(BACKGROUND)
             card.separator:SetVertexColor(.48, .34, .16, .7)
-            card.separator:SetPoint("BOTTOMLEFT", 16, 0); card.separator:SetPoint("BOTTOMRIGHT", -16, 0); card.separator:SetHeight(1)
+            card.separator:SetPoint("BOTTOMLEFT", 16, 0); card.separator:SetPoint("BOTTOMRIGHT", -16, 0); card.separator:SetHeight(C:RuleThickness())
             card.selectedRule = card:CreateTexture(nil, "ARTWORK"); card.selectedRule:SetTexture(BACKGROUND)
             card.selectedRule:SetVertexColor(.95, .72, .27, .95)
             card.selectedRule:SetPoint("TOPLEFT", 4, -7); card.selectedRule:SetPoint("BOTTOMLEFT", 4, 7); card.selectedRule:SetWidth(2)
@@ -5859,10 +7160,14 @@ local function showProfessionRows()
     end
     for _, professionName in ipairs(recipeNames) do
         local recipes = {}
-        for _, recipe in pairs(C.char.recipes[professionName] or {}) do
-            recipes[#recipes + 1] = U.SafeText(recipe.name, "Rezept #" .. tostring(recipe.id or "?"))
+        for key, recipe in pairs(C.char.recipes[professionName] or {}) do
+            recipes[#recipes + 1] = {
+                name = U.SafeText(recipe.name, "Rezept #" .. tostring(recipe.id or key)),
+                id = tonumber(recipe.id) or tonumber(key), icon = recipe.icon,
+                learned = tonumber(recipe.firstSeen) or 0,
+            }
         end
-        table.sort(recipes)
+        table.sort(recipes, function(left, right) return left.name < right.name end)
         headerUsed = headerUsed + 1
         local heading = professionHeaders[headerUsed]
         if not heading then
@@ -5871,26 +7176,44 @@ local function showProfessionRows()
             heading.title = heading:CreateFontString(nil, "OVERLAY"); heading.title:SetPoint("LEFT", 8, 1); setFont(heading.title, 15, GOLD)
             heading.count = heading:CreateFontString(nil, "OVERLAY"); heading.count:SetPoint("RIGHT", -10, 1); setFont(heading.count, 10, MUTED)
             heading.rule = heading:CreateTexture(nil, "ARTWORK"); heading.rule:SetTexture(BACKGROUND); heading.rule:SetVertexColor(.55, .39, .13, .8)
-            heading.rule:SetPoint("BOTTOMLEFT", 8, 0); heading.rule:SetPoint("BOTTOMRIGHT", -8, 0); heading.rule:SetHeight(1)
+            heading.rule:SetPoint("BOTTOMLEFT", 8, 0); heading.rule:SetPoint("BOTTOMRIGHT", -8, 0); heading.rule:SetHeight(C:RuleThickness())
             professionHeaders[headerUsed] = heading
         end
         heading:ClearAllPoints(); heading:SetPoint("TOPLEFT", 4, -offset); heading:SetWidth(width)
         heading.title:SetText(C:LocalizeDisplay(professionName)); heading.count:SetText(#recipes .. C:LocalizeDisplay(" REZEPTE")); heading:Show(); offset = offset + 45
-        for index, recipeName in ipairs(recipes) do
+        for index, entry in ipairs(recipes) do
             recipeUsed = recipeUsed + 1
             local recipe = recipeCards[recipeUsed]
             if not recipe then
-                recipe = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate"); recipe:SetHeight(38)
+                recipe = CreateFrame("Button", nil, scrollChild, "BackdropTemplate"); recipe:SetHeight(38)
                 openSurface(recipe)
                 recipe.icon = recipe:CreateTexture(nil, "ARTWORK"); recipe.icon:SetTexture("Interface\\Icons\\INV_Scroll_03")
                 recipe.icon:SetSize(24, 24); recipe.icon:SetPoint("LEFT", 9, 0); recipe.icon:SetAlpha(.72)
                 recipe.text = recipe:CreateFontString(nil, "OVERLAY"); recipe.text:SetPoint("LEFT", 42, 0); recipe.text:SetPoint("RIGHT", -8, 0)
                 recipe.text:SetJustifyH("LEFT"); setFont(recipe.text, 11, TEXT)
+                recipe.hover = recipe:CreateTexture(nil, "BACKGROUND")
+                recipe.hover:SetTexture(BACKGROUND)
+                recipe.hover:SetVertexColor(.8, .5, .15, .09)
+                recipe.hover:SetAllPoints(recipe)
+                recipe.hover:Hide()
+                recipe:SetScript("OnEnter", function(self)
+                    self.hover:Show()
+                    C:ShowRecordedRecipeTooltip(self)
+                end)
+                recipe:SetScript("OnLeave", function(self)
+                    self.hover:Hide()
+                    GameTooltip:Hide()
+                end)
                 recipeCards[recipeUsed] = recipe
             end
             local column, row = (index - 1) % 2, math.floor((index - 1) / 2)
             recipe:ClearAllPoints(); recipe:SetPoint("TOPLEFT", 4 + column * (recipeWidth + gap), -(offset + row * 45)); recipe:SetWidth(recipeWidth)
-            recipe.text:SetText(recipeName); recipe:Show()
+            recipe.icon:SetTexture(entry.icon or "Interface\\Icons\\INV_Scroll_03")
+            recipe.text:SetText(entry.name)
+            recipe.recipeID, recipe.recipeName, recipe.professionName = entry.id, entry.name, professionName
+            recipe.learnedAt = entry.learned > 0 and U.Date(entry.learned) or C:LocalizeDisplay("unbekannt")
+            recipe.hover:Hide()
+            recipe:Show()
         end
         offset = offset + math.ceil(#recipes / 2) * 45 + 10
     end
@@ -5941,7 +7264,7 @@ local function showProfessionRows()
         latestRecipeHeader.subtitle:SetText(C:LocalizeDisplay("BERUFSÜBERGREIFEND"))
         latestRecipeHeader.rule = latestRecipeHeader:CreateTexture(nil, "ARTWORK")
         latestRecipeHeader.rule:SetTexture(BACKGROUND); latestRecipeHeader.rule:SetVertexColor(1, .55, .08, .9)
-        latestRecipeHeader.rule:SetPoint("BOTTOMLEFT", 8, 0); latestRecipeHeader.rule:SetPoint("BOTTOMRIGHT", -8, 0); latestRecipeHeader.rule:SetHeight(1)
+        latestRecipeHeader.rule:SetPoint("BOTTOMLEFT", 8, 0); latestRecipeHeader.rule:SetPoint("BOTTOMRIGHT", -8, 0); latestRecipeHeader.rule:SetHeight(C:RuleThickness())
     end
     latestRecipeHeader:ClearAllPoints(); latestRecipeHeader:SetPoint("TOPLEFT", 4, -offset)
     latestRecipeHeader.title:SetText(C:LocalizeDisplay("Zuletzt gelernt"))
@@ -5965,28 +7288,7 @@ local function showProfessionRows()
             card.meta:SetJustifyH("LEFT"); setFont(card.meta, 10, MUTED)
             card:SetScript("OnEnter", function(self)
                 self:SetBackdropBorderColor(1, .72, .18, 1)
-                GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-                GameTooltip:ClearLines()
-                local native = false
-                if self.recipeID and C_TradeSkillUI and C_TradeSkillUI.GetRecipeItemLink and GameTooltip.SetHyperlink then
-                    local ok, link = pcall(C_TradeSkillUI.GetRecipeItemLink, self.recipeID)
-                    if ok and type(link) == "string" and link ~= "" then
-                        local shown = pcall(GameTooltip.SetHyperlink, GameTooltip, link)
-                        native = shown and GameTooltip:NumLines() > 0
-                    end
-                end
-                if not native and self.recipeID and GameTooltip.SetSpellByID then
-                    local shown = pcall(GameTooltip.SetSpellByID, GameTooltip, self.recipeID)
-                    native = shown and GameTooltip:NumLines() > 0
-                end
-                if not native then
-                    GameTooltip:ClearLines()
-                    GameTooltip:AddLine(self.recipeName or "Rezept", 1, .82, .1)
-                end
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine(C:LocalizeDisplay("Beruf: ") .. C:LocalizeDisplay(self.professionName or "Unbekannt"), 1, .82, .1)
-                GameTooltip:AddLine(C:LocalizeDisplay("Erstmals erfasst: ") .. (self.learnedAt or "unbekannt"), .72, .65, .52)
-                C:ShowLocalizedTooltip()
+                C:ShowRecordedRecipeTooltip(self)
             end)
             card:SetScript("OnLeave", function(self)
                 self:SetBackdropBorderColor(.59, .44, .17, 1)
@@ -6075,6 +7377,28 @@ renderAltDetail = function(key)
 end
 
 showAltDetail = function(key)
+    local equipmentSlotNames = {
+        "Kopf", "Hals", "Schultern", "Hemd", "Brust", "Taille", "Beine", "Füße", "Handgelenke",
+        "Hände", "Ring 1", "Ring 2", "Schmuck 1", "Schmuck 2", "Rücken", "Waffenhand",
+        "Schildhand", "Fernkampf", "Wappenrock",
+    }
+    local function equipmentItemName(item)
+        if not item or not item.id then return "Nicht belegt" end
+        if type(item.name) == "string" and item.name ~= "" then return item.name end
+        if C.KnownItemName then
+            local known=C:KnownItemName(item.id)
+            if known then return known end
+        end
+        if C_Item and C_Item.GetItemNameByID then
+            local ok, name = pcall(C_Item.GetItemNameByID, item.id)
+            if ok and type(name) == "string" and name ~= "" then return name end
+        end
+        if GetItemInfo then
+            local ok, name = pcall(GetItemInfo, item.link or item.id)
+            if ok and type(name) == "string" and name ~= "" then return name end
+        end
+        return "Gegenstand #" .. tostring(item.id)
+    end
     local character = C.db.characters[key]
     if type(character) ~= "table" then return end
     local journal = C.db.characterData and C.db.characterData[key]
@@ -6090,22 +7414,22 @@ showAltDetail = function(key)
     body:Hide()
     if not detailHero then
         detailHero = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
-        detailHero:SetSize(630, 248); detailHero:SetPoint("TOPLEFT", 4, 0)
+        detailHero:SetSize(630, 194); detailHero:SetPoint("TOPLEFT", 4, 0)
         heroBackdrop(detailHero)
         detailHero.band = detailHero:CreateTexture(nil, "BACKGROUND")
         detailHero.band:SetTexture(BACKGROUND)
         detailHero.band:SetPoint("TOPLEFT", 4, -4); detailHero.band:SetPoint("TOPRIGHT", -4, -4)
-        detailHero.band:SetHeight(94)
+        detailHero.band:SetHeight(80)
         detailHero.accent = detailHero:CreateTexture(nil, "ARTWORK"); detailHero.accent:Hide()
         detailHero.accent:SetTexture(BACKGROUND)
         detailHero.accent:SetPoint("TOPLEFT", 4, -4)
         detailHero.accent:SetPoint("BOTTOMLEFT", 4, 4); detailHero.accent:SetWidth(4)
         detailHero.portrait = CreateFrame("Frame", nil, detailHero, "BackdropTemplate")
-        detailHero.portrait:SetSize(188, 216)
+        detailHero.portrait:SetSize(150, 164)
         detailHero.portrait:SetPoint("TOPRIGHT", -15, -16)
         backdrop(detailHero.portrait, .045, .031, .021, 1)
         detailHero.portrait.sigil = detailHero.portrait:CreateTexture(nil, "ARTWORK")
-        detailHero.portrait.sigil:SetSize(100, 100)
+        detailHero.portrait.sigil:SetSize(80, 80)
         detailHero.portrait.sigil:SetPoint("CENTER", 0, 8)
         detailHero.portrait.caption = detailHero.portrait:CreateFontString(nil, "OVERLAY")
         detailHero.portrait.caption:SetPoint("BOTTOM", 0, 9)
@@ -6122,20 +7446,20 @@ showAltDetail = function(key)
             setFont(fs, size, color); detailHero[name] = fs
         end
         heroText("chapter", 19, 13, 390, 10, GOLD)
-        heroText("name", 19, 36, 390, 24, GOLD)
-        heroText("identity", 20, 70, 430, 11, TEXT)
+        heroText("name", 19, 30, 390, 22, GOLD)
+        heroText("identity", 20, 61, 430, 11, TEXT)
         heroText("realm", 450, 15, 160, 10, MUTED)
         detailHero.realm:SetJustifyH("RIGHT")
         detailHero.rule = detailHero:CreateTexture(nil, "ARTWORK")
         detailHero.rule:SetTexture(BACKGROUND)
         detailHero.rule:SetVertexColor(.57, .39, .16, .8)
-        detailHero.rule:SetPoint("TOPLEFT", 19, -99)
-        detailHero.rule:SetHeight(1)
-        heroText("guild", 20, 113, 390, 12, TEXT)
-        heroText("location", 20, 137, 390, 11, MUTED)
-        heroText("seen", 20, 159, 390, 10, MUTED)
-        heroText("spec", 20, 185, 390, 12, GOLD)
-        heroText("money", 20, 213, 390, 12, GOLD)
+        detailHero.rule:SetPoint("TOPLEFT", 19, -83)
+        detailHero.rule:SetHeight(C:RuleThickness())
+        heroText("guild", 20, 96, 390, 11, TEXT)
+        heroText("location", 20, 115, 390, 10, MUTED)
+        heroText("seen", 20, 134, 390, 10, MUTED)
+        heroText("spec", 20, 153, 390, 11, GOLD)
+        heroText("money", 20, 173, 390, 11, GOLD)
         heroText("branches", 20, 235, 390, 11, TEXT)
         detailHero.bars = {}
         for index = 1, 3 do
@@ -6144,18 +7468,18 @@ showAltDetail = function(key)
             track:SetPoint("TOPLEFT", 16 + (index - 1) * 145, -201)
             track:SetVertexColor(.27, .22, .15, .95)
             local fill = detailHero:CreateTexture(nil, "OVERLAY")
-            fill:SetTexture(BACKGROUND); fill:SetSize(1, 7)
+            fill:SetTexture(BACKGROUND); fill:SetSize(C:RuleThickness(), 7)
             fill:SetPoint("TOPLEFT", track, "TOPLEFT", 0, 0)
             detailHero.bars[index] = { track = track, fill = fill }
         end
     end
-    detailHero.band:SetVertexColor(cr, cg, cb, .18)
+    detailHero.band:SetVertexColor(.09, .085, .075, .10)
     detailHero:SetWidth(width)
     detailHero.accent:SetVertexColor(cr, cg, cb, 1)
-    detailHero.rule:SetWidth(width - 225)
+    detailHero.rule:SetWidth(width - 187)
     detailHero.portrait:ClearAllPoints()
     detailHero.portrait:SetPoint("TOPRIGHT", -15, -16)
-    detailHero.portrait:SetBackdropColor(.045, .031, .021, 1)
+    detailHero.portrait:SetBackdropColor(.035, .034, .032, 1)
     detailHero.portrait:SetBackdropBorderColor(.57, .39, .16, 1)
     detailHero.portrait.sigil:SetTexture("Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes")
     local portraitCoords = CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[character.class]
@@ -6179,9 +7503,9 @@ showAltDetail = function(key)
     detailHero.chapter:SetText(C:LocalizeDisplay("CHRONICLE  /  CHARAKTERPORTRÄT"))
     detailHero.name:SetText(C:CharacterDisplayName(character, key) ..
         (key == C.characterKey and C:LocalizeDisplay("  |cffffd119(aktuell)|r") or ""))
-    detailHero.name:SetWidth(width - 240)
+    detailHero.name:SetWidth(width - 195)
     detailHero.name:SetTextColor(unpack(GOLD))
-    detailHero.identity:SetWidth(width - 240)
+    detailHero.identity:SetWidth(width - 195)
     detailHero.identity:SetText(C:LocalizeDisplay("Stufe ") .. tostring(character.level or 0) .. " " ..
         C:LocalizeDisplay(U.SafeText(character.raceName, "")) .. " " ..
         C:LocalizeDisplay(U.SafeText(character.className, character.class)) ..
@@ -6191,13 +7515,13 @@ showAltDetail = function(key)
     detailHero.guild:SetText(C:LocalizeDisplay("Gilde: ") .. U.SafeText(character.guild, C:LocalizeDisplay("nicht erfasst")) ..
         (character.guildRank and character.guildRank ~= "" and "  |  " .. character.guildRank or ""))
     detailHero.location:SetText(C:LocalizeDisplay("Ort: ") .. U.SafeText(character.zone))
-    detailHero.money:ClearAllPoints(); detailHero.money:SetPoint("TOPLEFT", 20, -213)
-    detailHero.money:SetWidth(width - 240)
+    detailHero.money:ClearAllPoints(); detailHero.money:SetPoint("TOPLEFT", 20, -173)
+    detailHero.money:SetWidth(width - 195)
     detailHero.money:SetJustifyH("LEFT")
     detailHero.money:SetText(C:LocalizeDisplay("Gold: ") .. U.Money(character.money))
-    detailHero.location:SetWidth(width - 240)
-    detailHero.guild:SetWidth(width - 240); detailHero.seen:SetWidth(width - 240)
-    detailHero.spec:SetWidth(width - 240); detailHero.branches:SetWidth(width - 240)
+    detailHero.location:SetWidth(width - 195)
+    detailHero.guild:SetWidth(width - 195); detailHero.seen:SetWidth(width - 195)
+    detailHero.spec:SetWidth(width - 195); detailHero.branches:SetWidth(width - 195)
     detailHero.seen:SetText(C:LocalizeDisplay("Zuletzt gesehen: ") ..
         (type(character.lastSeen) == "number" and character.lastSeen > 0 and U.Date(character.lastSeen) or C:LocalizeDisplay("nicht erfasst")))
     detailHero.spec:SetText(C:LocalizeDisplay("Skillung: ") .. talentLabel(character))
@@ -6218,9 +7542,11 @@ showAltDetail = function(key)
         end
     end
     detailHero:Show()
+    if detailHero.equipmentStage then detailHero.equipmentStage:Hide() end
+    if detailHero.statPanel then detailHero.statPanel:Hide() end
 
     local tabs = {
-        { key = "profile", label = "Profil" }, { key = "quests", label = "Quests" },
+        { key = "profile", label = "Profil" }, { key = "equipment", label = "Ausrüstung" },
         { key = "collection", label = "Sammlung" }, { key = "chronicle", label = "Chronik" },
     }
     for index, tab in ipairs(tabs) do
@@ -6229,7 +7555,7 @@ showAltDetail = function(key)
             button = CreateFrame("Button", nil, scrollChild, "BackdropTemplate")
             C:StyleChronicleButton(button)
             button:SetSize(145, 29)
-            button:SetPoint("TOPLEFT", 4 + (index - 1) * 157, -260)
+            button:SetPoint("TOPLEFT", 4 + (index - 1) * 157, -207)
             button.label = button:CreateFontString(nil, "OVERLAY")
             button.label:SetPoint("CENTER"); setFont(button.label, 11, TEXT)
             button:SetScript("OnClick", function(self)
@@ -6239,7 +7565,7 @@ showAltDetail = function(key)
             detailTabs[index] = button
         end
         button.tabKey = tab.key
-        button:ClearAllPoints(); button:SetPoint("TOPLEFT", 4 + (index - 1) * (tabWidth + 12), -260)
+        button:ClearAllPoints(); button:SetPoint("TOPLEFT", 4 + (index - 1) * (tabWidth + 12), -207)
         button:SetWidth(tabWidth)
         button.label:SetText(C:LocalizeDisplay(tab.label))
         local active = selectedDetailTab == tab.key
@@ -6248,7 +7574,7 @@ showAltDetail = function(key)
         button:Show()
     end
 
-    local offset, headerUsed, cardUsed, memoryUsed = 303, 0, 0, 0
+    local offset, headerUsed, cardUsed, memoryUsed = 248, 0, 0, 0
     local function section(title, extra)
         headerUsed = headerUsed + 1
         local frame = detailHeaders[headerUsed]
@@ -6263,7 +7589,7 @@ showAltDetail = function(key)
             frame.rule = frame:CreateTexture(nil, "ARTWORK")
             frame.rule:SetTexture(BACKGROUND); frame.rule:SetVertexColor(.45, .32, .12, .9)
             frame.rule:SetPoint("BOTTOMLEFT", 8, 3)
-            frame.rule:SetPoint("BOTTOMRIGHT", -8, 3); frame.rule:SetHeight(1)
+            frame.rule:SetPoint("BOTTOMRIGHT", -8, 3); frame.rule:SetHeight(C:RuleThickness())
             detailHeaders[headerUsed] = frame
         end
         frame:ClearAllPoints(); frame:SetPoint("TOPLEFT", 4, -offset)
@@ -6279,7 +7605,7 @@ showAltDetail = function(key)
             frame.accent = frame:CreateTexture(nil, "ARTWORK"); frame.accent:Hide()
             frame.accent:SetTexture(BACKGROUND)
             frame.accent:SetPoint("BOTTOMLEFT", 9, 1)
-            frame.accent:SetPoint("BOTTOMRIGHT", -9, 1); frame.accent:SetHeight(1)
+            frame.accent:SetPoint("BOTTOMRIGHT", -9, 1); frame.accent:SetHeight(C:RuleThickness())
             frame.label = frame:CreateFontString(nil, "OVERLAY")
             frame.label:SetPoint("TOPLEFT", 12, -10)
             frame.label:SetJustifyH("LEFT"); frame.label:SetJustifyV("TOP")
@@ -6292,15 +7618,21 @@ showAltDetail = function(key)
         frame.label:SetPoint("TOPLEFT", 12, -10)
         frame.label:SetWidth(width - 24)
         frame.label:SetText(C:LocalizeDisplay(text))
+        frame:EnableMouse(false)
+        frame:SetScript("OnEnter", nil)
+        frame:SetScript("OnLeave", nil)
         if frame.caption then frame.caption:Hide() end
+        if frame.value then frame.value:Hide() end
         if frame.rank then frame.rank:Hide() end
         if frame.badge then frame.badge:Hide() end
         if frame.progress then frame.progress:Hide() end
+        if frame.icon then frame.icon:Hide() end
+        if frame.rankPlate then frame.rankPlate:Hide() end
         setFont(frame.label, 12, TEXT)
         frame.label:SetTextColor(unpack(TEXT))
-        frame.accent:SetVertexColor(.38, .27, .12, .8)
-        frame.accent:Show()
-        frame:SetBackdrop(nil)
+        frame.accent:Hide()
+        backdrop(frame, .095, .058, .03, .94)
+        frame:SetBackdropBorderColor(.42, .29, .10, .8)
         frame:Show()
         return frame
     end
@@ -6319,8 +7651,9 @@ showAltDetail = function(key)
         table.sort(professions, function(a, b) return a.name < b.name end)
     end
     if selectedDetailTab == "profile" then
-        section("Nachname", "Für diesen Charakter eintragen")
         if not detailHero.surnameEditor then
+            detailHero.surnameLabel = scrollChild:CreateFontString(nil, "OVERLAY")
+            setFont(detailHero.surnameLabel, 13, GOLD)
             detailHero.surnameEditor = CreateFrame("EditBox", nil, scrollChild, "InputBoxTemplate")
             detailHero.surnameEditor:SetSize(250, 27)
             detailHero.surnameEditor:SetAutoFocus(false)
@@ -6344,97 +7677,455 @@ showAltDetail = function(key)
             detailHero.surnameEditor:SetScript("OnEnterPressed", saveSurname)
             detailHero.surnameSave:SetScript("OnClick", saveSurname)
         end
+        detailHero.surnameLabel:ClearAllPoints()
+        detailHero.surnameLabel:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 12, -offset - 7)
+        detailHero.surnameLabel:SetText(C:LocalizeDisplay("Nachname"))
+        detailHero.surnameLabel:Show()
         detailHero.surnameEditor.characterKey = key
         detailHero.surnameEditor:ClearAllPoints()
-        detailHero.surnameEditor:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 16, -offset - 1)
+        detailHero.surnameEditor:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 132, -offset - 2)
         detailHero.surnameEditor:SetText(U.Trim(character.surname))
         detailHero.surnameEditor:Show()
         detailHero.surnameSave:ClearAllPoints()
         detailHero.surnameSave:SetPoint("LEFT", detailHero.surnameEditor, "RIGHT", 12, 0)
         detailHero.surnameSave:SetText(C:LocalizeDisplay("Speichern"))
         detailHero.surnameSave:Show()
-        offset = offset + 45
+        offset = offset + 44
         section("Dein Charakter", "Auf einen Blick")
         local numbers = {
-            { "AKTIVE QUESTS", #questRows }, { "OFFENE ZIELE", #goals },
-            { "NOTIZEN", journal and #(journal.notes or {}) or 0 },
+            { "AKTIVE QUESTS", #questRows, "Interface\\Icons\\INV_Misc_Note_01" },
+            { "OFFENE ZIELE", #goals, "Interface\\Icons\\Ability_Hunter_MarkedForDeath" },
+            { "NOTIZEN", journal and #(journal.notes or {}) or 0,
+                "Interface\\AddOns\\Chronicle\\NotesMedallion" },
         }
         for index, stat in ipairs(numbers) do
-            local metric = card(tostring(stat[2]),
-                4 + (index - 1) * (threeWidth + 11), offset, threeWidth, 66)
+            local metric = card(C:LocalizeDisplay(stat[1]),
+                4 + (index - 1) * (threeWidth + 11), offset, threeWidth, 52)
+            if not metric.icon then metric.icon = metric:CreateTexture(nil, "ARTWORK") end
+            metric.icon:ClearAllPoints()
+            metric.icon:SetPoint("LEFT", 10, 0)
+            metric.icon:SetSize(30, 30)
+            metric.icon:SetTexCoord(0, 1, 0, 1)
+            metric.icon:SetTexture(stat[3]); metric.icon:Show()
             metric.label:ClearAllPoints()
-            metric.label:SetPoint("TOPLEFT", 12, -5)
-            setFont(metric.label, 25, GOLD)
-            if not metric.caption then
-                metric.caption = metric:CreateFontString(nil, "OVERLAY")
-                metric.caption:SetPoint("TOPLEFT", 13, -42)
-                setFont(metric.caption, 10, MUTED)
-            end
-            metric.caption:SetText(C:LocalizeDisplay(stat[1])); metric.caption:Show()
+            metric.label:SetPoint("LEFT", 50, 0)
+            metric.label:SetWidth(threeWidth - 128)
+            setFont(metric.label, 11, TEXT)
+            if not metric.value then metric.value = metric:CreateFontString(nil, "OVERLAY") end
+            metric.value:ClearAllPoints()
+            metric.value:SetPoint("RIGHT", -14, 0)
+            metric.value:SetWidth(64)
+            metric.value:SetJustifyH("RIGHT")
+            setFont(metric.value, 22, GOLD)
+            metric.value:SetText(tostring(stat[2])); metric.value:Show()
         end
-        offset = offset + 78
+        offset = offset + 64
         section("Erlernte Talente", talent and talent.learned and #talent.learned .. C:LocalizeDisplay(" erfasst") or "")
         local learned = talent and type(talent.learned) == "table" and talent.learned or {}
         if #learned == 0 then
             card("Noch keine Talente erfasst.", 4, offset, width, 42)
             offset = offset + 54
         else
+            local talentColumns = width >= 850 and 3 or 2
+            local talentWidth = talentColumns == 3 and threeWidth or twoWidth
+            local talentGap = talentColumns == 3 and 11 or 10
             for index, row in ipairs(learned) do
                 local talentRow = card(U.SafeText(row.name),
-                    4 + ((index - 1) % 2) * (twoWidth + 10), offset + math.floor((index - 1) / 2) * 50,
-                    twoWidth, 43)
-                talentRow.label:ClearAllPoints()
-                talentRow.label:SetPoint("TOPLEFT", 12, -11)
-                talentRow.label:SetWidth(twoWidth - 90)
-                if not talentRow.rank then
-                    talentRow.rank = talentRow:CreateFontString(nil, "OVERLAY")
-                    talentRow.rank:SetPoint("TOPRIGHT", -12, -11)
-                    talentRow.rank:SetJustifyH("RIGHT")
-                    setFont(talentRow.rank, 11, GOLD)
+                    4 + ((index - 1) % talentColumns) * (talentWidth + talentGap),
+                    offset + math.floor((index - 1) / talentColumns) * 72, talentWidth, 66)
+                backdrop(talentRow, .11, .075, .04, .84)
+                talentRow:SetBackdropBorderColor(.37, .27, .12, .55)
+                talentRow.accent:Hide()
+                if not talentRow.icon then
+                    talentRow.icon = talentRow:CreateTexture(nil, "ARTWORK")
                 end
-                talentRow.rank:SetText(C:LocalizeDisplay("RANG ") .. tostring(row.rank or 1))
-                talentRow.rank:Show()
+                local spellIcon = row.icon
+                if not spellIcon then
+                    local getTexture = C_Spell and C_Spell.GetSpellTexture or GetSpellTexture
+                    if type(getTexture) == "function" then
+                        local ok, value = pcall(getTexture, row.spellID or row.name)
+                        if ok then spellIcon = value end
+                    end
+                end
+                if not spellIcon and type(GetSpellInfo) == "function" then
+                    local ok, _, _, icon = pcall(GetSpellInfo, row.spellID or row.name)
+                    if ok then spellIcon = icon end
+                end
+                talentRow.icon:ClearAllPoints()
+                talentRow.icon:SetPoint("TOPLEFT", 6, -6)
+                talentRow.icon:SetSize(54, 54)
+                talentRow.icon:SetTexture(spellIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
+                talentRow.icon:SetTexCoord(.08, .92, .08, .92)
+                talentRow.icon:Show()
+                talentRow.label:ClearAllPoints()
+                talentRow.label:SetPoint("TOPLEFT", 72, -10)
+                talentRow.label:SetWidth(talentWidth - 84)
+                setFont(talentRow.label, 14, TEXT)
+                local branchName
+                if talent and type(talent.treeCuts) == "table" and type(talent.branches) == "table" and
+                    tonumber(talent.treeCuts[1]) and tonumber(talent.treeCuts[2]) and tonumber(row.posX) then
+                    local x = tonumber(row.posX)
+                    local branchIndex = x <= talent.treeCuts[1] and 1 or
+                        (x <= talent.treeCuts[2] and 2 or 3)
+                    branchName = talent.branches[branchIndex] and talent.branches[branchIndex].name
+                end
+                if not talentRow.caption then
+                    talentRow.caption = talentRow:CreateFontString(nil, "OVERLAY")
+                    setFont(talentRow.caption, 10, MUTED)
+                end
+                talentRow.caption:ClearAllPoints()
+                talentRow.caption:SetPoint("TOPLEFT", 72, -37)
+                talentRow.caption:SetWidth(talentWidth - 84)
+                talentRow.caption:SetJustifyH("LEFT")
+                talentRow.caption:SetText(branchName and C:LocalizeDisplay(branchName) or
+                    C:LocalizeDisplay("Erlerntes Talent"))
+                talentRow.caption:Show()
+                if not talentRow.badge then
+                    talentRow.badge = talentRow:CreateFontString(nil, "OVERLAY")
+                    setFont(talentRow.badge, 10, GOLD)
+                end
+                talentRow.badge:ClearAllPoints()
+                talentRow.badge:SetPoint("TOPLEFT", 72, -51)
+                talentRow.badge:SetText(C:LocalizeDisplay("RANG ") .. tostring(row.rank or 1))
+                talentRow.badge:Show()
             end
-            offset = offset + math.ceil(#learned / 2) * 50 + 8
+            offset = offset + math.ceil(#learned / talentColumns) * 72 + 7
         end
         section("Letzte Erinnerung")
-        local memory = journal and journal.events and journal.events[1]
-        card(memory and ("|cffffd119" .. U.Date(memory.time, true) .. "|r  " .. C:LocalizeEventText(U.SafeText(memory.text))) or
-            "Noch keine Erinnerung erfasst.", 4, offset, width, 52)
-        offset = offset + 64
-    elseif selectedDetailTab == "quests" then
-        section("Aktive Quests", #questRows .. C:LocalizeDisplay(" im Questlog"))
-        if #questRows == 0 then
-            card("Keine aktiven Quests erfasst.", 4, offset, width, 43)
-            offset = offset + 53
-        else
-            for index, quest in ipairs(questRows) do
-                local questRow = card(U.SafeText(quest.title, "Quest #" .. tostring(quest.id or "?")),
-                    4 + ((index - 1) % 2) * (twoWidth + 10),
-                    offset + math.floor((index - 1) / 2) * 53, twoWidth, 46)
-                if not questRow.badge then
-                    questRow.badge = questRow:CreateFontString(nil, "OVERLAY")
-                    questRow.badge:SetPoint("TOPLEFT", 12, -10)
-                    setFont(questRow.badge, 16, GOLD)
+        local events = journal and journal.events or {}
+        local memory = events[1]
+        if memory then
+            local featured = card(C:LocalizeEventText(U.SafeText(memory.text)), 4, offset, width, 78)
+            backdrop(featured, .13, .09, .045, .94)
+            featured:SetBackdropBorderColor(.48, .34, .14, .7)
+            featured.accent:SetVertexColor(.83, .58, .18, .9)
+            local category = timelineKinds[memory.kind] or
+                { "Erinnerung", "other", "Interface\\Icons\\INV_Misc_Book_09", GOLD }
+            if not featured.icon then
+                featured.icon = featured:CreateTexture(nil, "ARTWORK")
+            end
+            featured.icon:ClearAllPoints()
+            featured.icon:SetSize(40, 40)
+            featured.icon:SetPoint("TOPLEFT", 15, -19)
+            featured.icon:SetTexCoord(0, 1, 0, 1)
+            featured.icon:SetTexture(category[3]); featured.icon:Show()
+            if not featured.badge then
+                featured.badge = featured:CreateFontString(nil, "OVERLAY")
+                setFont(featured.badge, 10, GOLD)
+            end
+            featured.badge:ClearAllPoints()
+            featured.badge:SetPoint("TOPLEFT", 68, -12)
+            featured.badge:SetText(string.upper(C:LocalizeDisplay(category[1]))); featured.badge:Show()
+            if not featured.caption then
+                featured.caption = featured:CreateFontString(nil, "OVERLAY")
+                setFont(featured.caption, 10, MUTED)
+            end
+            featured.caption:ClearAllPoints()
+            featured.caption:SetPoint("TOPRIGHT", -14, -12)
+            featured.caption:SetText(U.Date(memory.time, true)); featured.caption:Show()
+            featured.label:ClearAllPoints()
+            featured.label:SetPoint("TOPLEFT", 68, -35)
+            featured.label:SetWidth(width - 85)
+            setFont(featured.label, 14, TEXT)
+            offset = offset + 90
+            local milestones = {}
+            local milestoneKinds = { boss = true, dungeon = true, rare = true, level = true,
+                zone = true, death = true }
+            for index = 2, math.min(#events, 150) do
+                local event = events[index]
+                if milestoneKinds[event.kind] or (event.kind == "quest" and
+                    type(event.text) == "string" and event.text:match("^Quest abgeschlossen:")) then
+                    milestones[#milestones + 1] = event
+                    if #milestones == 2 then break end
                 end
-                questRow.badge:SetText(quest.level and tostring(quest.level) or "—")
-                questRow.badge:Show()
-                questRow.label:ClearAllPoints()
-                questRow.label:SetPoint("TOPLEFT", 52, -13)
-                questRow.label:SetWidth(twoWidth - 68)
             end
-            offset = offset + math.ceil(#questRows / 2) * 53 + 8
-        end
-        section("Offene Ziele", #goals .. C:LocalizeDisplay(" geplant"))
-        if #goals == 0 then
-            card("Noch keine offenen Ziele.", 4, offset, width, 43)
-            offset = offset + 53
+            if #milestones > 0 then
+                section("Weitere Meilensteine")
+                for index, event in ipairs(milestones) do
+                    local milestone = card(C:LocalizeEventText(U.SafeText(event.text)),
+                        4 + (index - 1) * (twoWidth + 10), offset, twoWidth, 70)
+                    local kind = timelineKinds[event.kind] or timelineKinds.quest
+                    if not milestone.icon then
+                        milestone.icon = milestone:CreateTexture(nil, "ARTWORK")
+                    end
+                    milestone.icon:ClearAllPoints()
+                    milestone.icon:SetPoint("TOPLEFT", 8, -10)
+                    milestone.icon:SetSize(50, 50)
+                    milestone.icon:SetTexCoord(.08, .92, .08, .92)
+                    milestone.icon:SetTexture(kind[3]); milestone.icon:Show()
+                    if not milestone.badge then
+                        milestone.badge = milestone:CreateFontString(nil, "OVERLAY")
+                        setFont(milestone.badge, 10, GOLD)
+                    end
+                    milestone.badge:ClearAllPoints()
+                    milestone.badge:SetPoint("TOPLEFT", 70, -10)
+                    milestone.badge:SetText(string.upper(C:LocalizeDisplay(kind[1]))); milestone.badge:Show()
+                    if not milestone.caption then
+                        milestone.caption = milestone:CreateFontString(nil, "OVERLAY")
+                        setFont(milestone.caption, 10, MUTED)
+                    end
+                    milestone.caption:ClearAllPoints()
+                    milestone.caption:SetPoint("TOPRIGHT", -12, -8)
+                    milestone.caption:SetText(U.Date(event.time, true)); milestone.caption:Show()
+                    milestone.label:ClearAllPoints()
+                    milestone.label:SetPoint("TOPLEFT", 70, -34)
+                    milestone.label:SetWidth(twoWidth - 82)
+                    setFont(milestone.label, 13, TEXT)
+                end
+                offset = offset + 82
+            end
         else
-            for index, goal in ipairs(goals) do
-                card("|cffffd119[ ]|r  " .. U.SafeText(goal.text), 4,
-                    offset + (index - 1) * 53, width, 46)
+            card("Noch keine Erinnerung erfasst.", 4, offset, width, 52)
+            offset = offset + 64
+        end
+    elseif selectedDetailTab == "equipment" then
+        local snapshot = type(character.equipment) == "table" and character.equipment or nil
+        local slots = snapshot and type(snapshot.slots) == "table" and snapshot.slots or {}
+        local equipped = 0
+        for _, item in pairs(slots) do if type(item) == "table" and item.id then equipped = equipped + 1 end end
+        section("Angelegte Ausrüstung", snapshot and
+            (equipped .. " Plätze  ·  zuletzt erfasst " .. U.Date(snapshot.updated or character.lastSeen, true)) or
+            "Noch kein Ausrüstungsstand erfasst")
+        if not snapshot then
+            card("Dieser Charakter muss einmal mit der aktuellen Chronicle-Version eingeloggt werden.",
+                4, offset, width, 54)
+            offset = offset + 66
+        else
+            local statLabels = {
+                RESISTANCE0_NAME = "Rüstung", ITEM_MOD_STRENGTH_SHORT = "Stärke",
+                ITEM_MOD_AGILITY_SHORT = "Beweglichkeit", ITEM_MOD_STAMINA_SHORT = "Ausdauer",
+                ITEM_MOD_INTELLECT_SHORT = "Intelligenz", ITEM_MOD_SPIRIT_SHORT = "Willenskraft",
+                ITEM_MOD_HEALTH_SHORT = "Gesundheit", ITEM_MOD_MANA_SHORT = "Mana",
+                ITEM_MOD_ATTACK_POWER_SHORT = "Angriffskraft", ITEM_MOD_SPELL_POWER_SHORT = "Zaubermacht",
+                ITEM_MOD_CRIT_RATING_SHORT = "Kritische Trefferwertung",
+                ITEM_MOD_HASTE_RATING_SHORT = "Tempowertung",
+                ITEM_MOD_HIT_RATING_SHORT = "Trefferwertung",
+            }
+            local statOrder = { "ITEM_MOD_STRENGTH_SHORT", "ITEM_MOD_AGILITY_SHORT",
+                "ITEM_MOD_STAMINA_SHORT", "ITEM_MOD_INTELLECT_SHORT", "ITEM_MOD_SPIRIT_SHORT",
+                "ITEM_MOD_HEALTH_SHORT", "ITEM_MOD_MANA_SHORT", "ITEM_MOD_ATTACK_POWER_SHORT",
+                "ITEM_MOD_SPELL_POWER_SHORT", "ITEM_MOD_CRIT_RATING_SHORT", "ITEM_MOD_HASTE_RATING_SHORT",
+                "ITEM_MOD_HIT_RATING_SHORT" }
+            local function itemStats(item)
+                if not item then return nil end
+                if type(item.stats) == "table" and next(item.stats) then return item.stats end
+                if GetItemStats then
+                    local ok, values = pcall(GetItemStats, item.link or ("item:" .. tostring(item.id)))
+                    if ok and type(values) == "table" and next(values) then return values end
+                    if item.link then
+                        ok, values = pcall(GetItemStats, "item:" .. tostring(item.id))
+                        if ok and type(values) == "table" and next(values) then return values end
+                    end
+                end
+                return nil
             end
-            offset = offset + #goals * 53 + 8
+            local function tooltipStatParts(item, slot)
+                if key ~= C.characterKey or not item or not C_TooltipInfo or
+                    not C_TooltipInfo.GetInventoryItem then return nil end
+                local ok, data = pcall(C_TooltipInfo.GetInventoryItem, "player", slot)
+                if not ok or type(data) ~= "table" or type(data.lines) ~= "table" then return nil end
+                local parts = {}
+                for _, line in ipairs(data.lines) do
+                    local value = type(line) == "table" and line.leftText
+                    if type(value) == "string" then
+                        value = value:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+                        if value:match("^%+%d+") then
+                            parts[#parts + 1] = value
+                            if #parts == 3 then break end
+                        end
+                    end
+                end
+                return parts
+            end
+            local function itemQuality(item)
+                if not item then return .48, .43, .34 end
+                return C:ItemQualityColor(item.id,item.quality,item.link)
+            end
+            local statsWidth = math.max(220, math.floor(width * .245))
+            local gearWidth = width - statsWidth - 12
+            local centerWidth = math.max(148, math.floor(gearWidth * .20))
+            local sideWidth = math.floor((gearWidth - centerWidth - 28) / 2)
+            local weaponWidth = math.floor((gearWidth - 22) / 3)
+            local rowHeight, rowStep = 62, 65
+            local stageHeight = rowStep * 8 - 4
+            -- Same paper doll placement as the Blizzard character frame.
+            local paperDollSlots = {
+                1, 2, 3, 15, 5, 4, 19, 9,
+                10, 6, 7, 8, 11, 12, 13, 14,
+                16, 17, 18,
+            }
+            local stage = detailHero.equipmentStage
+            if not stage then
+                stage = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
+                stage.model = CreateFrame("PlayerModel", nil, stage)
+                stage.sigil = stage:CreateTexture(nil, "ARTWORK")
+                stage.caption = stage:CreateFontString(nil, "OVERLAY")
+                stage.caption:SetJustifyH("CENTER"); setFont(stage.caption, 10, MUTED)
+                detailHero.equipmentStage = stage
+            end
+            stage:ClearAllPoints(); stage:SetPoint("TOPLEFT", 4 + sideWidth + 10, -offset)
+            stage:SetSize(centerWidth, stageHeight)
+            backdrop(stage, .08, .048, .026, .96)
+            stage:SetBackdropBorderColor(.42, .29, .1, .8)
+            stage.model:ClearAllPoints(); stage.model:SetPoint("TOPLEFT", 3, -5)
+            stage.model:SetSize(centerWidth - 6, stageHeight - 46)
+            stage.sigil:ClearAllPoints(); stage.sigil:SetPoint("CENTER", stage, "CENTER", 0, 18)
+            stage.sigil:SetSize(math.min(centerWidth - 24, 190), math.min(centerWidth - 24, 190))
+            local liveModel = key == C.characterKey
+            stage.model:SetShown(liveModel); stage.sigil:SetShown(not liveModel)
+            if liveModel then pcall(stage.model.SetUnit, stage.model, "player")
+            else
+                stage.sigil:SetTexture("Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes")
+                local coords = CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[character.class]
+                if coords then stage.sigil:SetTexCoord(unpack(coords)) end
+                stage.sigil:SetVertexColor(cr, cg, cb, .85)
+            end
+            stage.caption:ClearAllPoints(); stage.caption:SetPoint("BOTTOM", stage, "BOTTOM", 0, 15)
+            stage.caption:SetWidth(centerWidth - 16)
+            stage.caption:SetText(liveModel and "AKTUELLER CHARAKTER" or "GESPEICHERTER AUSRÜSTUNGSSTAND")
+            stage:Show()
+            for index, slot in ipairs(paperDollSlots) do
+                local item = slots[slot]
+                local bottom = index > 16
+                local column = index <= 8 and 0 or 1
+                local row = index <= 8 and index - 1 or index - 9
+                local rowWidth = bottom and weaponWidth or sideWidth
+                local x = bottom and (4 + (index - 17) * (weaponWidth + 11)) or
+                    (column == 0 and 4 or 24 + sideWidth + centerWidth)
+                local y = bottom and (offset + stageHeight + 8) or (offset + row * rowStep)
+                local itemRow = card(item and equipmentItemName(item) or "Nicht belegt",
+                    x, y, rowWidth, rowHeight)
+                itemRow:EnableMouse(item ~= nil)
+                itemRow.item = item
+                if item then
+                    itemRow:SetScript("OnEnter", function(self)
+                        if not GameTooltip or not self.item then return end
+                        if C.ShowLootItemTooltip and self.item.id then
+                            C:ShowLootItemTooltip(self,self.item.id,equipmentItemName(self.item),nil,self.item.quality,self.item.link)
+                            return
+                        end
+                        GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+                        local shown = false
+                        if self.item.link and GameTooltip.SetHyperlink then
+                            shown = pcall(GameTooltip.SetHyperlink, GameTooltip, self.item.link)
+                        end
+                        if not shown and GameTooltip.SetItemByID then
+                            shown = pcall(GameTooltip.SetItemByID, GameTooltip, self.item.id)
+                        end
+                        if not shown then GameTooltip:SetText(equipmentItemName(self.item), 1, .82, .1) end
+                        GameTooltip:Show()
+                    end)
+                    itemRow:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+                end
+                local qr, qg, qb = itemQuality(item)
+                itemRow:SetBackdropBorderColor(qr, qg, qb, item and .9 or .4)
+                if not itemRow.icon then itemRow.icon = itemRow:CreateTexture(nil, "ARTWORK") end
+                itemRow.icon:ClearAllPoints(); itemRow.icon:SetPoint("TOPLEFT", 5, -5)
+                itemRow.icon:SetSize(38, 38)
+                local icon = item and item.icon
+                if not icon and item and C_Item and C_Item.GetItemIconByID then
+                    local ok, value = pcall(C_Item.GetItemIconByID, item.id)
+                    if ok then icon = value end
+                end
+                itemRow.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+                itemRow.icon:SetDesaturated(not item); itemRow.icon:Show()
+                itemRow.label:ClearAllPoints(); itemRow.label:SetPoint("TOPLEFT", 49, -4)
+                itemRow.label:SetWidth(rowWidth - 55)
+                setFont(itemRow.label, 11, { qr, qg, qb })
+                itemRow.label:SetTextColor(qr, qg, qb)
+                if not itemRow.caption then itemRow.caption = itemRow:CreateFontString(nil, "OVERLAY") end
+                itemRow.caption:ClearAllPoints(); itemRow.caption:SetPoint("TOPLEFT", 49, -19)
+                setFont(itemRow.caption, 9, GOLD)
+                itemRow.caption:SetText(equipmentSlotNames[slot]); itemRow.caption:Show()
+                if not itemRow.value then itemRow.value = itemRow:CreateFontString(nil, "OVERLAY") end
+                itemRow.value:ClearAllPoints(); itemRow.value:SetPoint("TOPLEFT", 49, -34)
+                itemRow.value:SetWidth(rowWidth - 55); itemRow.value:SetJustifyH("LEFT")
+                itemRow.value:SetHeight(25)
+                setFont(itemRow.value, 10, TEXT)
+                local parts, stats = {}, itemStats(item)
+                if stats then
+                    for _, stat in ipairs(statOrder) do
+                        local amount = tonumber(stats[stat])
+                        if amount and amount ~= 0 then
+                            if #parts < 3 then parts[#parts + 1] = "+" .. amount .. " " .. statLabels[stat] end
+                        end
+                    end
+                end
+                if #parts == 0 then parts = tooltipStatParts(item, slot) or parts end
+                if #parts == 0 and item then
+                    local level = tonumber(item.itemLevel)
+                    if not level and GetItemInfo then
+                        local ok, _, _, _, value = pcall(GetItemInfo, item.id)
+                        if ok then level = tonumber(value) end
+                    end
+                    parts[1] = level and ("Gegenstandsstufe " .. level) or "Werte werden geladen …"
+                end
+                itemRow.value:SetText(table.concat(parts, " · ")); itemRow.value:Show()
+            end
+            local stats = type(character.characterStats) == "table" and character.characterStats or {}
+            local panel = detailHero.statPanel
+            if not panel then
+                panel = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
+                panel.lines = {}
+                detailHero.statPanel = panel
+            end
+            panel:ClearAllPoints(); panel:SetPoint("TOPLEFT", 12 + gearWidth, -offset)
+            panel:SetSize(statsWidth, stageHeight + rowStep + 16)
+            backdrop(panel, .08, .048, .026, .96)
+            panel:SetBackdropBorderColor(.42, .29, .1, .8)
+            local display = {
+                { "Allgemein" }, { "Gesundheit", stats.health }, { "Mana", stats.mana },
+                { "Rüstung", stats.armor },
+                { "Primäre Eigenschaften" }, { "Stärke", stats.strength },
+                { "Beweglichkeit", stats.agility }, { "Ausdauer", stats.stamina },
+                { "Intelligenz", stats.intellect }, { "Willenskraft", stats.spirit },
+                { "Kampf" },
+                { "Waffenschaden", stats.damageMin and stats.damageMax and
+                    (math.floor(stats.damageMin) .. "–" .. math.ceil(stats.damageMax)) or nil },
+                { "Angriffskraft", stats.attackPower },
+                { "Nahkampftreffer", stats.meleeHit, true },
+                { "Kritisch", stats.crit, true }, { "Ausweichen", stats.dodge, true },
+                { "Parieren", stats.parry, true }, { "Blocken", stats.block, true },
+                { "Zauber" }, { "Zaubermacht", stats.spellPower },
+                { "Heilung", stats.healing },
+                { "Zaubertreffer", stats.spellHit, true },
+                { "Zauberkritisch", stats.spellCrit, true },
+            }
+            local lineY, used = 8, 0
+            for _, entry in ipairs(display) do
+                used = used + 1
+                local line = panel.lines[used]
+                if not line then
+                    line = CreateFrame("Frame", nil, panel)
+                    line.label = line:CreateFontString(nil, "OVERLAY")
+                    line.value = line:CreateFontString(nil, "OVERLAY")
+                    line.label:SetJustifyH("LEFT"); line.value:SetJustifyH("RIGHT")
+                    panel.lines[used] = line
+                end
+                local heading = entry[2] == nil and
+                    (entry[1] == "Allgemein" or entry[1] == "Primäre Eigenschaften" or
+                    entry[1] == "Kampf" or entry[1] == "Zauber")
+                local height = heading and 21 or 18
+                line:ClearAllPoints(); line:SetPoint("TOPLEFT", 10, -lineY)
+                line:SetSize(statsWidth - 20, height)
+                line.label:ClearAllPoints(); line.label:SetPoint("LEFT", 0, 0)
+                line.label:SetWidth(statsWidth - (heading and 20 or 98))
+                setFont(line.label, heading and 11 or 10, heading and GOLD or TEXT)
+                line.label:SetText(entry[1])
+                line.value:ClearAllPoints(); line.value:SetPoint("RIGHT", 0, 0)
+                line.value:SetWidth(82)
+                setFont(line.value, 10, { .45, .9, .48 })
+                local value = entry[2]
+                if type(value) == "number" then
+                    value = entry[3] and string.format("%.1f%%", value) or tostring(math.floor(value + .5))
+                end
+                line.value:SetText(heading and "" or (value or "—"))
+                line:Show()
+                lineY = lineY + height
+            end
+            for index = used + 1, #panel.lines do panel.lines[index]:Hide() end
+            panel:Show()
+            offset = offset + stageHeight + rowStep + 18
         end
     elseif selectedDetailTab == "collection" then
         section("Berufe", #professions .. C:LocalizeDisplay(" erfasst"))
@@ -6469,26 +8160,35 @@ showAltDetail = function(key)
             end
             offset = offset + math.ceil(#professions / 2) * 53 + 8
         end
-        section("Besitz & Aufzeichnungen")
+        section("Deine Reise in Zahlen")
         local inventoryCount = journal and U.Count(journal.inventory) or 0
         local bankCount = journal and U.Count(journal.bank) or 0
         for index, metricData in ipairs({
-            { inventoryCount, "INVENTAR" }, { bankCount, "BANK" },
-            { journal and #(journal.deaths or {}) or 0, "TODE" },
+            { inventoryCount, "INVENTAR", "Interface\\Icons\\INV_Misc_Bag_08" },
+            { bankCount, "BANK", "Interface\\Icons\\INV_Misc_Bag_10" },
+            { journal and #(journal.deaths or {}) or 0, "TODE",
+                "Interface\\AddOns\\Chronicle\\DeathMedallion" },
         }) do
-            local metric = card(tostring(metricData[1]), 4 + (index - 1) * (threeWidth + 11),
-                offset, threeWidth, 66)
+            local metric = card(C:LocalizeDisplay(metricData[2]),
+                4 + (index - 1) * (threeWidth + 11), offset, threeWidth, 52)
+            if not metric.icon then metric.icon = metric:CreateTexture(nil, "ARTWORK") end
+            metric.icon:ClearAllPoints()
+            metric.icon:SetPoint("LEFT", 10, 0)
+            metric.icon:SetSize(30, 30)
+            metric.icon:SetTexture(metricData[3]); metric.icon:Show()
             metric.label:ClearAllPoints()
-            metric.label:SetPoint("TOPLEFT", 12, -5)
-            setFont(metric.label, 25, GOLD)
-            if not metric.caption then
-                metric.caption = metric:CreateFontString(nil, "OVERLAY")
-                metric.caption:SetPoint("TOPLEFT", 13, -42)
-                setFont(metric.caption, 10, MUTED)
-            end
-            metric.caption:SetText(C:LocalizeDisplay(metricData[2])); metric.caption:Show()
+            metric.label:SetPoint("LEFT", 50, 0)
+            metric.label:SetWidth(threeWidth - 128)
+            setFont(metric.label, 11, TEXT)
+            if not metric.value then metric.value = metric:CreateFontString(nil, "OVERLAY") end
+            metric.value:ClearAllPoints()
+            metric.value:SetPoint("RIGHT", -14, 0)
+            metric.value:SetWidth(64)
+            metric.value:SetJustifyH("RIGHT")
+            setFont(metric.value, 22, GOLD)
+            metric.value:SetText(tostring(metricData[1])); metric.value:Show()
         end
-        offset = offset + 78
+        offset = offset + 64
     elseif selectedDetailTab == "chronicle" then
         local events = journal and journal.events or {}
         section("Deine Geschichte", math.min(#events, 50) .. C:LocalizeDisplay(" von ") .. #events .. C:LocalizeDisplay(" Erinnerungen"))
@@ -6514,7 +8214,7 @@ showAltDetail = function(key)
                     memory.rail:SetTexture(BACKGROUND)
                     memory.rail:SetPoint("BOTTOMLEFT", 13, 0)
                     memory.rail:SetPoint("BOTTOMRIGHT", -13, 0)
-                    memory.rail:SetHeight(1)
+                    memory.rail:SetHeight(C:RuleThickness())
                     memory.icon = memory:CreateTexture(nil, "ARTWORK")
                     memory.icon:Hide()
                     memory.time = memory:CreateFontString(nil, "OVERLAY")
@@ -6763,6 +8463,7 @@ end
 local function showPage(key)
     if not C.char then C:BindCharacterDatabase() end
     if not C.char then C:Print(C:L("noCharacterData")); return end
+    if C.IsPageVisible and not C:IsPageVisible(key) then key = "settings" end
     updateContentWidth()
     if key == "economy" and C.SyncMoney then C:SyncMoney(true, false) end
     local previousPage = selected
@@ -6770,7 +8471,11 @@ local function showPage(key)
     if key ~= "alts" then selectedAltKey = nil end
     selected = key; local info
     for _, page in ipairs(pages) do if page.key == key then info = page break end end
-    pageTitle:SetText(info and C:L(info.key) or "Chronicle")
+    pageTitle:SetText(info and C:L(info.key) or
+        ((key == "settings" or key == "goals" or key == "notes") and C:L(key) or "Chronicle"))
+    scroll:ClearAllPoints()
+    scroll:SetPoint("TOPLEFT", 18, -49)
+    scroll:SetPoint("BOTTOMRIGHT", -29, (key == "goals" or key == "notes") and 197 or 52)
     local art = motifArt[key]
     pageMotif:SetTexture(art and ("Interface\\AddOns\\Chronicle\\Motif_" .. art) or nil)
     pageMotif:SetSize(key == "overview" and 280 or 330, key == "overview" and 280 or 330)
@@ -6786,6 +8491,10 @@ local function showPage(key)
     if C.HideDiscoveries then C:HideDiscoveries() end
     if C.HideDungeonKnowledge then C:HideDungeonKnowledge() end
     if C.HideAttunements then C:HideAttunements() end
+    if C.HideClassKnowledge then C:HideClassKnowledge() end
+    if C.HideRareKnowledge then C:HideRareKnowledge() end
+    if C.HideSettings then C:HideSettings() end
+    if C.HideCompanions then C:HideCompanions() end
     input:Hide(); action:Hide(); cancelEdit:Hide()
     backButton:Hide(); body:Show()
     moneyToggle:SetShown(key == "economy")
@@ -6805,6 +8514,7 @@ local function showPage(key)
     if key == "zones" then showZoneRows(); scroll:SetVerticalScroll(0) end
     if key == "npcs" then showNPCRows(); scroll:SetVerticalScroll(0) end
     if key == "dungeons" then showDungeonRows(); scroll:SetVerticalScroll(0) end
+    if key == "companions" and C.ShowCompanions then C:ShowCompanions(scrollChild, availableContentWidth()); scroll:SetVerticalScroll(0) end
     if key == "deaths" then showDeathRows(); scroll:SetVerticalScroll(0) end
     if (key == "dungeonknowledge" or key == "raidknowledge") and C.ShowDungeonKnowledge then
         C:ShowDungeonKnowledge(scrollChild, availableContentWidth(), key == "raidknowledge" and "raids" or "dungeons")
@@ -6814,6 +8524,18 @@ local function showPage(key)
         C:ShowAttunements(scrollChild, availableContentWidth())
         scroll:SetVerticalScroll(0)
     end
+    if key == "classes" and C.ShowClassKnowledge then
+        C:ShowClassKnowledge(scrollChild, availableContentWidth())
+        scroll:SetVerticalScroll(0)
+    end
+    if key == "rarecodex" and C.ShowRareKnowledge then
+        C:ShowRareKnowledge(scrollChild, availableContentWidth())
+        scroll:SetVerticalScroll(0)
+    end
+    if key == "settings" and C.ShowSettings then
+        C:ShowSettings(scrollChild, availableContentWidth())
+        scroll:SetVerticalScroll(0)
+    end
     if (key == "gathering" or key == "training" or key == "teachers" or key == "weapons") and C.ShowDiscoveries then
         C:ShowDiscoveries(scrollChild, availableContentWidth(),
             key == "gathering" and "gather" or key == "training" and "training" or key)
@@ -6821,8 +8543,6 @@ local function showPage(key)
     end
     input:Hide(); action:Hide(); cancelEdit:Hide()
     if previousPage ~= key then editingNote = nil end
-    if key == "goals" then input:Show(); action:Show(); action:SetText(C:L("add")); if previousPage ~= key then input:SetText("") end
-    elseif key == "notes" then input:Show(); action:Show(); action:SetText(C:L(editingNote and "change" or "save")); cancelEdit:SetShown(editingNote ~= nil); if previousPage ~= key then input:SetText("") end end
     for pageKey, button in pairs(buttons) do
         local active = pageKey == key
         button:SetEnabled(not active)
@@ -6840,12 +8560,6 @@ local function showPage(key)
             sidebar.scroll:SetVerticalScroll(activeButton.navOffset + 28 - visibleHeight)
         end
     end
-    for pageKey, tab in pairs(quickTabs) do
-        local active = pageKey == key
-        tab.icon:SetAlpha(active and 1 or .9)
-        tab.frame:SetVertexColor(active and 1 or .82, active and 1 or .82, active and 1 or .82, 1)
-        tab.selected:SetShown(active)
-    end
     if previousPage == key then
         scroll:SetVerticalScroll(math.min(previousScroll,
             math.max(0, scrollChild:GetHeight() - scroll:GetHeight())))
@@ -6854,6 +8568,7 @@ end
 backButton:SetScript("OnClick", function() selectedAltKey = nil; showPage("alts"); scroll:SetVerticalScroll(0) end)
 moneyToggle:SetScript("OnClick", function()
     C.showSuspiciousMoney = not C.showSuspiciousMoney
+    if C.db and C.db.settings then C.db.settings.showSuspiciousMoney = C.showSuspiciousMoney end
     showPage("economy")
 end)
 
@@ -6867,10 +8582,12 @@ for _, page in ipairs(pages) do
         section:SetText(C:L(page.group == "REISE" and "journey" or page.group == "WISSEN" and "knowledge" or
             page.group == "SAMMLUNG" and "collection" or "characterGroup"))
         C.navSections[#C.navSections + 1] = { label = section, key = page.group == "REISE" and "journey" or
-            page.group == "WISSEN" and "knowledge" or page.group == "SAMMLUNG" and "collection" or "characterGroup" }
+            page.group == "WISSEN" and "knowledge" or page.group == "SAMMLUNG" and "collection" or
+            page.group == "SYSTEM" and "systemGroup" or "characterGroup" }
         local rule = sidebar.content:CreateTexture(nil, "ARTWORK")
         rule:SetTexture(BACKGROUND); rule:SetVertexColor(.38, .28, .13, .75)
-        rule:SetPoint("TOPLEFT", 91, -navY - 8); rule:SetPoint("TOPRIGHT", -12, -navY - 8); rule:SetHeight(1)
+        rule:SetPoint("TOPLEFT", 91, -navY - 8); rule:SetPoint("TOPRIGHT", -12, -navY - 8); rule:SetHeight(C:RuleThickness())
+        page.section, page.sectionRule = section, rule
         navY = navY + 21
     end
     local button = CreateFrame("Button", nil, sidebar.content); button:SetSize(172, 28); button:SetPoint("TOPLEFT", 6, -navY)
@@ -6907,56 +8624,57 @@ for _, page in ipairs(pages) do
 end
 sidebar.content:SetHeight(navY + 8)
 
-for index, page in ipairs(pages) do
-    local tab = CreateFrame("CheckButton", nil, window)
-    tab:SetSize(36, 36)
-    tab:SetFrameLevel(window:GetFrameLevel() + 25)
-    tab.pageKey = page.key
-    tab.tooltipLabel = C:L(page.key)
-    tab.icon = tab:CreateTexture(nil, "ARTWORK")
-    tab.icon:SetTexture(page.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-    tab.icon:SetPoint("TOPLEFT", 1, -1); tab.icon:SetPoint("BOTTOMRIGHT", -1, 1)
-    tab.icon:SetTexCoord(.07, .93, .07, .93); tab.icon:SetAlpha(.9)
-    tab.frame = tab:CreateTexture(nil, "BACKGROUND")
-    tab.frame:SetTexture("Interface\\SpellBook\\SpellBook-SkillLineTab")
-    tab.frame:SetSize(72, 72); tab.frame:SetPoint("TOP", tab, "TOP", 14, 12)
-    tab.frame:SetVertexColor(.82, .82, .82, 1)
-    tab.selected = tab:CreateTexture(nil, "OVERLAY")
-    tab.selected:SetTexture("Interface\\SpellBook\\SpellBook-SkillLineTab")
-    tab.selected:SetBlendMode("ADD"); tab.selected:SetVertexColor(1, .58, .02, .95)
-    tab.selected:SetSize(72, 72); tab.selected:SetPoint("TOP", tab, "TOP", 14, 12); tab.selected:Hide()
-    tab:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-    tab:SetScript("OnEnter", function(self)
-        self.icon:SetAlpha(1)
-        GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-        GameTooltip:AddLine(self.tooltipLabel, 1, .82, .1)
-        GameTooltip:AddLine(C:L("openSection"), .85, .79, .66)
-        C:ShowLocalizedTooltip()
-    end)
-    tab:SetScript("OnLeave", function(self)
-        self.icon:SetAlpha(self.pageKey == selected and 1 or .9)
-        GameTooltip:Hide()
-    end)
-    tab:SetScript("OnClick", function(self) showPage(self.pageKey) end)
-    quickTabs[page.key] = tab
+function C:IsPageVisible(key)
+    if key == "settings" then return true end
+    local hidden = self.db and self.db.settings and self.db.settings.hiddenPages
+    return not hidden or hidden[key] ~= true
 end
 
-local function layoutQuickTabs()
-    local count = #pages
-    local size = 36
-    local windowHeight = window:GetHeight() or 650
-    local step = math.max(28, math.min(41, math.floor((windowHeight - 24 - size) / math.max(1, count - 1))))
-    local totalHeight = size + (count - 1) * step
-    local topInset = math.floor((windowHeight - totalHeight) / 2 + .5)
-    for index, page in ipairs(pages) do
-        local tab = quickTabs[page.key]
-        tab:ClearAllPoints(); tab:SetSize(size, size)
-        tab:SetPoint("TOPLEFT", window, "TOPRIGHT", -1, -topInset - (index - 1) * step)
-        tab.icon:ClearAllPoints(); tab.icon:SetPoint("TOPLEFT", 1, -1); tab.icon:SetPoint("BOTTOMRIGHT", -1, 1)
+function C:GetConfigurablePages()
+    local result = {}
+    local group
+    for _, page in ipairs(pages) do
+        if page.group then group = page.group end
+        if page.key ~= "settings" then
+            result[#result + 1] = {key = page.key, label = page.label, group = group}
+        end
     end
+    return result
 end
-layoutQuickTabs()
-window:SetScript("OnSizeChanged", layoutQuickTabs)
+
+function C:RefreshNavigation()
+    local y, group = 8, nil
+    local visibleGroups = {}
+    for _, page in ipairs(pages) do
+        if page.group then group = page.group end
+        if self:IsPageVisible(page.key) then visibleGroups[group] = true end
+    end
+    for _, page in ipairs(pages) do
+        if page.section then
+            local showSection = visibleGroups[page.group] == true
+            page.section:SetShown(showSection)
+            page.sectionRule:SetShown(showSection)
+            if showSection then
+                page.section:ClearAllPoints()
+                page.section:SetPoint("TOPLEFT", 16, -y - 2)
+                page.sectionRule:ClearAllPoints()
+                page.sectionRule:SetPoint("TOPLEFT", 91, -y - 8)
+                page.sectionRule:SetPoint("TOPRIGHT", -12, -y - 8)
+                y = y + 21
+            end
+        end
+        local button = buttons[page.key]
+        local visible = self:IsPageVisible(page.key)
+        button:SetShown(visible)
+        if visible then
+            button:ClearAllPoints()
+            button:SetPoint("TOPLEFT", 6, -y)
+            button.navOffset = y
+            y = y + 29
+        end
+    end
+    sidebar.content:SetHeight(y + 8)
+end
 
 local function submit()
     local value = input:GetText()
@@ -6999,7 +8717,8 @@ search:SetScript("OnEnterPressed", function(self)
 end)
 
 function C:RefreshLanguage()
-    subtitle:SetText("VERSION " .. self.version .. "  |  " .. self:L("subtitle"))
+    title:SetText(self:L("subtitle"))
+    subtitle:SetText("VERSION " .. self.version)
     searchHint:SetText(self:L("search"))
     backButton:SetText(self:L("back"))
     cancelEdit:SetText(self:L("cancel"))
@@ -7009,16 +8728,67 @@ function C:RefreshLanguage()
             buttons[page.key].label:SetText(self:L(page.key))
             self:FitNavLabel(buttons[page.key].label)
         end
-        if quickTabs[page.key] then quickTabs[page.key].tooltipLabel = self:L(page.key) end
     end
     for _, section in ipairs(self.navSections) do section.label:SetText(self:L(section.key)) end
     self:Refresh()
 end
 function C:Refresh() if window:IsShown() then showPage(selected == "search" and "overview" or selected) end end
-function C:Toggle() if window:IsShown() then window:Hide() else window:Show(); self:Refresh() end end
+window:HookScript("OnSizeChanged", function(self)
+    if C.UpdateHeaderQuickButtons then C.UpdateHeaderQuickButtons() end
+    if not self:IsShown() or self.resizeRefreshQueued or not (C_Timer and C_Timer.After) then return end
+    self.resizeRefreshQueued = true
+    C_Timer.After(.08, function()
+        self.resizeRefreshQueued = nil
+        if self:IsShown() then C:Refresh() end
+    end)
+end)
+function C:Toggle()
+    if window:IsShown() then window:Hide()
+    else
+        self.mapReturnPending = nil
+        window:Show(); self:Refresh()
+    end
+end
 function C:ShowPage(key)
+    self.mapReturnPending = nil
     if not window:IsShown() then window:Show() end
     showPage(key)
+end
+local hookedWorldMap
+function C:OpenBlizzardMap(mapID, x, y)
+    if self.API and self.API.IsInCombat and self.API.IsInCombat() then return false end
+    if not WorldMapFrame or not WorldMapFrame:IsShown() then
+        if C_Map and C_Map.OpenWorldMap then pcall(C_Map.OpenWorldMap, mapID)
+        end
+        if (not WorldMapFrame or not WorldMapFrame:IsShown()) and ToggleWorldMap then
+            pcall(ToggleWorldMap)
+        end
+    end
+    local map = WorldMapFrame
+    if not map or not map:IsShown() then return false end
+    if mapID and map.SetMapID then pcall(map.SetMapID, map, mapID) end
+    if mapID and x and y and C_Map and C_Map.SetUserWaypoint and
+        UiMapPoint and UiMapPoint.CreateFromCoordinates then
+        local ok, point = pcall(UiMapPoint.CreateFromCoordinates, mapID, x / 100, y / 100)
+        if ok and point and pcall(C_Map.SetUserWaypoint, point) and
+            C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+            pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
+        end
+    end
+    if hookedWorldMap ~= map and map.HookScript then
+        hookedWorldMap = map
+        map:HookScript("OnHide", function()
+            if not C.mapReturnPending then return end
+            C.mapReturnPending = nil
+            window:Show()
+            C:Refresh()
+        end)
+    end
+    if window:IsShown() then
+        self.mapReturnPending = true
+        window:Hide()
+    end
+    return true
 end
 function C:ShowWelcome() end -- Zusammenfassung steht auf der Startseite; keine Popup-Flut.
 C:On("DATA_CHANGED", function()
@@ -7033,6 +8803,8 @@ end)
 C:On("DATABASE_READY", function()
     local settings = C.db and C.db.settings
     if not settings then return end
+    C.showSuspiciousMoney = settings.showSuspiciousMoney == true
+    C:RefreshNavigation()
     local width = math.max(920, math.min(1500, tonumber(settings.windowWidth) or 960))
     local height = math.max(600, math.min(950, tonumber(settings.windowHeight) or 650))
     window:SetSize(width, height)
@@ -7047,6 +8819,7 @@ SlashCmdList.CHRONICLE = function(message)
     elseif command == "note" and value ~= "" then
         if C:AddNote(value) then C:Print("Notiz gespeichert.") else C:Print("Notiz konnte nicht gespeichert werden.") end
     elseif command == "notes" or command == "notizen" then C:ShowPage("notes")
+    elseif command == "settings" or command == "einstellungen" then C:ShowPage("settings")
     elseif command == "repair" then
         if C:BindCharacterDatabase() then C:Print("Charakterdaten neu gebunden: " .. tostring(C.characterKey)); C:ShowPage("notes")
         else C:Print("Charakterdaten konnten nicht gebunden werden.") end
@@ -7098,6 +8871,8 @@ SlashCmdList.CHRONICLE = function(message)
             C.db.settings.windowWidth, C.db.settings.windowHeight = 960, 650
         end
         C:Print("Fensterposition und -groesse zurueckgesetzt.")
-    elseif command == "help" then C:Print("/chronicle, /chr notes, /chr goal <Text>, /chr note <Text>, /chr repair, /chr debug, /chr questdebug, /chr resetpos")
+    elseif command == "leveldemo" then
+        if C.ShowLevelNoticeDemo then C:ShowLevelNoticeDemo() end
+    elseif command == "help" then C:Print("/chronicle, /chr settings, /chr notes, /chr goal <Text>, /chr note <Text>, /chr leveldemo, /chr repair, /chr debug, /chr questdebug, /chr resetpos")
     else C:Toggle() end
 end

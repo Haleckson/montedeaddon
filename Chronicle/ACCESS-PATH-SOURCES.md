@@ -16,9 +16,7 @@ Static English titles are display fallbacks when the client does not supply a
 title for an unaccepted quest. No historical route is labeled mandatory in
 Forever.
 
-Quest giver waypoint coordinates are a small curated set based on the installed
-AzerothCompendium quest catalog (`data/quest_chains.lua` and
-`data/quest_followups.lua`). Chronicle does not require that addon at runtime.
+Quest giver waypoint coordinates are a small curated set from quest records.
 Naxxramas quest variants 9121–9123 use the Light's Hope Chapel vicinity in
 Eastern Plaguelands as an approximate start point; the quest giver is Archmage
 Angela Dosantos. These markers show where to begin a step, not its objective.

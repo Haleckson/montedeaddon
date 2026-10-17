@@ -29,6 +29,7 @@ local raidMaps = {
 -- Client UiMapIDs. Chronicle draws its own overview when a client floor is absent.
 local floors = {
     ["Hall of Thanes"] = {3065}, ["Ruins of Lordaeron"] = {2999},
+    ["Excavation Site: Wetlands"] = {2998}, ["City of Dalaran"] = {2959, 2959002},
     ["Ragefire Chasm"] = {213}, ["The Deadmines"] = {291, 292},
     ["Wailing Caverns"] = {279}, ["Shadowfang Keep"] = {310, 311, 316, 312, 313, 314, 315},
     ["Stormwind Stockade"] = {225}, ["Blackfathom Deeps"] = {221, 222, 223},
@@ -47,17 +48,17 @@ local aliases = { ["Hall of Thanes"] = "The Hall of Thanes",
     ["The Deadmines"] = "The Deadmines",
     ["Stormwind Stockade"] = "The Stockade" }
 
-function C:GetAzerothCompendiumInstance(name)
+function C:GetInstanceDisplayRef(name)
     local wanted = (aliases[name] or name):lower()
-    for id, instance in pairs(self.azerothInstanceRefs or {}) do
+    for id, instance in pairs(self.instanceDisplayRefs or {}) do
         if instance.name and instance.name:lower() == wanted then
             return instance, id
         end
     end
 end
 
-function C:GetAzerothBossDisplayID(instanceName, bossName)
-    local instance = self:GetAzerothCompendiumInstance(instanceName)
+function C:GetBossDisplayID(instanceName, bossName)
+    local instance = self:GetInstanceDisplayRef(instanceName)
     if not instance or not bossName then return nil end
     for name, displayID in pairs(instance.bosses or {}) do
         if name:lower() == bossName:lower() then
@@ -76,7 +77,7 @@ function C:GetDungeonMapFloors(name)
                 local ok, value = pcall(C_Map.GetMapInfo, tonumber(map[1]))
                 if ok then info = value end
             end
-            result[index] = { name = (info and info.name) or map[2] or name,
+            result[index] = { id = tonumber(map[1]), name = (info and info.name) or map[2] or name,
                 file = "Interface\\AddOns\\Chronicle\\DungeonMapArt\\" .. map[1],
                 width = 1024, height = 683, fileWidth = 1024, fileHeight = 1024 }
         end
@@ -84,7 +85,8 @@ function C:GetDungeonMapFloors(name)
     end
     local creatorMap = creatorMaps[name]
     if creatorMap then
-        return {{ name = name, file = "Interface\\AddOns\\Chronicle\\DungeonMapArt\\" .. creatorMap,
+        return {{ id = tonumber(creatorMap), name = name,
+            file = "Interface\\AddOns\\Chronicle\\DungeonMapArt\\" .. creatorMap,
             width = 1024, height = 683, fileWidth = 1024, fileHeight = 1024 }}
     end
     local ids = floors[name]
@@ -94,13 +96,17 @@ function C:GetDungeonMapFloors(name)
         return result
     end
     for index, id in ipairs(ids) do
+        local fileID = id == 2959002 and "2959_2" or tostring(id)
         local info
         if C_Map and C_Map.GetMapInfo then
-            local ok, value = pcall(C_Map.GetMapInfo, id)
+            local ok, value = pcall(C_Map.GetMapInfo, id == 2959002 and 2959 or id)
             if ok then info = value end
         end
-        result[#result + 1] = { id = id, name = info and info.name or
-            (#ids == 1 and self:L("mapOverview") or self:L("mapFloor") .. " " .. index) }
+        result[#result + 1] = { id = id, name = (id == 2959002 and "Dalaran Sewers") or
+            (info and info.name) or
+            (#ids == 1 and self:L("mapOverview") or self:L("mapFloor") .. " " .. index),
+            file = "Interface\\AddOns\\Chronicle\\DungeonMapArt\\" .. fileID,
+            width = 1024, height = 683, fileWidth = 1024, fileHeight = 1024 }
     end
     return result
 end

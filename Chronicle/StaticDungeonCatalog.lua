@@ -2463,9 +2463,9 @@ if not known["Stratholme"] then
     known["Stratholme"] = true
 end
 -- Forever-only raids currently listed as previews in the installed source catalog.
-for _, name in ipairs({"Mount Hyjal", "Barrow Deeps"}) do
+for _, name in ipairs({"Hyjal Summit", "Barrow Deeps"}) do
     if not C.raidKnowledge[name] then
-        C.raidKnowledge[name] = { atlasSource = true, preview = true, quests = {}, bosses = {} }
+        C.raidKnowledge[name] = { level = "60", atlasSource = true, preview = true, quests = {}, bosses = {} }
         C.raidKnowledgeOrder[#C.raidKnowledgeOrder + 1] = name
     end
 end

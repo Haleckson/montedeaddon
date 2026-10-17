@@ -97,12 +97,11 @@ end
 
 function U.LootVisible(entry)
     if type(entry) ~= "table" then return false end
-    if entry.isQuestItem then return true end
     local quality = tonumber(entry.quality)
     if not quality and type(entry.link) == "string" then
         quality = tonumber(entry.link:match("|cnIQ(%d+):"))
     end
-    return quality ~= nil and quality >= 2
+    return quality ~= nil and quality >= 3
 end
 
 function U.Statistics(character)

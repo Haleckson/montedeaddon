@@ -7,10 +7,11 @@ local events = {
     "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_LOGOUT", "PLAYER_LEVEL_UP",
     "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA", "PLAYER_MONEY",
     "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST", "QUEST_TURNED_IN", "QUEST_ACCEPTED", "QUEST_LOG_UPDATE", "BAG_UPDATE_DELAYED",
-    "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "MERCHANT_SHOW", "UPDATE_MOUSEOVER_UNIT",
-    "PLAYER_TARGET_CHANGED", "NAME_PLATE_UNIT_ADDED",
-    "PLAYER_ENTERING_WORLD", "ENCOUNTER_END", "ENCOUNTER_LOOT_RECEIVED", "CHAT_MSG_LOOT", "SKILL_LINES_CHANGED",
-    "PLAYER_GUILD_UPDATE", "GUILD_ROSTER_UPDATE", "PLAYER_TALENT_UPDATE",
+    "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "MERCHANT_SHOW", "MERCHANT_CLOSED", "TRAINER_SHOW", "UPDATE_MOUSEOVER_UNIT",
+    "PLAYER_TARGET_CHANGED", "NAME_PLATE_UNIT_ADDED", "UNIT_HEALTH", "UNIT_DIED",
+    "PLAYER_ENTERING_WORLD", "ENCOUNTER_END", "ENCOUNTER_LOOT_RECEIVED", "CHAT_MSG_LOOT", "LOOT_OPENED", "SKILL_LINES_CHANGED",
+    "PLAYER_GUILD_UPDATE", "GUILD_ROSTER_UPDATE", "PLAYER_TALENT_UPDATE", "PLAYER_EQUIPMENT_CHANGED", "GET_ITEM_INFO_RECEIVED",
+    "UNIT_STATS", "UNIT_MAXHEALTH", "UNIT_MAXPOWER", "UNIT_ATTACK_POWER", "UNIT_DAMAGE", "COMBAT_RATING_UPDATE", "PLAYER_DAMAGE_DONE_MODS",
     "PLAYER_SPECIALIZATION_CHANGED", "ACTIVE_TALENT_GROUP_CHANGED", "TRAIT_CONFIG_UPDATED",
     "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_DATA_SOURCE_CHANGED", "TRADE_SKILL_CLOSE",
 }
@@ -21,11 +22,6 @@ local function zoneName()
 end
 
 local deathObserved = false
-local function observePlayerDamage()
-    if not C.char or type(CombatLogGetCurrentEventInfo) ~= "function" then return end
-    local _, kind, _, _, sourceName, _, _, destGUID, _, _, _, arg12, arg13, arg14, arg15, arg16 = CombatLogGetCurrentEventInfo()
-    C:ObserveDeathCombat(kind, sourceName, destGUID, arg12, arg13, arg14, arg15, arg16)
-end
 local function recordDeath(fromDeathEvent)
     -- PLAYER_DEAD is authoritative even if a missed resurrection event left
     -- the health-event guard set from an earlier death.
@@ -55,6 +51,68 @@ end
 
 local talentScanQueued
 local moneyPollSerial = 0
+local moneyHooksInstalled = {}
+
+function C:MarkMoneyIntent(reason, direction, expected)
+    if type(reason) ~= "string" or reason == "" then return end
+    self.moneyIntent = { reason = reason, direction = direction, expected = expected, at = time() }
+end
+
+local function installMoneyHooks()
+    if type(hooksecurefunc) ~= "function" then return end
+    local function hook(name, callback)
+        if not moneyHooksInstalled[name] and type(_G[name]) == "function" then
+            moneyHooksInstalled[name] = pcall(hooksecurefunc, name, callback)
+        end
+    end
+    hook("BuyMerchantItem", function(index)
+        local name
+        if type(GetMerchantItemInfo) == "function" then
+            local ok, value = pcall(GetMerchantItemInfo, index)
+            if ok then name = value end
+        end
+        C:MarkMoneyIntent("Beim Händler gekauft" .. (name and ": " .. name or ""), -1)
+    end)
+    hook("BuyTrainerService", function(index)
+        local name, cost
+        if type(GetTrainerServiceInfo) == "function" then
+            local ok, value = pcall(GetTrainerServiceInfo, index)
+            if ok then name = value end
+        end
+        if type(GetTrainerServiceCost) == "function" then
+            local ok, value = pcall(GetTrainerServiceCost, index)
+            if ok then cost = tonumber(value) end
+        end
+        C:MarkMoneyIntent("Beim Trainer gelernt" .. (name and ": " .. name or ""), -1, cost)
+    end)
+    hook("RepairAllItems", function()
+        C:MarkMoneyIntent("Ausrüstung repariert", -1)
+    end)
+    hook("TakeTaxiNode", function(index)
+        local name
+        if type(TaxiNodeName) == "function" then
+            local ok, value = pcall(TaxiNodeName, index)
+            if ok then name = value end
+        end
+        C:MarkMoneyIntent("Flugreise" .. (name and ": " .. name or ""), -1)
+    end)
+end
+
+local function moneyReason(delta)
+    local intent = C.moneyIntent
+    C.moneyIntent = nil
+    if intent and time() - intent.at <= 3 and
+        (not intent.direction or (delta > 0 and intent.direction > 0) or
+            (delta < 0 and intent.direction < 0)) and
+        (not intent.expected or intent.expected <= 0 or math.abs(delta) == intent.expected) then
+        return intent.reason
+    end
+    if C.merchantOpen then
+        return delta > 0 and "Verkauf beim Händler" or "Ausgabe beim Händler"
+    end
+    return nil
+end
+
 local function startMoneyPolling()
     if not (C_Timer and C_Timer.After) then return end
     moneyPollSerial = moneyPollSerial + 1
@@ -91,8 +149,10 @@ function C:SyncMoney(recordChange, notify)
         self.pendingZeroMoneyAt = nil
     end
     if recordChange and self.moneyReady and previous then
+        local delta = current - previous
         U.PushLimited(self.char.economy, {
-            time = time(), delta = current - previous, balance = current, zone = zoneName(),
+            time = time(), delta = delta, balance = current, zone = zoneName(),
+            reason = moneyReason(delta),
         }, self.db.settings.maxEconomy or 500)
     end
     self.char.money = current
@@ -224,6 +284,25 @@ local function reconstructBossLoot()
     if recovered > 0 then C:Fire("DATA_CHANGED", "bossloot") end
 end
 
+local function observeLootSources()
+    if not GetNumLootItems or not GetLootSlotLink or not UnitGUID or
+        not UnitIsDead or not UnitIsDead("target") then return end
+    local guid = UnitGUID("target")
+    local name = UnitName and UnitName("target")
+    if type(guid) ~= "string" or type(name) ~= "string" or name == "" then return end
+    local count = GetNumLootItems()
+    if type(count) ~= "number" then return end
+    C.pendingLootSources = C.pendingLootSources or {}
+    for slot = 1, count do
+        local ok, link = pcall(GetLootSlotLink, slot)
+        local itemID = ok and type(link) == "string" and tonumber(link:match("|Hitem:(%d+)"))
+        if itemID then
+            C.pendingLootSources[itemID] = { name = name, npcID = U.UnitGUIDID(guid),
+                zone = zoneName(), time = time(), confidence = "target" }
+        end
+    end
+end
+
 local function scanBags(destination, firstBag, lastBag)
     if not C.char or not (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerItemInfo) then return false end
     local availableSlots = 0
@@ -260,12 +339,22 @@ local function scanBags(destination, firstBag, lastBag)
                 local gained = row.count - (old and old.count or 0)
                 if gained > 0 then
                     local name = row.link and row.link:match("|h%[([^%]]+)%]|h") or ("Gegenstand #" .. key)
-                    U.PushLimited(C.char.loot, {
-                        time = time(), link = row.link, name = name, id = row.id,
-                        quantity = gained, zone = zoneName(), source = "inventory",
-                        quality = row.quality, isQuestItem = row.isQuestItem, questID = row.questID,
-                        sellPrice = row.sellPrice,
-                    }, C.db.settings.maxLoot or 400)
+                    local quality = tonumber(row.quality) or tonumber(type(row.link) == "string" and
+                        row.link:match("|cnIQ(%d+):")) or 0
+                    if quality >= 3 then
+                        local candidate = C.pendingLootSources and C.pendingLootSources[row.id]
+                        local source = candidate and time() - (candidate.time or 0) <= 60 and
+                            candidate.zone == zoneName() and candidate or nil
+                        U.PushLimited(C.char.loot, {
+                            time = time(), link = row.link, name = name, id = row.id,
+                            quantity = gained, zone = zoneName(), source = "inventory",
+                            quality = quality, isQuestItem = row.isQuestItem, questID = row.questID,
+                            sellPrice = row.sellPrice, sourceName = source and source.name,
+                            sourceNpcID = source and source.npcID,
+                            sourceConfidence = source and source.confidence,
+                        }, C.db.settings.maxLoot or 400)
+                        if source then C.pendingLootSources[row.id] = nil end
+                    end
                     if (tonumber(row.quality) or 0) >= 2 and type(row.link) == "string" then
                         local boss = recentDefeatedBoss()
                         if boss and boss.zone == zoneName() then
@@ -335,7 +424,28 @@ local function recordNPC(unit, merchant)
         local firstSighting = C.char.rares[name] == nil
         local rare = C.char.rares[name] or { firstSeen = time(), sightings = 0 }
         rare.lastSeen, rare.zone, rare.npcID = time(), row.zone, row.npcID
+        if C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition then
+            local okMap, mapID = pcall(C_Map.GetBestMapForUnit, "player")
+            if okMap and mapID then
+                local okPosition, position = pcall(C_Map.GetPlayerMapPosition, mapID, "player")
+                if okPosition and position and position.GetXY then
+                    local okCoordinates, x, y = pcall(position.GetXY, position)
+                    if okCoordinates and type(x) == "number" and type(y) == "number" then
+                        rare.mapID, rare.x, rare.y = mapID, x, y
+                    end
+                end
+            end
+        end
         rare.classification = classification
+        if guid and UnitIsDead and not UnitIsDead(unit) then
+            C.liveRareGUIDs = C.liveRareGUIDs or {}
+            C.liveRareGUIDs[guid] = true
+            local death = C.char.rareDeaths and C.char.rareDeaths[row.npcID]
+            if death and (death.guid ~= guid or time() - (tonumber(death.time) or 0) > 10) then
+                C.char.rareDeaths[row.npcID] = nil
+                C:Fire("DATA_CHANGED", "rareDeath")
+            end
+        end
         local newSighting = not C.seenRares[sightingKey]
         if newSighting then
             rare.sightings = (rare.sightings or 0) + 1
@@ -345,6 +455,31 @@ local function recordNPC(unit, merchant)
         if firstSighting then C:AddEvent("rare", "Seltene Kreatur entdeckt: " .. name, { zone = row.zone, npcID = row.npcID }) end
         if newSighting and not firstSighting then C:Fire("DATA_CHANGED", "rare") end
     end
+end
+
+local function recordRareDeath(guid, name)
+    if not C.char or type(guid) ~= "string" then return end
+    local id = U.UnitGUIDID(guid)
+    if not id then return end
+    local known = C.rareReferenceCatalog and C.rareReferenceCatalog[id]
+    if not known then
+        for _, sighting in pairs(C.char.rares or {}) do
+            if sighting.npcID == id then known = true; break end
+        end
+    end
+    if not known then return end
+    local now = time()
+    C.char.rareDeaths = C.char.rareDeaths or {}
+    local previous = C.char.rareDeaths[id]
+    if previous and previous.guid == guid and now - (tonumber(previous.time) or 0) < 300 then return end
+    local mapID
+    if C_Map and C_Map.GetBestMapForUnit then
+        local ok, result = pcall(C_Map.GetBestMapForUnit, "player")
+        if ok then mapID = result end
+    end
+    C.char.rareDeaths[id] = {time = now, guid = guid, mapID = mapID, name = name}
+    if C.liveRareGUIDs then C.liveRareGUIDs[guid] = nil end
+    C:Fire("DATA_CHANGED", "rareDeath")
 end
 
 local function scanProfessions()
@@ -378,10 +513,15 @@ local function scanRecipes()
     local added = 0
     for id, recipe in pairs(snapshot.recipes) do
         if not known[id] then
-            known[id] = { id = recipe.id, name = recipe.name, icon = recipe.icon, firstSeen = time(), lastSeen = time() }
+            known[id] = { id = recipe.id, name = recipe.name, icon = recipe.icon,
+                skill = recipe.skill, reagents = recipe.reagents, outputItemID = recipe.outputItemID,
+                firstSeen = time(), lastSeen = time() }
             added = added + 1
         else
             known[id].name, known[id].icon, known[id].lastSeen = recipe.name, recipe.icon, time()
+            if recipe.skill then known[id].skill = recipe.skill end
+            if recipe.outputItemID then known[id].outputItemID = recipe.outputItemID end
+            if recipe.reagents and #recipe.reagents > 0 then known[id].reagents = recipe.reagents end
         end
     end
     C.char.recipes[snapshot.profession] = known
@@ -459,7 +599,31 @@ local function eventHandler(_, event, ...)
     end
 
     if not C.char and not C:BindCharacterDatabase() then return end
-    if event == "PLAYER_LOGIN" then
+    if event == "UNIT_DIED" then
+        local guid = ...
+        if not issecretvalue or not issecretvalue(guid) then
+            recordRareDeath(guid)
+        end
+        return
+    elseif event == "UNIT_HEALTH" then
+        local unit = ...
+        if unit == "target" or unit == "mouseover" or unit == "focus" then
+            local guid = UnitGUID and UnitGUID(unit)
+            local id = U.UnitGUIDID(guid)
+            if id and C.rareReferenceCatalog and C.rareReferenceCatalog[id] and UnitIsDead then
+                if UnitIsDead(unit) then
+                    if C.liveRareGUIDs and C.liveRareGUIDs[guid] then
+                        recordRareDeath(guid, UnitName and UnitName(unit))
+                    end
+                else
+                    C.liveRareGUIDs = C.liveRareGUIDs or {}
+                    C.liveRareGUIDs[guid] = true
+                end
+            end
+        end
+        return
+    elseif event == "PLAYER_LOGIN" then
+        installMoneyHooks()
         C:BindCharacterDatabase()
         if not C.char then C:Print("Charakterdaten konnten beim Login nicht gebunden werden."); return end
         recentDamage = nil
@@ -470,12 +634,13 @@ local function eventHandler(_, event, ...)
         startMoneyPolling()
         C.pendingLogin = true
         C.inventoryBaseline = nil
-        C.seenNPCs, C.seenRares = {}, {}
-        recordZone(); C:UpdateCharacterSummary(); scanBags("inventory", 0, 4); scanProfessions(); scanActiveQuests(false)
+        C.seenNPCs, C.seenRares, C.liveRareGUIDs = {}, {}, {}
+        recordZone(); C:UpdateCharacterSummary(); C:UpdateEquipmentSnapshot(); scanBags("inventory", 0, 4); scanProfessions(); scanActiveQuests(false)
         reconstructBossLoot()
         queueTalentScan()
     elseif event == "PLAYER_LOGOUT" then
         moneyPollSerial = moneyPollSerial + 1
+        C.moneyIntent, C.merchantOpen = nil, nil
         if C.char then
             C.char.lastLogoutBeforeUIReload = C.char.lastLogout
             C.char.lastLogout = time()
@@ -503,6 +668,19 @@ local function eventHandler(_, event, ...)
     elseif event == "PLAYER_TALENT_UPDATE" or event == "PLAYER_SPECIALIZATION_CHANGED" or
         event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
         queueTalentScan()
+    elseif event == "PLAYER_EQUIPMENT_CHANGED" then
+        if C_Timer and C_Timer.After then
+            C_Timer.After(.2, function() if C.char then C:UpdateEquipmentSnapshot() end end)
+        else
+            C:UpdateEquipmentSnapshot()
+        end
+    elseif event == "GET_ITEM_INFO_RECEIVED" then
+        if C.char then C:UpdateEquipmentSnapshot() end
+    elseif event == "UNIT_STATS" or event == "UNIT_MAXHEALTH" or event == "UNIT_MAXPOWER" or
+        event == "UNIT_ATTACK_POWER" or event == "UNIT_DAMAGE" or event == "COMBAT_RATING_UPDATE" or
+        event == "PLAYER_DAMAGE_DONE_MODS" then
+        local unit = ...
+        if C.char and (not unit or unit == "player") then C:UpdateCharacterStats() end
     elseif event == "PLAYER_DEAD" then
         recordDeath(true)
     elseif event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
@@ -510,6 +688,16 @@ local function eventHandler(_, event, ...)
         deathObserved = false
     elseif event == "QUEST_TURNED_IN" then
         local questID, xp, money = ...; local title = A.QuestTitle(questID)
+        if tonumber(money) and tonumber(money) > 0 then
+            local reason = "Questbelohnung: " .. title
+            local recent = C.char.economy and C.char.economy[1]
+            if recent and not recent.reason and recent.delta == tonumber(money) and
+                time() - (tonumber(recent.time) or 0) <= 2 then
+                recent.reason = reason
+            else
+                C:MarkMoneyIntent(reason, 1, tonumber(money))
+            end
+        end
         U.PushLimited(C.char.quests, { time = time(), id = questID, title = title, status = "completed", xp = xp, money = money, zone = zoneName() }, C.db.settings.maxQuests)
         if questID then
             C.char.activeQuests[tostring(questID)] = nil
@@ -535,7 +723,13 @@ local function eventHandler(_, event, ...)
         end
         if C_Timer and C_Timer.After then C_Timer.After(.3, scanOpenedBank) else scanOpenedBank() end
     elseif event == "BANKFRAME_CLOSED" then C.bankOpen = nil
-    elseif event == "MERCHANT_SHOW" then recordNPC("npc", true); C:AddEvent("merchant", "Haendler besucht: " .. U.SafeText(UnitName("npc")))
+    elseif event == "MERCHANT_SHOW" then
+        installMoneyHooks()
+        C.merchantOpen = true
+        recordNPC("npc", true); C:AddEvent("merchant", "Haendler besucht: " .. U.SafeText(UnitName("npc")))
+    elseif event == "MERCHANT_CLOSED" then C.merchantOpen = nil
+    elseif event == "LOOT_OPENED" then observeLootSources()
+    elseif event == "TRAINER_SHOW" then installMoneyHooks()
     elseif event == "UPDATE_MOUSEOVER_UNIT" then recordNPC("mouseover", false)
     elseif event == "PLAYER_TARGET_CHANGED" then recordNPC("target", false)
     elseif event == "NAME_PLATE_UNIT_ADDED" then
@@ -552,6 +746,7 @@ local function eventHandler(_, event, ...)
         if C_Timer and C_Timer.After then
             C_Timer.After(1, function()
                 C:BindCharacterDatabase()
+                C:UpdateEquipmentSnapshot()
                 if not C.moneyReady then C:SyncMoney(false, false); C.moneyReady = true end
                 C:Fire("DATA_CHANGED", "database")
                 recordInstance(isReloadingUi)

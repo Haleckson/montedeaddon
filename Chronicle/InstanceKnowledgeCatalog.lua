@@ -8,7 +8,13 @@ local canonicalNames = { ["The Hall of Thanes"] = "Hall of Thanes",
     ["Deadmines"] = "The Deadmines",
     ["Excavation Site"] = "Excavation Site: Wetlands",
     ["The Stockade"] = "Stormwind Stockade",
-    ["The Stockades"] = "Stormwind Stockade" }
+    ["The Stockades"] = "Stormwind Stockade",
+    ["Mount Hyjal"] = "Hyjal Summit",
+    ["The Barrow Deeps"] = "Barrow Deeps" }
+
+local function encounterNameKey(value)
+    return (value or ""):lower():gsub("<[^>]*>", ""):gsub("[^%w]", "")
+end
 
 local function journalEntries(raid)
     local entries = {}
@@ -127,21 +133,23 @@ function C:RefreshInstanceKnowledge()
                         }
                     elseif catalog[name].atlasSource and #liveBosses > 0 then
                         local entry = catalog[name]
-                        local matched = {}
                         for _, liveBoss in ipairs(liveBosses) do
+                            local saved
                             for _, savedBoss in ipairs(entry.bosses or {}) do
-                                if liveBoss.name:lower() == savedBoss.name:lower() then
-                                    liveBoss.loot = savedBoss.loot or {}
-                                    liveBoss.displayID = liveBoss.displayID or savedBoss.displayID
-                                    matched[savedBoss] = true
+                                if encounterNameKey(liveBoss.name) == encounterNameKey(savedBoss.name) then
+                                    saved = savedBoss
                                     break
                                 end
                             end
+                            if saved then
+                                saved.encounterID = liveBoss.encounterID
+                                saved.displayID = saved.displayID or liveBoss.displayID
+                                saved.description = saved.description or liveBoss.description
+                            elseif not (name == "City of Dalaran" and
+                                (liveBoss.name == "Mana Elemental" or liveBoss.name == "Mana Wraith")) then
+                                entry.bosses[#entry.bosses + 1] = liveBoss
+                            end
                         end
-                        for _, savedBoss in ipairs(entry.bosses or {}) do
-                            if not matched[savedBoss] then liveBosses[#liveBosses + 1] = savedBoss end
-                        end
-                        entry.bosses = liveBosses
                         entry.description = info.description
                         entry.icon = info.icon
                         entry.instanceID = info.id
@@ -165,23 +173,45 @@ end
 
 function C:PopulateInstanceKnowledgeLoot(data)
     if not data or not data.journalSource or data.lootReady then return end
+    local now = type(GetTime) == "function" and GetTime() or nil
+    if now and data.lootNextRetry and now < data.lootNextRetry then return end
     local oldTier = EJ_GetCurrentTier and EJ_GetCurrentTier()
     if data.journalTier and EJ_SelectTier then pcall(EJ_SelectTier, data.journalTier) end
     if EJ_SelectInstance then pcall(EJ_SelectInstance, data.instanceID) end
-    local found = 0
+    local pending = false
     for _, boss in ipairs(data.bosses or {}) do
         local liveLoot = boss.encounterID and encounterLoot(boss.encounterID) or {}
         if #liveLoot > 0 then
             local known = {}
-            for _, item in ipairs(liveLoot) do known[item[1]] = true end
+            for _, item in ipairs(liveLoot) do known[item[1]] = item end
             for _, item in ipairs(boss.loot or {}) do
-                if not known[item[1]] then liveLoot[#liveLoot + 1] = item end
+                local current = known[item[1]]
+                if current then
+                    -- Keep catalog metadata when a journal row only supplies an ID/name.
+                    if type(item[3]) == "string" and item[3] ~= "" and
+                        not item[3]:find("|Hitem", 1, true) then
+                        current[6] = item[3]
+                    end
+                    for index = 3, 5 do
+                        if current[index] == nil or current[index] == "" then
+                            current[index] = item[index]
+                        end
+                    end
+                    if type(current[2]) ~= "string" or current[2]:match("^Item #%d+$") then
+                        current[2] = item[2]
+                    end
+                else
+                    liveLoot[#liveLoot + 1] = item
+                end
             end
             boss.loot = liveLoot
+            if self.InvalidateItemDropSources then self:InvalidateItemDropSources() end
+        elseif boss.encounterID then
+            pending = true
         end
-        found = found + #boss.loot
     end
     if oldTier and EJ_SelectTier then pcall(EJ_SelectTier, oldTier) end
-    -- The journal can deliver item data later; retry when the detail is reopened.
-    data.lootReady = found > 0
+    -- A populated static catalog must not hide journal loot that arrives later.
+    data.lootReady = not pending
+    data.lootNextRetry = pending and now and (now + 5) or nil
 end

@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: ForeverDB
+## Notes: Automatic in-game item database
+## Author: ForeverDB
+## Version: 2.0
+## SavedVariables: ForeverDBDatabase
+
+ForeverWorldData.lua
+ForeverSourceData.lua
+ForeverSourceEnrichment.lua
+ForeverSourceOverrides.lua
+ForeverPendingSourceReview.lua
+ForeverDB.lua

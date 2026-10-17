@@ -1,0 +1,15 @@
+## Interface: 16001
+## Title: ForeverBrowser
+## Notes: ForeverDB browser interface
+## Author: ForeverDB
+## Version: v1.0.1
+## Dependencies: ForeverDB
+
+ForeverBiSGenerated.lua
+ForeverBiSData.lua
+ForeverBiS.lua
+ForeverBrowserThemes.lua
+ForeverTalentPresets.lua
+ForeverTalents.lua
+ForeverBrowser.lua
+ForeverBrowserLayout.lua
